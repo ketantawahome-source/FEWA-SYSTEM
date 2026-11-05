@@ -11,10 +11,12 @@
 # Passwords never go in this file or anywhere else in GitHub.
 name: Deploy to Azure
 
+# For now the system runs on Render (render.yaml), so this only runs when started by hand:
+# Actions tab > Deploy to Azure > Run workflow. To deploy on every push, add back:
+#   push:
+#     branches: [main]
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: # also: Actions tab > Deploy to Azure > Run workflow
+  workflow_dispatch:
 
 env:
   AZURE_WEBAPP_NAME: fewa-system # the name of the Azure web app (change it if Azure gave a different one)

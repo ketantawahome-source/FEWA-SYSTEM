@@ -5,10 +5,21 @@ The pages run in the browser; `server.mjs` serves them and keeps all data in Pos
 optional two-way synced copy on a local PostgreSQL. Logins are checked on the server, and each person only
 gets the data they may see, so the system can be put online.
 
-## Online (Microsoft Azure)
+## Online (Render.com)
 
-`.github/workflows/azure-webapp.yml` deploys the system to an Azure App Service web app on every push to
-`main`. One-time setup:
+`render.yaml` sets the system up on Render, deployed from this GitHub repository; every push updates it.
+In Render: **New > Blueprint**, choose this repository, and enter `DATABASE_URL` when asked:
+
+```
+postgresql://postgres.<project-ref>:<database-password>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
+```
+
+Create the first administrator account on the office computer first (setting up is never allowed online).
+
+## Later: Microsoft Azure instead
+
+`.github/workflows/azure-webapp.yml` deploys the system to an Azure App Service web app (started by hand
+from the Actions tab until `push` is added back to it). One-time setup:
 
 1. In the [Azure portal](https://portal.azure.com): **Create a resource > Web App** with
    Publish **Code**, Runtime stack **Node 22 LTS**, Operating System **Linux**, region **North Europe**
@@ -24,9 +35,7 @@ gets the data they may see, so the system can be put online.
    Actions > New repository secret** named `AZURE_WEBAPP_PUBLISH_PROFILE`, pasting the whole file.
    (If the download is greyed out: web app **Settings > Configuration > General settings > SCM Basic Auth
    Publishing Credentials: On**.)
-4. In GitHub: **Actions > Deploy to Azure > Run workflow** (later pushes deploy by themselves).
-
-Create the first administrator account on the office computer first (setting up is never allowed online).
+4. In GitHub: **Actions > Deploy to Azure > Run workflow**.
 
 ## On the office computer
 
@@ -56,4 +65,5 @@ Create the first administrator account on the office computer first (setting up 
 | `StudentAdmissions.html` | Student Hub, documents, queries, finance, reports, settings |
 | `Dashboard.html`, `NewStudents.html`, `Staff.html`, `StudentPortal.html`, `login.html`, `ChangePassword.html` | The other pages |
 | `start-server.bat` | Starts the system on Windows |
-| `.github/workflows/azure-webapp.yml` | Online hosting on Microsoft Azure App Service |
+| `render.yaml` | Online hosting on Render.com |
+| `.github/workflows/azure-webapp.yml` | Online hosting on Microsoft Azure App Service (for later) |
