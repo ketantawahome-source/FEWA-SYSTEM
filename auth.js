@@ -74,6 +74,8 @@ async function createAdminAccount(username, password, phone) {
         jobTitle: 'System Administrator', role: ROLE_ADMIN, status: 'Active',
         createdAt: new Date().toISOString(), salt, hash: await hashPassword(password, salt)
     }]);
+    // Log in with it, so the server starts the session
+    await serverLogin(username, password);
 }
 
 // The part of a username (email) a password must not contain, e.g. "jane" for jane@fewacollege.ac.ke
@@ -186,10 +188,11 @@ function samplePassword() {
     return chars.join('');
 }
 
+// The logged-in staff member's own new password, set by the server. Returns 'ok', or 'same' when it is
+// the current password.
 async function setPassword(email, password) {
-    const salt = randomHex(16);
-    const hash = await hashPassword(password, salt);
-    saveAccounts(getAccounts().map(a => sameEmail(a.username, email) ? { ...a, salt, hash, adminResetRequired: false } : a));
+    const { result } = await api('POST', '/password', { password });
+    return result;
 }
 
 // A deactivated or reactivated staff member whose password has been cancelled: only an
@@ -234,27 +237,29 @@ function maskEmail(email) {
     return name.slice(0, 2) + '•••@' + domain;
 }
 
-// Returns 'ok', 'wrong', 'inactive', 'reset-required' (reactivated; an administrator must send a
-// reset link) or 'no-password' (staff who have not set a password yet)
-async function checkLogin(username, password) {
-    const account = findAccount(username);
-    if (!account) return 'wrong';
-    if (account.status === 'Inactive') return 'inactive';
-    if (!account.hash) return account.adminResetRequired ? 'reset-required' : 'no-password';
-    return account.hash === await hashPassword(password, account.salt) ? 'ok' : 'wrong';
+/* Logging in: the server checks the username and password and, when right, starts a session (a cookie).
+   Staff log in with their email, students with their AdmNo. Returns { result, kind, username, studentId, admNo }:
+   result is 'ok', 'wrong', 'locked' (too many wrong tries), or for staff 'inactive', 'reset-required'
+   (reactivated; an administrator must send a reset link), 'no-password'; for students 'wrong-case',
+   'wrong-password', 'inactive', 'reset-required', 'no-password'. */
+async function serverLogin(username, password) {
+    return api('POST', '/session/login', { username, password });
 }
 
+// The page keeps a note of who logged in (the server's session is what counts)
 function startSession(username) {
-    sessionStorage.setItem(AUTH_SESSION_KEY, findAccount(username).username);
+    sessionStorage.setItem(AUTH_SESSION_KEY, username);
+}
+
+// The logged-in staff member, as the server knows them (null for students and visitors)
+function currentAccount() {
+    if (fewaSession.kind !== 'staff') return null;
+    return getAccounts().find(a => a.id === fewaSession.accountId) || null;
 }
 
 function currentUser() {
-    return sessionStorage.getItem(AUTH_SESSION_KEY);
-}
-
-function currentAccount() {
-    const user = currentUser();
-    return user ? findAccount(user) : null;
+    const account = currentAccount();
+    return account ? account.username : null;
 }
 
 const isAdmin = () => (currentAccount() || {}).role === ROLE_ADMIN;
@@ -263,8 +268,16 @@ function accountName(account) {
     return [account.firstName, account.lastName].filter(Boolean).join(' ') || account.username;
 }
 
-function logout() {
+function endServerSession() {
+    try {
+        apiSync('POST', '/session/logout', {});
+    } catch { }
     sessionStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem(STUDENT_SESSION_KEY);
+}
+
+function logout() {
+    endServerSession();
     location.replace('login.html');
 }
 
@@ -316,8 +329,10 @@ const createOtp = email => createCode(sessionStorage, codeKey(AUTH_OTP_KEY, emai
 const verifyOtp = (email, code) => checkCode(sessionStorage, codeKey(AUTH_OTP_KEY, email), code);
 
 /* ---------- Forgot password / new staff password ----------
-   The reset code lives in the database (serverStorage, db.js) so the link in the email works when it opens in
-   a new tab, or on another computer. */
+   The reset code is made and checked by the server (only a hash of it is kept), so the link in the email
+   works in a new tab or on another computer. Only an administrator's page can have a code made, since the
+   page emails it: a person who forgot their password asks an administrator (Staff Management > Send Reset
+   Link). A right code lets that person choose a new password within 10 minutes. */
 const AUTH_RESET_KEY = 'fewaPendingReset';
 const RESET_VALID_MINUTES = 15;
 const NEW_STAFF_VALID_MINUTES = 24 * 60;
@@ -329,8 +344,7 @@ const RESET_GRANT_MINUTES = 10;
 
 // Returns the same results as checkCode
 async function verifyResetCode(email, code) {
-    if (!isRegisteredEmail(email)) return 'none';
-    const result = await checkCode(serverStorage, codeKey(AUTH_RESET_KEY, email), code);
+    const { result } = await api('POST', '/password-reset/verify', { email, code });
     if (result === 'ok') {
         sessionStorage.setItem(AUTH_RESET_GRANT_KEY, JSON.stringify({
             email: email.trim().toLowerCase(), expires: Date.now() + RESET_GRANT_MINUTES * 60 * 1000
@@ -342,7 +356,7 @@ async function verifyResetCode(email, code) {
 function resetGrantedFor() {
     try {
         const grant = JSON.parse(sessionStorage.getItem(AUTH_RESET_GRANT_KEY));
-        return grant && Date.now() <= grant.expires && isRegisteredEmail(grant.email) ? grant.email : null;
+        return grant && Date.now() <= grant.expires ? grant.email : null;
     } catch {
         return null;
     }
@@ -350,23 +364,21 @@ function resetGrantedFor() {
 
 // Sets the new password only for the account whose code was accepted; false when that has run out
 async function completePasswordReset(newPassword) {
-    const email = resetGrantedFor();
     sessionStorage.removeItem(AUTH_RESET_GRANT_KEY);
-    if (!email) return false;
-    await setPassword(email, newPassword);
-    return true;
+    const { result } = await api('POST', '/password-reset', { password: newPassword });
+    return result === 'ok';
 }
 
 // Emails a link and code for setting a password. New staff get a day to use it; a forgotten
 // password reset lasts RESET_VALID_MINUTES. Returns 'sent', 'failed', 'not-configured', 'unknown'
-// or 'admin-only' (a reactivated account asking for itself; byAdmin is set from Staff Management).
+// or 'admin-only' (only an administrator can send reset links; byAdmin is set from Staff Management).
 async function sendPasswordLink(email, { newStaff = false, byAdmin = false } = {}) {
-    if (!isRegisteredEmail(email)) return 'unknown';
-    if (!byAdmin && needsAdminReset(email)) return 'admin-only';
     if (!isEmailConfigured()) return 'not-configured';
+    if (!isAdmin()) return 'admin-only';
+    if (!isRegisteredEmail(email)) return 'unknown';
 
     const minutes = newStaff ? NEW_STAFF_VALID_MINUTES : RESET_VALID_MINUTES;
-    const code = await createCode(serverStorage, codeKey(AUTH_RESET_KEY, email), minutes);
+    const { code } = await api('POST', '/reset-code', { email, minutes });
     const link = new URL('login.html', location.href).href.split(/[?#]/)[0] +
         '?reset=' + code + '&user=' + encodeURIComponent(email.trim());
     const sent = await sendResetEmail(email.trim(), code, link, minutes, { newStaff, name: accountName(findAccount(email)) });
@@ -755,29 +767,9 @@ document.addEventListener('DOMContentLoaded', () =>
    Students log in on the login page with their AdmNo and a password set by staff with
    "Reset Password" on the student's record. The password is kept as a salted hash on the student's record
    (in the database, with the other student details); mustChangePassword makes them choose
-   their own at the next login. The signed-in student is kept in sessionStorage. */
+   their own at the next login. The server checks the password (serverLogin) and keeps the student's session;
+   a student's session only ever gets their own record, documents and deferrals. */
 const STUDENT_SESSION_KEY = 'fewaStudentSession';
-
-// The student whose AdmNo this is, typed exactly as saved (capital and small letters must match), or null.
-// anyCase: also match when only the capitals differ (used to tell the student what they typed wrong).
-async function findStudentLogin(username, { anyCase = false } = {}) {
-    const typed = (username || '').trim();
-    if (!typed) return null;
-    const students = await fewaDB.getAll('students').catch(() => []);
-    return students.find(s => (s.admNo || '') === typed)
-        || (anyCase ? students.find(s => (s.admNo || '').toLowerCase() === typed.toLowerCase()) : null) || null;
-}
-
-// Returns 'ok', 'wrong' (no such AdmNo), 'wrong-case' (AdmNo with different capitals), 'wrong-password',
-// 'inactive', 'reset-required' (reactivated; the office must reset the password) or 'no-password'
-async function checkStudentLogin(username, password) {
-    const student = await findStudentLogin(username);
-    if (!student) return await findStudentLogin(username, { anyCase: true }) ? 'wrong-case' : 'wrong';
-    if (student.activeStudent === 'no') return 'inactive';
-    if (!student.loginHash) return student.adminResetRequired ? 'reset-required' : 'no-password';
-    if (student.loginHash !== await hashPassword(password, student.loginSalt)) return 'wrong-password';
-    return 'ok';
-}
 
 // The student record to save when a student stops being active (deactivated, deferred or suspended):
 // their password is cancelled, so after being made active again they can only log in once the
@@ -787,18 +779,12 @@ function deactivatedStudent(student, before = {}) {
     return { ...student, loginHash: null, loginSalt: null, mustChangePassword: true, adminResetRequired: true };
 }
 
-// Sets a student's password; mustChange makes them choose their own at the next login
+// Sets a student's password (on the server); mustChange makes them choose their own at the next login.
+// Returns 'ok', 'none' (no such student) or, when a student sets their own, 'same' (it is the current one).
 async function setStudentPassword(studentId, password, mustChange) {
-    const student = await fewaDB.getOne('students', studentId).catch(() => undefined);
-    if (!student) return false;
-    const salt = randomHex(16);
-    const hash = await hashPassword(password, salt);
-    await fewaDB.put('students', {
-        ...student, loginSalt: salt, loginHash: hash, mustChangePassword: mustChange, adminResetRequired: false,
-        passwordSetAt: new Date().toISOString()
-    });
-    announceDataChange('students');
-    return true;
+    const { result } = await api('POST', '/student-password', { studentId, password, mustChange });
+    if (result === 'ok') announceDataChange('students');
+    return result;
 }
 
 /* ---------- Changes reaching other open pages ----------
@@ -874,15 +860,17 @@ function startStudentSession(studentId) {
     sessionStorage.setItem(STUDENT_SESSION_KEY, studentId);
 }
 
-const currentStudentId = () => sessionStorage.getItem(STUDENT_SESSION_KEY);
+// The logged-in student, as the server knows them
+const currentStudentId = () => fewaSession.kind === 'student' ? fewaSession.studentId : null;
 
 function studentLogout() {
-    sessionStorage.removeItem(STUDENT_SESSION_KEY);
+    endServerSession();
     location.replace('login.html');
 }
 
 // The Student Portal calls this first; anyone else goes to the login page
 function requireStudentLogin() {
+    if (!fewaServer.online) return; // db.js is showing how to start the server
     if (!currentStudentId()) location.replace('login.html');
 }
 

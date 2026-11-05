@@ -4,8 +4,10 @@
    data loses nothing.
    - fewaDB.getAll / getOne / put / remove / replace: students, documents, settings and deferrals.
      Photos and documents are files (Blobs) in the records, as before; their bytes are stored on the server.
-   - serverValue / setServerValue: staff accounts, role rights and password reset codes, kept as text values
-     (as they were in localStorage). They are read once when the page opens, so pages can use them straight away.
+   - serverValue / setServerValue: staff accounts and role rights, kept as text values (as they were in
+     localStorage). They are read once when the page opens, so pages can use them straight away.
+   - fewaSession: who is logged in. Logins and passwords are checked by the server (see auth.js), which only
+     hands each person the data they may see.
    Only small conveniences stay in the browser: the remembered username, the sidebar choice, Last Activity.
 
    The first time a browser that kept the data itself (before PostgreSQL) opens the system and the database is
@@ -46,11 +48,18 @@ async function api(method, path, body) {
     return result;
 }
 
-/* ---------- Staff accounts, role rights and reset codes ---------- */
+/* ---------- Who is logged in (the server decides, from its session cookie) ----------
+   fewaSession: { kind: 'staff' | 'student' | 'reset' | null, accountId, username, admin, studentId,
+   setupNeeded (no staff account yet, on the office computer), setupBlocked (no staff account yet, online) } */
+let fewaSession = { kind: null };
+
+/* ---------- Staff accounts and role rights ---------- */
 let serverValues = {};
 try {
     if (location.protocol === 'file:') throw new Error('The system was opened as a file.');
-    serverValues = apiSync('GET', '/values') || {};
+    fewaSession = apiSync('GET', '/session') || { kind: null };
+    // Only staff (and the very first setup) see the accounts; the server gives nobody else any
+    if (fewaSession.kind === 'staff' || fewaSession.setupNeeded) serverValues = apiSync('GET', '/values') || {};
     fewaServer.online = true;
 } catch (err) {
     fewaServer.error = err.message;
@@ -72,7 +81,7 @@ function setServerValue(key, value) {
     if (valueChannel) valueChannel.postMessage({ key });
 }
 
-// Works like localStorage, for code that is given a storage to use (reset codes in auth.js)
+// Works like localStorage, for code that is given a storage to use (removing a reset code in auth.js)
 const serverStorage = {
     getItem: serverValue,
     setItem: setServerValue,
@@ -83,7 +92,8 @@ const serverStorage = {
 if (valueChannel) {
     valueChannel.addEventListener('message', event => {
         try {
-            serverValues = apiSync('GET', '/values') || {};
+            fewaSession = apiSync('GET', '/session') || { kind: null };
+            serverValues = fewaSession.kind === 'staff' || fewaSession.setupNeeded ? apiSync('GET', '/values') || {} : {};
         } catch {
             return;
         }
@@ -232,7 +242,8 @@ const legacyLocal = key => {
 
 // The database is empty and this browser has the system's data from before: move it in (accounts first, so
 // logging in works straight away; the records follow, and pages wait for them before reading any)
-if (fewaServer.online && !serverValue('fewaAccounts') && legacyLocal('fewaAccounts') && !legacyLocal(MOVED_TO_SERVER_KEY)) {
+// (Only while the system is being set up on the office computer: no staff account in the database yet)
+if (fewaServer.online && fewaSession.setupNeeded && legacyLocal('fewaAccounts') && !legacyLocal(MOVED_TO_SERVER_KEY)) {
     try {
         LEGACY_LOCAL_KEYS.forEach(key => {
             const value = legacyLocal(key);

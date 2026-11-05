@@ -1,0 +1,19 @@
+# Render.com setup for the FEWA system (read by Render when the GitHub repository is connected as a Blueprint).
+# The server runs online with the same Supabase database as the office computer.
+# DATABASE_URL is entered in Render's dashboard (never stored in GitHub):
+#   postgresql://postgres.<project-ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
+services:
+  - type: web
+    name: fewa-system
+    runtime: node
+    plan: free
+    region: frankfurt          # nearest Render region to Supabase eu-west-1 (Ireland)
+    buildCommand: npm install
+    startCommand: node server.mjs
+    healthCheckPath: /api/health
+    autoDeploy: true           # every push to GitHub updates the online system
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # asked for when the Blueprint is created
+      - key: NODE_VERSION
+        value: "22"

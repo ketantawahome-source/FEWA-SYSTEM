@@ -198,10 +198,14 @@
             const missing = missingPasswordRules(password, student.admNo);
             if (missing.length) return showPasswordError('Password NOT saved. It needs: ' + missing.join(', ') + '.');
             if (password !== document.getElementById('spConfirm').value) return showPasswordError('Password NOT saved. The two passwords do not match.');
-            if (await checkStudentLogin(student.admNo, password) === 'ok') return showPasswordError('Password NOT saved. Choose a different password from the current one.');
-
             const wasTemporary = student.mustChangePassword;
-            await setStudentPassword(student.id, password, false);
+            let result;
+            try {
+                result = await setStudentPassword(student.id, password, false);
+            } catch (error) {
+                return showPasswordError('Password NOT saved. ' + error.message);
+            }
+            if (result === 'same') return showPasswordError('Password NOT saved. Choose a different password from the current one.');
             student.mustChangePassword = false;
             showToast('Your password has been saved. Use it next time you log in.');
             // The rest of the portal opens once a temporary password has been replaced

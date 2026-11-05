@@ -53,7 +53,20 @@ CREATE TABLE IF NOT EXISTS staff.password_reset_codes (
 );
 
 
+-- ---------- Logged-in sessions (staff, students, and password resets in progress) ----------
+-- Only a hash of each session's token is kept. Deleting rows here logs those people out.
+CREATE TABLE IF NOT EXISTS staff.sessions (
+    token_hash  text PRIMARY KEY,
+    kind        text NOT NULL,              -- staff, student or reset
+    subject     text NOT NULL,              -- staff_accounts.id, students.id, or the email being reset
+    expires_at  timestamptz NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS sessions_expires_at ON staff.sessions (expires_at);
+
+
 -- Row level security with no policies: only the owner can read or change the rows
+ALTER TABLE staff.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.staff_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.staff_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.role_operations ENABLE ROW LEVEL SECURITY;

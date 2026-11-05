@@ -188,8 +188,14 @@
             subtitle.style.display = text ? 'block' : 'none';
         }
 
-        // No account yet: the first visit creates the administrator account
-        const settingUp = !getAccounts().length;
+        // No account yet: the first visit (on the office computer) creates the administrator account
+        const settingUp = !!fewaSession.setupNeeded;
+        // No account yet, but opened over the internet: setting up is only allowed on the office computer
+        if (fewaSession.setupBlocked) {
+            document.addEventListener('DOMContentLoaded', () => showError(
+                'The system has not been set up yet. Create the first administrator account on the office computer ' +
+                '(http://localhost:5600/), then log in here.'));
+        }
         if (settingUp) {
             document.getElementById('passwordRules').style.display = 'block';
             document.getElementById('password').addEventListener('input', updatePasswordRules);
@@ -318,7 +324,7 @@
         }
 
         async function checkLoginDetails() {
-            const username = document.getElementById('username').value.trim();
+            let username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
 
             if (!window.crypto || !crypto.subtle) {
@@ -335,45 +341,40 @@
                 if (password !== document.getElementById('confirmPassword').value) return showError('The passwords do not match.');
                 await createAdminAccount(username, password, phone);
             } else {
-                const result = await checkLogin(username, password);
-                // Not a staff account: try the students (by AdmNo, capitals must match), who go to their own portal
-                if (result === 'wrong' && await findStudentLogin(username, { anyCase: true })) return checkStudentDetails(username, password);
-                if (result !== 'ok') {
+                // The server checks the details: staff by email, students by AdmNo (capitals must match)
+                let login;
+                try {
+                    login = await serverLogin(username, password);
+                } catch (error) {
+                    return showError(error.message);
+                }
+                if (login.result !== 'ok') {
                     document.getElementById('password').value = '';
                     return showError({
                         wrong: 'Wrong username or password.',
-                        inactive: 'This account has been deactivated. Contact the administrator.',
-                        'reset-required': 'Your account was reactivated, so your old password no longer works. Ask an administrator to send you a password reset link.',
-                        'no-password': 'You have not set a password yet. Use the link in your welcome email, or press "Forgot password?".'
-                    }[result]);
+                        locked: 'Too many wrong tries. Wait 15 minutes, then try again.',
+                        inactive: 'This account has been deactivated. Contact the college office.',
+                        'reset-required': 'Your account was reactivated, so your old password no longer works. Ask the college office to reset your password.',
+                        'no-password': 'You do not have a password yet. Ask the college office (an administrator) to set one up for you.',
+                        'wrong-case': 'Registration Number not recognised. Type it exactly as given, with the same capital and small letters.',
+                        'wrong-password': 'Wrong password. Passwords must match capital and small letters exactly; check that Caps Lock is off.'
+                    }[login.result] || 'Wrong username or password.');
                 }
+                // Students go to their own portal
+                if (login.kind === 'student') {
+                    return () => {
+                        rememberUser(login.admNo);
+                        startStudentSession(login.studentId);
+                        location.replace('StudentPortal.html');
+                    };
+                }
+                username = login.username;
             }
 
             return () => {
                 if (!settingUp) rememberUser(username);
                 startSession(username);
                 showWelcome(username, { firstTime: settingUp, method: 'your password' });
-            };
-        }
-
-        async function checkStudentDetails(username, password) {
-            const result = await checkStudentLogin(username, password);
-            if (result !== 'ok') {
-                document.getElementById('password').value = '';
-                return showError({
-                    wrong: 'Wrong username or password.',
-                    'wrong-case': 'Registration Number not recognised. Type it exactly as given, with the same capital and small letters.',
-                    'wrong-password': 'Wrong password. Passwords must match capital and small letters exactly; check that Caps Lock is off.',
-                    inactive: 'Your student account has been deactivated. Contact the college office.',
-                    'reset-required': 'Your account was reactivated, so your old password no longer works. Ask the college office to reset your password.',
-                    'no-password': 'You do not have a password yet. Ask the college office to reset your student password.'
-                }[result]);
-            }
-            const student = await findStudentLogin(username);
-            return () => {
-                rememberUser(student.admNo);
-                startStudentSession(student.id);
-                location.replace('StudentPortal.html');
             };
         }
 
@@ -419,13 +420,8 @@
             if (!window.crypto || !crypto.subtle) {
                 return showOtpError('This browser cannot log in securely here. Open the system from http://localhost or as a local file.');
             }
-            if (!isRegisteredEmail(email)) return showOtpError('This email address is not registered, or the account has been deactivated.');
-            if (needsAdminReset(email)) {
-                return showOtpError('Your account was reactivated. Ask an administrator to send you a password reset link before you log in.');
-            }
-            if (!isEmailConfigured()) {
-                return showOtpError('OTP login is not available yet because email sending is not set up. Use your password instead.');
-            }
+            // (OTP codes would be emailed by this page; logins are now checked by the server, so this stays off)
+            return showOtpError('OTP login is not available. Log in with your password instead.');
 
             const button = document.getElementById('otpButton');
             button.disabled = true;
@@ -612,7 +608,7 @@
             if (result !== 'sent') {
                 return showMessage('resetRequestError', {
                     unknown: 'This email address is not registered, or the account has been deactivated.',
-                    'admin-only': 'Your account was reactivated, so only an administrator can reset your password. Ask them to send you a reset link.',
+                    'admin-only': 'Only an administrator can send password reset links. Ask the college office to send you one (Staff Management > Send Reset Link).',
                     'not-configured': 'The reset link cannot be sent because email sending is not set up yet.',
                     failed: 'The reset link could not be sent. Check the internet connection and try again.'
                 }[result]);

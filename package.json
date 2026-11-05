@@ -1,1 +1,16 @@
-{"name":"fewa-system","version":"1.0.0","private":true,"type":"module","description":"FEWA Beauty & Fashion College system - local server and PostgreSQL storage","scripts":{"start":"node server.mjs 5600"},"dependencies":{"pg":"^8.16.3"}}
+{
+    "name": "fewa-system",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "FEWA Beauty & Fashion College system - web server and PostgreSQL storage",
+    "scripts": {
+        "start": "node server.mjs"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "pg": "^8.16.3"
+    }
+}
