@@ -1,0 +1,38 @@
+<div class="form-section">
+    <div class="section-title">FINANCIAL OVERVIEW & TRANSACTIONS</div>
+    <div class="grid-3" style="margin-bottom: 20px;">
+        <div class="form-group">
+            <label>Total Tuition Collected</label>
+            <input type="text" value="KES 1,250,000" readonly style="font-weight: bold; color: #2d124e;">
+        </div>
+        <div class="form-group">
+            <label>Pending Balance</label>
+            <input type="text" value="KES 340,000" readonly style="font-weight: bold; color: #c0392b;">
+        </div>
+        <div class="form-group">
+            <label>M-Pesa Receipts Today</label>
+            <input type="text" value="KES 85,000" readonly style="font-weight: bold; color: #27ae60;">
+        </div>
+    </div>
+
+    <div class="section-title">RECORD NEW STUDENT PAYMENT</div>
+    <div class="grid-3">
+        <div class="form-group"><label>Student Admission No.</label><input type="text" placeholder="e.g. FEWA/2026/012">
+        </div>
+        <div class="form-group"><label>Payment Amount (KES)</label><input type="number" placeholder="0.00"></div>
+        <div class="form-group">
+            <label>Payment Method</label>
+            <select>
+                <option value="MPESA">M-Pesa Express</option>
+                <option value="BANK">Bank Deposit / EFT</option>
+                <option value="CASH">Cash</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Transaction Code / Ref No.</label><input type="text" placeholder="e.g. QX7892KL">
+        </div>
+        <div class="form-group"><label>Payment Date</label><input type="date"></div>
+    </div>
+    <div class="action-bar" style="margin-top: 15px;">
+        <button type="button" class="btn-submit" onclick="alert('Payment Recorded Successfully!')">Post Payment</button>
+    </div>
+</div>

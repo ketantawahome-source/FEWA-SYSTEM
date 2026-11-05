@@ -1,0 +1,16 @@
+{
+    "host": "aws-0-eu-west-1.pooler.supabase.com",
+    "port": 6543,
+    "user": "postgres.YOUR-PROJECT-REF",
+    "password": "YOUR-SUPABASE-DATABASE-PASSWORD",
+    "database": "postgres",
+    "ssl": { "rejectUnauthorized": false },
+
+    "mirror": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "YOUR-LOCAL-POSTGRESQL-PASSWORD",
+        "database": "fewa_college"
+    }
+}

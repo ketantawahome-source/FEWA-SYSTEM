@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="email-config.js"></script>
+    <script>
+        // Already signed in: go straight to the system (staff) or the Student Portal (students)
+        if (currentUser()) location.replace('Dashboard.html');
+        else if (currentStudentId()) location.replace('StudentPortal.html');
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20261104h">
+</head>
+
+<body class="login-page">
+    <!-- Shown while logging in: LOADING please wait..., then Login successful -->
+    <div id="loginLoading" class="login-loading" hidden role="status" aria-live="polite">
+        <div class="login-loading-box">
+            <div class="loading-ring">
+                <div class="loading-words">
+                    <div id="loadingTitle" class="loading-title">LOADING</div>
+                    <div id="loadingText" class="loading-text">please wait...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="login-card">
+        <!-- The logo already shows the college name, so no separate name line is needed -->
+        <div class="login-logo-badge">
+            <img class="login-logo" src="fewa-logo.jpg" alt="FEWA Beauty &amp; Fashion College">
+        </div>
+        <!-- Filled in from Settings > Organisation Setup > School Setup when one has been saved -->
+        <div id="loginCollegeName" class="login-college-name">FEWA Beauty &amp; Fashion College</div>
+        <hr class="login-rule">
+
+        <div id="loginTitle" class="login-title">Sign In</div>
+        <div id="loginSubtitle" class="login-subtitle" style="display: none;"></div>
+
+        <form id="loginForm" onsubmit="submitLogin(event)">
+            <div id="loginError" class="login-error"></div>
+            <div class="field">
+                <!-- Staff: their email. Students: their AdmNo -->
+                <label for="username">Username</label>
+                <input type="text" id="username" autocomplete="username" placeholder="Email, or AdmNo for students"
+                    required autofocus>
+            </div>
+            <!-- Only shown the first time: the phone number OTP codes will go to -->
+            <div id="phoneField" class="field" style="display: none;">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" autocomplete="tel" placeholder="e.g. 0712 345 678">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" autocomplete="current-password" required>
+            </div>
+            <ul id="passwordRules" class="password-rules" style="display: none;"></ul>
+            <!-- Only shown the first time, when the administrator account is being created -->
+            <div id="confirmField" class="field" style="display: none;">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" autocomplete="new-password">
+            </div>
+            <!-- Showing a password is the eye button beside each password box (auth.js) -->
+            <label class="remember-me"><input type="checkbox" id="rememberMe"> Remember me</label>
+            <button type="submit" id="loginButton" class="btn-login">Log In</button>
+            <div class="forgot-line">
+                <button type="button" id="forgotButton" class="link-button" onclick="showResetRequest()" disabled
+                    title="Enter your username (email) first">Forgot your password?</button>
+            </div>
+            <div id="otpSwitch">
+                <div class="divider"><span>or</span></div>
+                <button type="button" class="btn-login btn-outline" onclick="showOtpLogin()">Login with OTP</button>
+            </div>
+            <!-- Only shown the first time: bring back all the data from a backup file (backup.js) -->
+            <div id="restoreSwitch" style="display: none;">
+                <div class="divider"><span>or</span></div>
+                <label class="btn-login btn-outline restore-button">Restore from Backup File
+                    <input type="file" accept=".json,application/json" hidden onchange="restoreFromLogin(this)"></label>
+                <div class="restore-hint">Had the system before? Choose the FEWA backup file to bring back all staff and student data.</div>
+            </div>
+        </form>
+
+        <!-- Login with a one-time passcode sent by email -->
+        <form id="otpForm" style="display: none;" onsubmit="submitOtpForm(event)">
+            <div id="otpError" class="login-error"></div>
+            <div id="otpInfo" class="otp-info"></div>
+            <div class="field">
+                <label for="otpEmail">Username</label>
+                <input type="email" id="otpEmail" autocomplete="username" required>
+            </div>
+            <div id="otpCodeField" class="field" style="display: none;">
+                <label for="otpCode">6-digit Code</label>
+                <input type="text" id="otpCode" class="otp-code" inputmode="numeric" maxlength="6"
+                    autocomplete="one-time-code" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;">
+            </div>
+            <button type="submit" id="otpButton" class="btn-login">Send OTP</button>
+            <div class="otp-links">
+                <button type="button" id="resendButton" class="link-button" style="display: none;"
+                    onclick="sendOtp()">Resend code</button>
+                <button type="button" class="link-button" onclick="showPasswordLogin()">Back to password login</button>
+            </div>
+        </form>
+
+        <!-- Forgot password, step 1: email a reset link and code -->
+        <form id="resetRequestForm" style="display: none;" onsubmit="sendResetLink(event)">
+            <div id="resetRequestError" class="login-error"></div>
+            <div id="resetRequestInfo" class="otp-info"></div>
+            <div class="field">
+                <label for="resetEmail">Email Address</label>
+                <input type="email" id="resetEmail" autocomplete="username" required
+                    oninput="updateResetButtons()">
+            </div>
+            <button type="submit" id="resetRequestButton" class="btn-login" disabled>Send Reset Link</button>
+            <div class="otp-links">
+                <button type="button" class="link-button" onclick="showResetForm()">I already have a code</button>
+                <button type="button" class="link-button" onclick="showPasswordLogin()">Back to login</button>
+            </div>
+        </form>
+
+        <!-- Forgot password, step 2: the username and the code from the email -->
+        <form id="resetCodeForm" style="display: none;" onsubmit="submitResetCode(event)">
+            <div id="resetCodeError" class="login-error"></div>
+            <div class="field">
+                <label for="resetFormEmail">Username</label>
+                <input type="email" id="resetFormEmail" autocomplete="username" required oninput="autoVerifyResetCode()">
+            </div>
+            <div class="field">
+                <label for="resetCode">6-digit Reset Code</label>
+                <input type="text" id="resetCode" class="otp-code" inputmode="numeric" maxlength="6"
+                    autocomplete="one-time-code" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;" required
+                    oninput="autoVerifyResetCode()">
+            </div>
+            <button type="submit" id="verifyCodeButton" class="btn-login">Verify Code</button>
+            <div class="otp-links">
+                <button type="button" class="link-button" onclick="showResetRequest()">Send a new code</button>
+                <button type="button" class="link-button" onclick="showPasswordLogin()">Back to login</button>
+            </div>
+        </form>
+
+        <!-- Forgot password, step 3: only reachable once the code has been accepted -->
+        <form id="resetForm" style="display: none;" onsubmit="submitNewPassword(event)">
+            <div id="resetError" class="login-error"></div>
+            <div id="resetVerified" class="otp-info" style="display: block;"></div>
+            <div class="field">
+                <label for="newPassword">New Password</label>
+                <input type="password" id="newPassword" autocomplete="new-password" required
+                    oninput="renderPasswordRules('newPassword', 'newPasswordRules', resetGrantedFor())">
+            </div>
+            <ul id="newPasswordRules" class="password-rules"></ul>
+            <div class="field">
+                <label for="confirmNewPassword">Confirm New Password</label>
+                <input type="password" id="confirmNewPassword" autocomplete="new-password" required>
+            </div>
+            <button type="submit" class="btn-login">Reset Password</button>
+            <div class="otp-links">
+                <span></span>
+                <button type="button" class="link-button" onclick="showPasswordLogin()">Back to login</button>
+            </div>
+        </form>
+
+        <!-- Shown once, after the administrator account is created -->
+        <div id="welcomePanel" class="welcome-panel" style="display: none;">
+            <div class="welcome-tick">&#10003;</div>
+            <div class="login-title">Login Successful</div>
+            <p id="welcomeText"></p>
+            <p id="emailStatus" class="email-status"></p>
+            <button type="button" class="btn-login" onclick="location.replace('Dashboard.html')">Continue to
+                System</button>
+        </div>
+
+        <!-- The year is filled in from the computer's date, so it changes by itself every year -->
+        <div class="login-footer"><span id="footerYear"></span> &copy; WAFA Systems</div>
+    </div>
+
+    <script>
+        // The password rules, renderPasswordRules and missingPasswordRules are in auth.js
+        const updatePasswordRules = () =>
+            renderPasswordRules('password', 'passwordRules', document.getElementById('username').value.trim());
+
+        // The line under the title; hidden when there is nothing to say (normal password login)
+        function showSubtitle(text) {
+            const subtitle = document.getElementById('loginSubtitle');
+            subtitle.innerText = text;
+            subtitle.style.display = text ? 'block' : 'none';
+        }
+
+        // No account yet: the first visit creates the administrator account
+        const settingUp = !getAccounts().length;
+        if (settingUp) {
+            document.getElementById('passwordRules').style.display = 'block';
+            document.getElementById('password').addEventListener('input', updatePasswordRules);
+            updatePasswordRules();
+            document.getElementById('loginTitle').innerText = 'Create Administrator Account';
+            showSubtitle('First time here. Enter your email address and choose a password to log in with.');
+            document.getElementById('confirmField').style.display = 'flex';
+            document.getElementById('confirmPassword').required = true;
+            document.getElementById('phoneField').style.display = 'flex';
+            document.getElementById('phone').required = true;
+            document.getElementById('password').autocomplete = 'new-password';
+            document.getElementById('loginButton').innerText = 'Create Account & Login';
+            // OTP and password reset need an account to send the code to
+            document.getElementById('otpSwitch').style.display = 'none';
+            document.getElementById('forgotButton').style.display = 'none';
+            document.getElementById('restoreSwitch').style.display = 'block';
+        }
+
+        // After the browsing data was cleared: put back everything from the backup file, then log in as before
+        async function restoreFromLogin(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            let backup;
+            try {
+                backup = await readBackupFile(file);
+            } catch (error) {
+                return showError(error.message);
+            }
+            if (!confirm(`Restore the backup from ${new Date(backup.savedAt).toLocaleString('en-GB')}?\n\n` +
+                `It holds ${backupSummary(backup)}.`)) return;
+            try {
+                await restoreBackup(backup);
+            } catch {
+                return showError('The backup could not be restored. Try again, or choose another backup file.');
+            }
+            alert('Backup restored successfully. Log in with your usual username and password.\n\n' +
+                'Then set up automatic backup again in Settings > System Data Backups.');
+            location.reload();
+        }
+
+        document.getElementById('footerYear').innerText = new Date().getFullYear();
+
+        // The college name saved in School Setup (in the database)
+        if (fewaServer.online) {
+            fewaDB.getOne('settings', 'organization').then(org => {
+                if (org && org.collegeName) document.getElementById('loginCollegeName').innerText = org.collegeName;
+            }).catch(() => { });
+        }
+
+        // Remember me: keeps the username (never the password) on this computer for the next visit
+        const REMEMBER_KEY = 'fewaRememberedUser';
+        if (settingUp) {
+            document.querySelector('.remember-me').style.display = 'none';
+        } else {
+            try {
+                const remembered = localStorage.getItem(REMEMBER_KEY);
+                if (remembered) {
+                    document.getElementById('username').value = remembered;
+                    document.getElementById('rememberMe').checked = true;
+                    document.getElementById('password').focus();
+                }
+            } catch { }
+        }
+
+        function rememberUser(username) {
+            try {
+                if (document.getElementById('rememberMe').checked) localStorage.setItem(REMEMBER_KEY, username);
+                else localStorage.removeItem(REMEMBER_KEY);
+            } catch { }
+        }
+
+        function showError(message) {
+            const box = document.getElementById('loginError');
+            box.innerText = message;
+            box.style.display = 'block';
+        }
+
+        /* ---------- Loading screen while logging in ----------
+           The details are checked first. Wrong details show the error straight away, with no loading screen.
+           Correct details show "LOADING please wait..." for LOADING_MIN_MS, then "Login successful",
+           then the system opens. */
+        const LOADING_MIN_MS = 900;
+        const SUCCESS_SHOW_MS = 800;
+        const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        function showLoading() {
+            const box = document.getElementById('loginLoading');
+            box.classList.remove('success');
+            document.getElementById('loadingTitle').innerText = 'LOADING';
+            document.getElementById('loadingText').innerText = 'please wait...';
+            box.hidden = false;
+        }
+
+        function showLoginSuccess() {
+            document.getElementById('loginLoading').classList.add('success');
+            document.getElementById('loadingTitle').innerText = 'Login successful';
+            document.getElementById('loadingText').innerText = 'opening the system...';
+        }
+
+        const hideLoading = () => document.getElementById('loginLoading').hidden = true;
+
+        async function submitLogin(event) {
+            event.preventDefault();
+            const button = document.getElementById('loginButton');
+            button.disabled = true;
+
+            // checkLoginDetails shows any error itself (no loading screen); on success it returns what to do next
+            const openSystem = await checkLoginDetails();
+            if (!openSystem) {
+                button.disabled = false;
+                return;
+            }
+            await showLoginLoading();
+            button.disabled = false;
+            openSystem();
+        }
+
+        // LOADING please wait..., then Login successful; used by password and OTP logins once the details are right
+        async function showLoginLoading() {
+            showLoading();
+            await pause(LOADING_MIN_MS);
+            showLoginSuccess();
+            await pause(SUCCESS_SHOW_MS);
+            hideLoading();
+        }
+
+        async function checkLoginDetails() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!window.crypto || !crypto.subtle) {
+                showError('This browser cannot log in securely here. Open the system from http://localhost or as a local file.');
+                return null;
+            }
+
+            if (settingUp) {
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) return showError('Enter a valid email address as the username.');
+                const phone = normalizeKenyanPhone(document.getElementById('phone').value);
+                if (!phone) return showError('Enter a valid Kenyan mobile number, e.g. 0712 345 678 or +254 712 345 678.');
+                const missing = missingPasswordRules(password, username);
+                if (missing.length) return showError('Password is not strong enough. It needs: ' + missing.join(', ') + '.');
+                if (password !== document.getElementById('confirmPassword').value) return showError('The passwords do not match.');
+                await createAdminAccount(username, password, phone);
+            } else {
+                const result = await checkLogin(username, password);
+                // Not a staff account: try the students (by AdmNo, capitals must match), who go to their own portal
+                if (result === 'wrong' && await findStudentLogin(username, { anyCase: true })) return checkStudentDetails(username, password);
+                if (result !== 'ok') {
+                    document.getElementById('password').value = '';
+                    return showError({
+                        wrong: 'Wrong username or password.',
+                        inactive: 'This account has been deactivated. Contact the administrator.',
+                        'reset-required': 'Your account was reactivated, so your old password no longer works. Ask an administrator to send you a password reset link.',
+                        'no-password': 'You have not set a password yet. Use the link in your welcome email, or press "Forgot password?".'
+                    }[result]);
+                }
+            }
+
+            return () => {
+                if (!settingUp) rememberUser(username);
+                startSession(username);
+                showWelcome(username, { firstTime: settingUp, method: 'your password' });
+            };
+        }
+
+        async function checkStudentDetails(username, password) {
+            const result = await checkStudentLogin(username, password);
+            if (result !== 'ok') {
+                document.getElementById('password').value = '';
+                return showError({
+                    wrong: 'Wrong username or password.',
+                    'wrong-case': 'Registration Number not recognised. Type it exactly as given, with the same capital and small letters.',
+                    'wrong-password': 'Wrong password. Passwords must match capital and small letters exactly; check that Caps Lock is off.',
+                    inactive: 'Your student account has been deactivated. Contact the college office.',
+                    'reset-required': 'Your account was reactivated, so your old password no longer works. Ask the college office to reset your password.',
+                    'no-password': 'You do not have a password yet. Ask the college office to reset your student password.'
+                }[result]);
+            }
+            const student = await findStudentLogin(username);
+            return () => {
+                rememberUser(student.admNo);
+                startStudentSession(student.id);
+                location.replace('StudentPortal.html');
+            };
+        }
+
+        /* ---------- Login with OTP ---------- */
+        const RESEND_WAIT_SECONDS = 60;
+        let otpSentTo = null;
+        let resendTimer = null;
+
+        // Shows one of the login page's forms and hides the others
+        function showForm(formId, title, subtitle = '') {
+            ['loginForm', 'otpForm', 'resetRequestForm', 'resetCodeForm', 'resetForm'].forEach(id =>
+                document.getElementById(id).style.display = id === formId ? 'block' : 'none');
+            document.getElementById('loginTitle').innerText = title;
+            showSubtitle(subtitle);
+        }
+
+        function showOtpLogin() {
+            showForm('otpForm', 'Sign In', 'We will email you a 6-digit code to log in');
+            document.getElementById('otpEmail').value = document.getElementById('username').value.trim();
+            document.getElementById('otpEmail').focus();
+        }
+
+        function showPasswordLogin() {
+            showForm('loginForm', 'Sign In');
+        }
+
+        function showOtpError(message) {
+            const box = document.getElementById('otpError');
+            box.innerText = message;
+            box.style.display = message ? 'block' : 'none';
+        }
+
+        // First press sends the code; once a code is sent, the same button verifies it
+        function submitOtpForm(event) {
+            event.preventDefault();
+            if (otpSentTo) verifyOtpCode();
+            else sendOtp();
+        }
+
+        async function sendOtp() {
+            showOtpError('');
+            const email = document.getElementById('otpEmail').value.trim();
+            if (!window.crypto || !crypto.subtle) {
+                return showOtpError('This browser cannot log in securely here. Open the system from http://localhost or as a local file.');
+            }
+            if (!isRegisteredEmail(email)) return showOtpError('This email address is not registered, or the account has been deactivated.');
+            if (needsAdminReset(email)) {
+                return showOtpError('Your account was reactivated. Ask an administrator to send you a password reset link before you log in.');
+            }
+            if (!isEmailConfigured()) {
+                return showOtpError('OTP login is not available yet because email sending is not set up. Use your password instead.');
+            }
+
+            const button = document.getElementById('otpButton');
+            button.disabled = true;
+            button.innerText = 'Sending...';
+            const sent = await sendOtpEmail(email, await createOtp(email), OTP_VALID_MINUTES);
+            button.disabled = false;
+
+            if (!sent) {
+                button.innerText = 'Send OTP';
+                return showOtpError('The code could not be sent. Check the internet connection and try again.');
+            }
+
+            otpSentTo = email;
+            const phone = findAccount(email).phone;
+            document.getElementById('otpEmail').readOnly = true;
+            document.getElementById('otpCodeField').style.display = 'flex';
+            document.getElementById('otpCode').value = '';
+            document.getElementById('otpCode').required = true;
+            document.getElementById('otpCode').focus();
+            button.innerText = 'Verify & Login';
+
+            const info = document.getElementById('otpInfo');
+            // The code only ever goes to the registered contacts; SMS to the phone is not set up yet
+            info.innerText = `A 6-digit code was sent to your registered email ${maskEmail(email)}. ` +
+                `It expires in ${OTP_VALID_MINUTES} minutes.` +
+                (phone ? `\nRegistered phone: ${maskPhone(phone)} (SMS codes not set up yet).` : '');
+            info.style.display = 'block';
+            startResendCountdown();
+        }
+
+        // "Resend code" is available again after a short wait
+        function startResendCountdown() {
+            const resend = document.getElementById('resendButton');
+            let left = RESEND_WAIT_SECONDS;
+            resend.style.display = 'inline';
+            resend.disabled = true;
+            clearInterval(resendTimer);
+            const tick = () => {
+                resend.innerText = left > 0 ? `Resend code (${left}s)` : 'Resend code';
+                if (left-- <= 0) {
+                    resend.disabled = false;
+                    clearInterval(resendTimer);
+                }
+            };
+            tick();
+            resendTimer = setInterval(tick, 1000);
+        }
+
+        async function verifyOtpCode() {
+            const code = document.getElementById('otpCode').value;
+            if (!/^\d{6}$/.test(code.trim())) return showOtpError('Enter the 6-digit code from the email.');
+
+            const result = await verifyOtp(otpSentTo, code);
+            if (result === 'ok') {
+                // The right code: the same loading screen as a password login, then the system opens
+                await showLoginLoading();
+                startSession(otpSentTo);
+                showWelcome(otpSentTo, { firstTime: false, method: 'a one-time passcode (OTP)' });
+                return;
+            }
+            document.getElementById('otpCode').value = '';
+            showOtpError({
+                wrong: 'Wrong code. Check the email and try again.',
+                expired: 'This code has expired. Press "Resend code" to get a new one.',
+                none: 'Too many wrong tries. Press "Resend code" to get a new one.'
+            }[result]);
+            if (result !== 'wrong') document.getElementById('resendButton').disabled = false;
+        }
+
+        /* ---------- Forgot password ---------- */
+        const looksLikeEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+        // "Forgot password?" and "Send Reset Link" only work once a username (email) has been typed
+        function updateResetButtons() {
+            const forgot = document.getElementById('forgotButton');
+            forgot.disabled = !looksLikeEmail(document.getElementById('username').value);
+            forgot.title = forgot.disabled ? 'Enter your username (email) first' : '';
+            document.getElementById('resetRequestButton').disabled =
+                !looksLikeEmail(document.getElementById('resetEmail').value);
+        }
+
+        // "change" also catches usernames filled in by the browser's saved logins
+        ['input', 'change'].forEach(type => document.getElementById('username').addEventListener(type, updateResetButtons));
+        updateResetButtons();
+
+        function showMessage(boxId, message) {
+            const box = document.getElementById(boxId);
+            box.innerText = message;
+            box.style.display = message ? 'block' : 'none';
+        }
+
+        function showResetRequest() {
+            showForm('resetRequestForm', 'Forgot Password', 'Enter your email address and we will send you a reset link and code');
+            showMessage('resetRequestError', '');
+            showMessage('resetRequestInfo', '');
+            document.getElementById('resetEmail').value = document.getElementById('username').value.trim();
+            updateResetButtons();
+            document.getElementById('resetEmail').focus();
+        }
+
+        // Step 2: username and code. The new password form stays locked until the code is accepted.
+        function showResetForm(code = '', email = '') {
+            showForm('resetCodeForm', 'Reset Password', 'Enter the 6-digit code from the email');
+            showMessage('resetCodeError', '');
+            document.getElementById('resetFormEmail').value = email ||
+                document.getElementById('resetEmail').value.trim() || document.getElementById('username').value.trim();
+            document.getElementById('resetCode').value = code;
+            document.getElementById('resetCode').focus();
+            autoVerifyResetCode();
+        }
+
+        // Checks the code by itself as soon as all 6 digits (and a username) are in
+        let verifyingCode = false;
+
+        function autoVerifyResetCode() {
+            const codeInput = document.getElementById('resetCode');
+            codeInput.value = codeInput.value.replace(/\D/g, '');
+            if (codeInput.value.length === 6 && looksLikeEmail(document.getElementById('resetFormEmail').value)) {
+                verifyResetCodeNow();
+            }
+        }
+
+        function submitResetCode(event) {
+            event.preventDefault();
+            verifyResetCodeNow();
+        }
+
+        async function verifyResetCodeNow() {
+            if (verifyingCode) return;
+            const email = document.getElementById('resetFormEmail').value.trim();
+            const code = document.getElementById('resetCode').value.trim();
+            if (!looksLikeEmail(email)) return showMessage('resetCodeError', 'Enter your username (email).');
+            if (!/^\d{6}$/.test(code)) return showMessage('resetCodeError', 'Enter the 6-digit code from the email.');
+
+            verifyingCode = true;
+            const button = document.getElementById('verifyCodeButton');
+            button.disabled = true;
+            button.innerText = 'Checking...';
+            const result = await verifyResetCode(email, code);
+            button.disabled = false;
+            button.innerText = 'Verify Code';
+            verifyingCode = false;
+
+            if (result !== 'ok') {
+                document.getElementById('resetCode').value = '';
+                document.getElementById('resetCode').focus();
+                return showMessage('resetCodeError', {
+                    wrong: 'Wrong code. Check the email and try again.',
+                    expired: 'This code has expired. Press "Send a new code".',
+                    none: 'This code is not valid for this username. Press "Send a new code".'
+                }[result]);
+            }
+            showNewPasswordStep();
+        }
+
+        // Step 3: only reachable after the code was accepted
+        function showNewPasswordStep() {
+            const email = resetGrantedFor();
+            if (!email) return showResetForm();
+            showForm('resetForm', 'Reset Password', 'Choose a new password');
+            showMessage('resetError', '');
+            document.getElementById('resetVerified').innerText = `✓ Code accepted for ${email}`;
+            document.getElementById('resetForm').reset();
+            renderPasswordRules('newPassword', 'newPasswordRules', email);
+            document.getElementById('newPassword').focus();
+        }
+
+        async function sendResetLink(event) {
+            event.preventDefault();
+            showMessage('resetRequestError', '');
+            showMessage('resetRequestInfo', '');
+            const email = document.getElementById('resetEmail').value.trim();
+            if (!window.crypto || !crypto.subtle) {
+                return showMessage('resetRequestError', 'This browser cannot reset passwords securely here. Open the system from http://localhost or as a local file.');
+            }
+            const button = document.getElementById('resetRequestButton');
+            button.disabled = true;
+            button.innerText = 'Sending...';
+            // The link in the email opens this page with the username and code filled in
+            const result = await sendPasswordLink(email);
+            button.innerText = 'Send Reset Link';
+            updateResetButtons();
+
+            if (result !== 'sent') {
+                return showMessage('resetRequestError', {
+                    unknown: 'This email address is not registered, or the account has been deactivated.',
+                    'admin-only': 'Your account was reactivated, so only an administrator can reset your password. Ask them to send you a reset link.',
+                    'not-configured': 'The reset link cannot be sent because email sending is not set up yet.',
+                    failed: 'The reset link could not be sent. Check the internet connection and try again.'
+                }[result]);
+            }
+            showMessage('resetRequestInfo', `A reset link and 6-digit code were sent to ${maskEmail(email)}. ` +
+                `They expire in ${RESET_VALID_MINUTES} minutes. Open the link, or press "I already have a code".`);
+        }
+
+        async function submitNewPassword(event) {
+            event.preventDefault();
+            const password = document.getElementById('newPassword').value;
+            const missing = missingPasswordRules(password, resetGrantedFor());
+            if (missing.length) return showMessage('resetError', 'Password is not strong enough. It needs: ' + missing.join(', ') + '.');
+            if (password !== document.getElementById('confirmNewPassword').value) return showMessage('resetError', 'The passwords do not match.');
+
+            const email = resetGrantedFor();
+            if (!(await completePasswordReset(password))) {
+                showResetForm();
+                return showMessage('resetCodeError', `Too much time has passed since the code was accepted. Press "Send a new code".`);
+            }
+
+            document.getElementById('resetForm').reset();
+            showPasswordLogin();
+            document.getElementById('username').value = email;
+            updateResetButtons();
+            document.getElementById('password').focus();
+            alert('Your password has been set. Log in with your new password.');
+        }
+
+        // Opened from the link in the email: go straight to the new password form
+        const linkParams = new URLSearchParams(location.search);
+        if (linkParams.get('reset') && !settingUp) {
+            history.replaceState(null, '', location.pathname);
+            showResetForm(linkParams.get('reset'), linkParams.get('user') || '');
+        }
+
+        // Every successful login: confirm on screen and email the username that logged in.
+        // The first login waits for "Continue"; later logins carry on to the system by themselves.
+        const AUTO_CONTINUE_SECONDS = 3;
+
+        async function showWelcome(email, { firstTime, method }) {
+            ['loginForm', 'otpForm', 'loginTitle', 'loginSubtitle'].forEach(id =>
+                document.getElementById(id).style.display = 'none');
+            document.getElementById('welcomePanel').style.display = 'block';
+            document.getElementById('welcomeText').innerText = firstTime
+                ? 'Your administrator account has been created and you are now logged in.'
+                : 'You are now logged in.';
+
+            const status = document.getElementById('emailStatus');
+            status.innerText = `Sending a login notification to ${email}...`;
+            const sent = await sendLoginEmail(email, { firstTime, method });
+            status.className = 'email-status ' + (sent ? 'sent' : 'failed');
+            status.innerText = sent
+                ? `A login notification has been sent to ${email}.`
+                : `The login notification could not be sent to ${email}. Email sending is not set up yet or there is no internet connection.`;
+
+            if (!firstTime) {
+                status.innerText += `\nOpening the system in ${AUTO_CONTINUE_SECONDS} seconds...`;
+                setTimeout(() => location.replace('Dashboard.html'), AUTO_CONTINUE_SECONDS * 1000);
+            }
+        }
+    </script>
+</body>
+
+</html>

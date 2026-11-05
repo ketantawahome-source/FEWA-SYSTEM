@@ -1,0 +1,30 @@
+<div class="form-section">
+    <div id="reportHeaderTitle" class="section-title">ALL REPORTS - STUDENT & ADMISSIONS</div>
+    <div class="grid-3">
+        <div class="form-group">
+            <label>Report Category</label>
+            <select id="reportCategorySelect" onchange="updateReportOptions()">
+                <option value="STUDENT_REPORTS" selected>Student Reports</option>
+                <option value="FINANCIAL_REPORTS">Financial Reports</option>
+                <option value="ACADEMIC_REPORTS">Academic Reports</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Select Specific Report</label>
+            <select id="specificReportSelect">
+                <option value="ADMISSION_REPORT" selected>Admission Report</option>
+                <option value="STUDENT_DIRECTORY">Student Directory & Profiles</option>
+                <option value="ATTENDANCE_REGISTER">Student Attendance Register</option>
+                <option value="ENROLLMENT_SUMMARY">Course Enrollment Summary</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Filter Date Range</label>
+            <input type="date">
+        </div>
+    </div>
+    <div class="action-bar" style="margin-top: 20px;">
+        <button type="button" class="btn-submit" onclick="alert('Exporting Report to PDF...')">Export PDF
+            Report</button>
+    </div>
+</div>

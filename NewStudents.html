@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Students - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="school-data.js"></script>
+    <script src="icons.js"></script>
+    <script src="notify.js"></script>
+    <script>
+        requireLogin();
+        // New Students is part of Student Hub (Role Operations)
+        if (currentAccount() && !allowed('students', 'view')) location.replace('Dashboard.html');
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20261104h">
+</head>
+
+<body>
+
+    <!-- Sidebar Navigation: other sections live on StudentAdmissions.html and Staff.html -->
+    <div id="sidebar">
+        <div class="brand">FEWA BEAUTY & FASHION COLLEGE</div>
+        <ul class="menu-list">
+            <li class="nav-item active"><a href="Dashboard.html">Dashboard</a></li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'studentsSubmenu')">Students Management</a>
+                <ul id="studentsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('students')">
+                        <span class="icon-circle"></span> Student Hub
+                    </li>
+                    <li class="submenu-item" onclick="openSection('documents')">
+                        <span class="icon-circle"></span> Student Documents
+                    </li>
+                    <li class="submenu-item" onclick="openSection('queries')">
+                        <span class="icon-circle"></span> Student Queries
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'financeSubmenu')">Manage Finance</a>
+                <ul id="financeSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('finance')">
+                        <span class="icon-circle"></span> Payments
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-details')">
+                        <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">
+                    <span class="icon-bar"></span> <span style="margin-left: 6px;">Reports</span>
+                </a>
+                <ul id="reportsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('reports-all')">
+                        <span class="icon-circle"></span> All Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-standard')">
+                        <span class="icon-circle"></span> Standard Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-performance')">
+                        <span class="icon-circle"></span> Performance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-class')">
+                        <span class="icon-circle"></span> Class Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-finance')">
+                        <span class="icon-circle"></span> Finance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-hr')">
+                        <span class="icon-circle"></span> HR & Payroll Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-excel')">
+                        <span class="icon-circle"></span> Excel Reports
+                    </li>
+                </ul>
+            </li>
+
+            <!-- Staff Management (administrators only) -->
+            <li id="staffNavItem" class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
+                <ul id="staffSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="location.href = 'Staff.html'">
+                        <span class="icon-circle"></span> Staff List
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'settingsSubmenu')">Settings</a>
+                <ul id="settingsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('settings-access')">
+                        <span class="icon-circle"></span> Access Management
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'ChangePassword.html'">
+                        <span class="icon-circle"></span> Change Password
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-general')">
+                        <span class="icon-circle"></span> Institution Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-organisation')">
+                        <span class="icon-circle"></span> Organisation Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-setup')">
+                        <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-backups')">
+                        <span class="icon-circle"></span> System Data Backups
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-wrapper">
+        <div id="topbar">
+            <div class="search-box">
+                <input type="text" placeholder="Search for a student... (press Enter)"
+                    onkeydown="if (event.key === 'Enter') searchStudents(this.value)">
+            </div>
+            <div class="topbar-user">
+                <div class="user-info">
+                    <span id="currentUserName">Administrator</span>
+                    <span id="currentUserEmail"></span>
+                </div>
+                <button type="button" class="btn-logout" onclick="confirmLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <!-- The list; hidden while a student's biodata is being viewed -->
+            <div id="newStudentsListView" class="form-section">
+                <div class="page-tabs">
+                    <div class="page-tab">New Students</div>
+                    <div id="termNote" class="page-tab-note"></div>
+                </div>
+
+                <button type="button" class="btn-submit btn-excel" onclick="downloadExcel()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                        <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor"
+                            stroke-width="1.5" />
+                        <path d="M1.5 6h13M1.5 10.5h13M6 1.5v13" stroke="currentColor" stroke-width="1.5" />
+                    </svg>
+                    Download Excel
+                </button>
+
+                <div class="table-controls">
+                    <label>Show
+                        <select id="pageSize" onchange="currentPage = 1; renderTable()">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="0">All</option>
+                        </select>
+                        entries</label>
+                    <label>Search:
+                        <input type="text" id="tableSearch" oninput="currentPage = 1; renderTable()"></label>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="data-table query-table new-students-table">
+                        <thead>
+                            <tr id="headingRow"></tr>
+                            <tr id="columnSearchRow" class="column-search-row"></tr>
+                        </thead>
+                        <tbody id="newStudentsBody">
+                            <tr class="empty-row"><td colspan="7">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-footer">
+                    <div id="tableInfo"></div>
+                    <div id="pager" class="pager"></div>
+                </div>
+            </div>
+
+            <!-- Student Biodata: opened by View, in the space under the table -->
+            <div id="biodataWindow" class="biodata-panel" hidden>
+                <div class="biodata-card" role="region" aria-labelledby="biodataTitle">
+                    <div class="biodata-head">
+                        <span id="biodataTitle">Student Biodata</span>
+                        <button type="button" class="biodata-close" onclick="closeBiodata()" title="Close"
+                            aria-label="Close">&times;</button>
+                    </div>
+                    <div class="biodata-scroll">
+                        <table class="biodata-table">
+                            <thead>
+                                <tr><th>Record</th><th>Details</th></tr>
+                            </thead>
+                            <tbody id="biodataBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById(submenuId).classList.toggle('open');
+        }
+
+        // Opens a section of the student page (see data-open names in StudentAdmissions.html)
+        function openSection(name) {
+            location.href = 'StudentAdmissions.html?open=' + encodeURIComponent(name);
+        }
+
+        function searchStudents(value) {
+            if (value.trim()) location.href = 'StudentAdmissions.html?search=' + encodeURIComponent(value.trim());
+        }
+
+        /* ---------- New Students table ----------
+           Course and Enrollment Year are the student's Course and Enrollment, both set up in Settings. */
+        const COLUMNS = [
+            { heading: 'No.' },
+            { heading: 'Course', value: s => s.admissionCourse || '' },
+            { heading: 'Enrollment Year', value: s => s.enrollment || '' },
+            { heading: 'Reg. No.', value: s => s.admNo || '' },
+            { heading: 'Student Name', value: s => fullName(s) },
+            { heading: 'Admission Date', value: s => formatDate(s.createdAt), sortValue: s => s.createdAt || '' },
+            { heading: 'Action' }
+        ];
+
+        let newStudents = [];
+        let currentPage = 1;
+        // Newest admissions first until a heading is clicked
+        let sortColumn = 5;
+        let sortDirection = -1;
+
+        function renderHeadings() {
+            document.getElementById('headingRow').innerHTML = COLUMNS.map((c, i) => {
+                const sortable = !!c.value;
+                const state = i === sortColumn ? (sortDirection === 1 ? ' sort-asc' : ' sort-desc') : '';
+                return `<th${sortable ? ` class="sortable${state}" onclick="sortBy(${i})"` : ''}>${c.heading}</th>`;
+            }).join('');
+        }
+
+        function sortBy(index) {
+            sortDirection = index === sortColumn ? -sortDirection : 1;
+            sortColumn = index;
+            renderHeadings();
+            renderTable();
+        }
+
+        // The rows left after the Search box and each column's search box, in the chosen order,
+        // as { s: student, number: its No. }. The No. box matches the row number; the Action box matches "view".
+        function visibleRows() {
+            const term = document.getElementById('tableSearch').value.trim().toLowerCase();
+            const columnTerms = [...document.querySelectorAll('.column-search')]
+                .map(input => [COLUMNS[input.dataset.column], input.value.trim().toLowerCase()])
+                .filter(([, value]) => value);
+            const column = COLUMNS[sortColumn];
+            const sortValue = column.sortValue || column.value;
+
+            const rows = newStudents
+                .filter(s => !term || COLUMNS.filter(c => c.value)
+                    .some(c => c.value(s).toLowerCase().includes(term)))
+                .filter(s => columnTerms.every(([c, value]) => !c.value || c.value(s).toLowerCase().includes(value)))
+                .sort((a, b) => sortValue(a).localeCompare(sortValue(b), undefined, { numeric: true }) * sortDirection)
+                .map((s, i) => ({ s, number: i + 1 }));
+
+            const numberTerm = (columnTerms.find(([c]) => c.heading === 'No.') || [])[1];
+            const actionTerm = (columnTerms.find(([c]) => c.heading === 'Action') || [])[1];
+            if (actionTerm && !'view'.includes(actionTerm)) return [];
+            return rows.filter(row => !numberTerm || String(row.number).includes(numberTerm));
+        }
+
+        /* ---------- Student Biodata ----------
+           View shows the student's biodata under the table on this page (Record | Details), so the page stays put */
+        const formatBirthDate = value => value ? formatDate(value + 'T00:00') : '';
+        const personName = (s, p) => [s[p + 'FirstName'], s[p + 'LastName']].filter(Boolean).join(' ');
+
+        function showBiodata(id) {
+            const s = newStudents.find(st => st.id === id);
+            if (!s) return;
+            document.getElementById('biodataWindow').dataset.studentId = id;
+            const rows = [
+                ['Student Name', fullName(s).toUpperCase()],
+                ['Reg No.', s.admNo],
+                ['Gender', s.gender],
+                ['Date of Birth', formatBirthDate(s.dob)],
+                ['Admission Date', formatDate(s.createdAt)],
+                ['Current Course', s.admissionCourse],
+                ['Campus', s.campus],
+                ['Enrollment', s.enrollment],
+                ['Study Session', s.studySession],
+                ['Phone', s.phone],
+                ['Email', s.email],
+                ['ID / Birth Certificate No.', s.idBirthCert],
+                ...['Father', 'Mother', 'Guardian'].flatMap(role => {
+                    const p = role.toLowerCase();
+                    return [[`${role} Name`, personName(s, p).toUpperCase()], [`${role} Phone`, s[p + 'Phone']],
+                        [`${role} Email`, s[p + 'Email']], [`${role} Occupation`, s[p + 'Occupation']]];
+                }),
+                ['Emergency Contact', [s.emergencyName, s.emergencyRelationship && `(${s.emergencyRelationship})`].filter(Boolean).join(' ')],
+                ['Emergency Phone', s.emergencyPhone],
+                ['Nationality', s.nationality],
+                ['Current Status', s.activeStudent === 'no' ? 'Inactive' : 'Active'],
+                ['Last Status Date', formatDate(s.statusRecordedAt || s.createdAt)]
+            ];
+
+            document.getElementById('biodataTitle').innerText = `Student Biodata: ${fullName(s)}`;
+            // One record per line, top to bottom (Record | Details)
+            document.getElementById('biodataBody').innerHTML = rows.map(([record, details]) =>
+                `<tr><th scope="row">${record}:</th><td>${escapeHtml(details)}</td></tr>`).join('');
+            const panel = document.getElementById('biodataWindow');
+            // Only the biodata shows; the list comes back when it is closed
+            document.getElementById('newStudentsListView').hidden = true;
+            panel.hidden = false;
+            document.getElementById('main-wrapper').scrollTop = 0;
+        }
+
+        function closeBiodata() {
+            document.getElementById('biodataWindow').hidden = true;
+            document.getElementById('newStudentsListView').hidden = false;
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeBiodata();
+        });
+
+        function renderTable() {
+            const rows = visibleRows();
+            const pageSize = Number(document.getElementById('pageSize').value) || rows.length || 1;
+            const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+            currentPage = Math.min(currentPage, pages);
+            const first = (currentPage - 1) * pageSize;
+            const pageRows = rows.slice(first, first + pageSize);
+
+            document.getElementById('newStudentsBody').innerHTML = pageRows.length
+                ? pageRows.map(({ s, number }) => `
+                    <tr>
+                        <td class="cell-number">${number}</td>
+                        <td>${escapeHtml((s.admissionCourse || '—').toUpperCase())}</td>
+                        <td>${escapeHtml((s.enrollment || '—').toUpperCase())}</td>
+                        <td>${escapeHtml((s.admNo || '').toUpperCase())}</td>
+                        <td>${escapeHtml(fullName(s).toUpperCase())}</td>
+                        <td>${escapeHtml(formatDate(s.createdAt))}</td>
+                        <td class="row-actions">
+                            <a href="#" class="view-link" onclick="showBiodata('${s.id}'); return false;"
+                                title="See this student's biodata">&#10140; view</a>
+                        </td>
+                    </tr>`).join('')
+                : `<tr class="empty-row"><td colspan="${COLUMNS.length}">${newStudents.length
+                    ? 'No matching students found.' : 'No new students this term yet.'}</td></tr>`;
+
+            document.getElementById('tableInfo').innerText = rows.length
+                ? `Showing ${first + 1} to ${first + pageRows.length} of ${rows.length} entries` +
+                  (rows.length < newStudents.length ? ` (filtered from ${newStudents.length} total entries)` : '')
+                : 'Showing 0 entries';
+            renderPager(pages);
+        }
+
+        function renderPager(pages) {
+            const button = (label, page, disabled = false, current = false) =>
+                `<button type="button"${current ? ' class="current"' : ''}${disabled ? ' disabled' : ''}
+                    onclick="currentPage = ${page}; renderTable()">${label}</button>`;
+            const numbers = Array.from({ length: pages }, (_, i) => i + 1)
+                .map(page => button(page, page, false, page === currentPage)).join('');
+            document.getElementById('pager').innerHTML =
+                button('Previous', currentPage - 1, currentPage === 1) + numbers +
+                button('Next', currentPage + 1, currentPage === pages);
+        }
+
+        // Saves the rows shown (after searching and sorting, all pages) as a spreadsheet that opens in Excel
+        function downloadExcel() {
+            const rows = visibleRows();
+            if (!rows.length) return alert('There are no students to download.');
+            const cell = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+            const csv = [
+                ['No.', 'Course', 'Enrollment Year', 'Reg. No.', 'Student Name', 'Admission Date', 'Phone Number', 'Email'],
+                ...rows.map(({ s, number }) => [number, s.admissionCourse, s.enrollment, s.admNo, fullName(s),
+                    formatDate(s.createdAt), s.phone, s.email])
+            ].map(row => row.map(cell).join(',')).join('\r\n');
+
+            // The byte-order mark makes Excel read names with accents correctly
+            const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `New Students - ${document.getElementById('termNote').dataset.term}.csv`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }
+
+        async function loadNewStudents() {
+            const settings = await readAll('settings');
+            applyCollegeName(settings);
+            const term = termFromSettings(settings);
+            const note = document.getElementById('termNote');
+            note.innerText = 'Admitted in ' + term.name;
+            note.dataset.term = term.name;
+
+            newStudents = (await readAll('students')).filter(s => term.inTerm(s.createdAt));
+
+            renderHeadings();
+            // A search box under every column (No. included), except Action
+            document.getElementById('columnSearchRow').innerHTML = COLUMNS.map((c, i) => c.heading === 'Action' ? '<th></th>'
+                : `<th><input type="text" class="column-search" data-column="${i}" placeholder="Search..."
+                       aria-label="Search ${c.heading}" oninput="currentPage = 1; renderTable()"></th>`).join('');
+            renderTable();
+        }
+
+        function showCurrentUser() {
+            const account = currentAccount();
+            document.getElementById('currentUserName').innerText = account ? accountName(account) : 'Administrator';
+            document.getElementById('currentUserEmail').innerText = account ? account.username : '';
+            // Only administrators manage staff
+            document.getElementById('staffNavItem').style.display = isAdmin() ? '' : 'none';
+        }
+
+        function confirmLogout() {
+            if (confirm('Log out of the FEWA system?')) logout();
+        }
+
+        showCurrentUser();
+        loadNewStudents();
+
+        // The list updates when data changes in another tab or window, keeping searches, sorting and the page
+        whenDataChanges(async () => {
+            const term = termFromSettings(await readAll('settings'));
+            newStudents = (await readAll('students')).filter(s => term.inTerm(s.createdAt));
+            renderTable();
+            const openId = !document.getElementById('biodataWindow').hidden &&
+                document.getElementById('biodataWindow').dataset.studentId;
+            if (openId && newStudents.some(s => s.id === openId)) showBiodata(openId);
+        });
+    </script>
+
+</body>
+
+</html>

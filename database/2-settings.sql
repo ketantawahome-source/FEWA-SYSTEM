@@ -1,0 +1,157 @@
+-- =====================================================================================================
+-- FEWA system - schema "settings": everything under Settings (courses, campuses, terms, School Setup...)
+-- =====================================================================================================
+-- Run by server.mjs each time it starts (see 1-students.sql). Safe to run more than once.
+--
+-- settings.settings lists every list and form saved in Settings, and the table that holds it (stored_in).
+-- A list (courses, campuses, terms...) has one row per item, in the order shown in the system (position:
+-- 0 first). If a list has no row in settings.settings, the system shows its built-in starting items (e.g.
+-- Full Time / Part Time); once it is saved, its table is used even if it is empty.
+-- Adding an item in pgAdmin: give it a unique id (any text, e.g. c5) and fill in its columns.
+-- =====================================================================================================
+CREATE SCHEMA IF NOT EXISTS settings;
+COMMENT ON SCHEMA settings IS 'FEWA system: Settings lists and forms';
+
+
+CREATE TABLE IF NOT EXISTS settings.settings (
+    key         text PRIMARY KEY,           -- the system's name for the list or form, e.g. courses
+    stored_in   text,                       -- the table that holds it
+    data        jsonb,                      -- only for settings that have no table of their own
+    updated_at  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE settings.settings ALTER COLUMN data DROP NOT NULL;
+ALTER TABLE settings.settings ADD COLUMN IF NOT EXISTS stored_in text;
+COMMENT ON TABLE settings.settings IS 'Index of the Settings lists and forms, and the table each is kept in (stored_in). Leave as it is.';
+
+
+-- ---------- Program Setup ----------
+CREATE TABLE IF NOT EXISTS settings.schools (
+    id          text PRIMARY KEY,
+    name        text,
+    code        text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.courses (
+    id                  text PRIMARY KEY,
+    name                text,               -- shown in Admission Course; students.students.admission_course uses it
+    institution         text,
+    code                text,               -- starts the admission numbers, e.g. HD01 -> HD01/001/2026
+    duration            integer,
+    duration_type       text,               -- YEARS, MONTHS, WEEKS or DAYS
+    institute           text,               -- a school name from settings.schools
+    award               text,               -- Certificate, Diploma, Higher Diploma, Degree, Artisan, Short Course
+    department          text,               -- a department name from settings.departments
+    apply_exam_weight   text,               -- YES or NO
+    enabled             text,               -- YES or NO (NO: kept on students, but not offered to new ones)
+    use100_conversion   text,               -- YES or NO
+    transcript_file     text,
+    intake              text,               -- January, May or September
+    position            integer NOT NULL DEFAULT 0,
+    extra               jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+COMMENT ON COLUMN settings.courses.code IS 'Starts the admission numbers of the course, e.g. HD01 -> HD01/001/2026';
+COMMENT ON COLUMN settings.courses.enabled IS 'YES or NO';
+
+CREATE TABLE IF NOT EXISTS settings.enrollment_types (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. January 2026
+    start_date  date,
+    status      text,                       -- Active or Inactive
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.study_sessions (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. Full Time
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+
+-- ---------- Organisation Setup ----------
+CREATE TABLE IF NOT EXISTS settings.school_setup (
+    id              integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),   -- a single row
+    college_name    text,
+    motto           text,
+    registration_no text,                   -- Registration / TVETA No.
+    kra_pin         text,
+    year_founded    integer,
+    principal       text,
+    email           text,
+    phone           text,
+    website         text,
+    address         text,
+    postal_address  text,
+    county          text,
+    logo            text,                   -- the logo picture (data: address), printed on reports
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+COMMENT ON TABLE settings.school_setup IS 'Settings > Organisation Setup > School Setup (one row).';
+
+CREATE TABLE IF NOT EXISTS settings.campuses (
+    id          text PRIMARY KEY,
+    name        text,
+    location    text,
+    phone       text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.academic_terms (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. Term 1 2027
+    start_date  date,
+    end_date    date,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.departments (
+    id          text PRIMARY KEY,
+    name        text,
+    head        text,                       -- Head of Department
+    phone       text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+
+-- ---------- Institution Setup ----------
+CREATE TABLE IF NOT EXISTS settings.student_types (
+    id          text PRIMARY KEY,
+    name        text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.student_groups (
+    id          text PRIMARY KEY,
+    name        text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS settings.document_types (
+    id          text PRIMARY KEY,
+    name        text,
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+
+-- Row level security with no policies: only the owner can read or change the rows
+ALTER TABLE settings.settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.enrollment_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.study_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.school_setup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.campuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.academic_terms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;

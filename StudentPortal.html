@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="school-data.js"></script>
+    <script src="notify.js"></script>
+    <script>requireStudentLogin();</script>
+    <link rel="stylesheet" href="styles.css?v=20261104h">
+</head>
+
+<body class="student-portal-page">
+    <!-- Shown briefly while moving from one portal page to another -->
+    <div id="spLoading" class="page-loading" hidden role="status" aria-live="polite">
+        <div class="page-loading-box">
+            <div class="page-loading-ring">
+                <div class="page-loading-words">
+                    <div class="page-loading-title">LOADING</div>
+                    <div class="page-loading-text">please wait...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Laid out like the staff "Student Enquiry" window: the student and grouped links on the left, details on the right -->
+    <div class="enquiry-window sp-shell">
+        <!-- Top: the college brand above the sidebar, then a bar with the menu button, a search and the student's menu -->
+        <div class="sp-header">
+            <div class="sp-brand">
+                <span class="brand-logo"><img src="fewa-logo.jpg" alt="" class="sp-logo"></span>
+                <span class="brand-name" id="spCollege"><b>FEWA</b><small>BEAUTY &amp; FASHION COLLEGE</small></span>
+            </div>
+            <div class="sp-bar">
+                <button type="button" class="btn-menu" onclick="toggleSideMenu()" title="Show or hide the menu names"
+                    aria-label="Show or hide the menu names">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                </button>
+                <form class="sp-search" onsubmit="event.preventDefault(); searchPortal()">
+                    <input type="text" id="spSearch" placeholder="Search..." aria-label="Search the portal" autocomplete="off">
+                    <button type="submit" aria-label="Search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                    </button>
+                </form>
+                <!-- The student's photo and name; opens Profile / Logout -->
+                <span class="sp-user-menu">
+                    <button type="button" id="spUserButton" class="sp-user-button" aria-haspopup="true" aria-expanded="false"
+                        onclick="toggleUserMenu()"></button>
+                    <span id="spUserDropdown" class="sp-user-dropdown" hidden>
+                        <button type="button" onclick="closeUserMenu(); showPortalTab('profile')">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/></svg>
+                            Profile</button>
+                        <button type="button" onclick="closeUserMenu(); if (confirm('Log out of the Student Portal?')) studentLogout()">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg>
+                            Logout</button>
+                    </span>
+                </span>
+            </div>
+        </div>
+        <div id="spBody" class="enquiry-body"></div>
+        <footer class="system-footer sp-footer">
+            <span><b>Copyright &copy; <span id="spYear"></span></b> <span class="footer-brand">WAFA Systems</span></span>
+            <span>Student Portal</span>
+        </footer>
+    </div>
+
+    <script>
+        /* ---------- Student Portal ----------
+           A student's own, read-only view, arranged like the staff Student Enquiry window. A temporary password
+           (from "Reset Password" at the college office) must be replaced first: until then only Change Password shows. */
+        let student = null;
+        let documentFiles = [];
+        let portalTab = 'profile';
+
+        const PORTAL_ICONS = {
+            profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/>',
+            overview: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/>',
+            admission: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/>',
+            documents: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+            status: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+            family: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.7 0 4.5 2 5 5"/>',
+            fees: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+            password: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+            calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'
+        };
+        const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PORTAL_ICONS[name]}</svg>`;
+
+        // A heading and a grid of label / value pairs; '' when every value is empty and skipIfEmpty is set
+        function detailSection(title, pairs, skipIfEmpty = false) {
+            if (skipIfEmpty && !pairs.some(([, value]) => value)) return '';
+            return `<div class="report-subtitle">${title}</div><dl class="detail-grid">${pairs.map(([label, value]) =>
+                `<div><dt>${label}</dt><dd>${escapeHtml(value) || '—'}</dd></div>`).join('')}</dl>`;
+        }
+
+        // A white box; no title line when the page heading above already names it
+        const box = (title, body, more = '') => `
+            <div class="enquiry-box">
+                ${title ? `<div class="enquiry-box-title">${title}</div>` : ''}
+                <div class="enquiry-box-body">${body}</div>
+                ${more ? `<div class="enquiry-box-more">${more}</div>` : ''}
+            </div>`;
+
+        // The page names shown beside the Home button
+        const PAGE_NAMES = {
+            profile: 'Personal Profile', overview: 'Overview', admission: 'Admission Details', documents: 'My Documents',
+            status: 'Status History', family: 'Family & Contacts', fees: 'Fee Statement', password: 'Change Password'
+        };
+
+        /* Moving to another page shows "LOADING please wait..." briefly, then the page.
+           Staying on the same page (and the portal's own refreshes) shows no loading screen. */
+        const PAGE_LOADING_MS = 550;
+        let pageLoading = false;
+
+        function showPortalTab(key) {
+            if (key === portalTab || pageLoading) return openPortalPage(key);
+            pageLoading = true;
+            const loading = document.getElementById('spLoading');
+            loading.hidden = false;
+            setTimeout(() => {
+                openPortalPage(key);
+                loading.hidden = true;
+                pageLoading = false;
+            }, PAGE_LOADING_MS);
+        }
+
+        function openPortalPage(key) {
+            portalTab = key;
+            document.querySelectorAll('[data-portal-tab]').forEach(b => b.classList.toggle('active', b.dataset.portalTab === key));
+            document.querySelectorAll('[data-portal-panel]').forEach(p => p.hidden = p.dataset.portalPanel !== key);
+            // On every page, except the first, required password change (which cannot be skipped)
+            const crumbs = document.getElementById('spCrumbs');
+            crumbs.hidden = !!student.mustChangePassword;
+            // Personal Profile is Home, so it keeps its heading but needs no Home button
+            crumbs.querySelector('.sp-home').hidden = key === 'profile';
+            document.getElementById('spCrumbPage').innerText = PAGE_NAMES[key] || '';
+            document.querySelector('.enquiry-main').scrollTop = 0;
+            if (key === 'password') document.getElementById('spNew').focus();
+        }
+
+        /* The user menu at the top right: photo, name and ▾; opens Profile / Logout */
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('spUserDropdown');
+            dropdown.hidden = !dropdown.hidden;
+            document.getElementById('spUserButton').setAttribute('aria-expanded', String(!dropdown.hidden));
+        }
+
+        function closeUserMenu() {
+            document.getElementById('spUserDropdown').hidden = true;
+            document.getElementById('spUserButton').setAttribute('aria-expanded', 'false');
+        }
+
+        document.addEventListener('click', event => {
+            if (!event.target.closest('.sp-user-menu')) closeUserMenu();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeUserMenu();
+        });
+
+        // ≡ shrinks the sidebar to its icons, and back; remembered on this computer
+        function toggleSideMenu() {
+            const shell = document.querySelector('.sp-shell');
+            shell.classList.toggle('side-collapsed');
+            try {
+                localStorage.setItem('fewaPortalSideCollapsed', shell.classList.contains('side-collapsed') ? 'yes' : 'no');
+            } catch { }
+        }
+
+        // Search: jumps to the first section of the portal whose name contains what was typed
+        function searchPortal() {
+            const typed = document.getElementById('spSearch').value.trim().toLowerCase();
+            if (!typed) return;
+            const match = [...document.querySelectorAll('.enquiry-nav')]
+                .find(b => b.textContent.toLowerCase().includes(typed) || b.dataset.portalTab.includes(typed));
+            if (match) {
+                showPortalTab(match.dataset.portalTab);
+                document.getElementById('spSearch').value = '';
+            } else {
+                showToast(`Nothing in the portal is called "${typed}". Try documents, status, contacts or password.`, 'warning');
+            }
+        }
+
+        function showPasswordError(text) {
+            const errorBox = document.getElementById('spPasswordError');
+            errorBox.innerText = text;
+            errorBox.hidden = false;
+        }
+
+        async function saveOwnPassword(event) {
+            event.preventDefault();
+            const password = document.getElementById('spNew').value;
+            const missing = missingPasswordRules(password, student.admNo);
+            if (missing.length) return showPasswordError('Password NOT saved. It needs: ' + missing.join(', ') + '.');
+            if (password !== document.getElementById('spConfirm').value) return showPasswordError('Password NOT saved. The two passwords do not match.');
+            if (await checkStudentLogin(student.admNo, password) === 'ok') return showPasswordError('Password NOT saved. Choose a different password from the current one.');
+
+            const wasTemporary = student.mustChangePassword;
+            await setStudentPassword(student.id, password, false);
+            student.mustChangePassword = false;
+            showToast('Your password has been saved. Use it next time you log in.');
+            // The rest of the portal opens once a temporary password has been replaced
+            if (wasTemporary) render();
+            else {
+                event.target.reset();
+                document.getElementById('spPasswordError').hidden = true;
+                showPortalTab('profile');
+            }
+        }
+
+        function viewDocument(index, download) {
+            const doc = documentFiles[index];
+            if (!doc || !doc.file) return;
+            const url = URL.createObjectURL(doc.file);
+            if (download) {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = doc.fileName;
+                link.click();
+            } else {
+                window.open(url, '_blank');
+            }
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+
+        let deferrals = [];
+
+        function render() {
+            const s = student;
+            const active = s.activeStudent !== 'no';
+            const initials = [s.firstName, s.lastName].filter(Boolean).map(n => n[0]).join('').toUpperCase();
+            const photo = cls => s.photo ? `<img class="${cls}" data-photo alt="My photo">` : `<div class="${cls} initials">${escapeHtml(initials)}</div>`;
+            const passwordOnly = !!s.mustChangePassword;
+            const daysSince = s.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(s.createdAt)) / 86400000)) : 0;
+            const person = p => [s[p + 'FirstName'], s[p + 'LastName']].filter(Boolean).join(' ');
+
+            const left = [['Reg. No', s.admNo], ['Name', fullName(s).toUpperCase()], ['ID No', s.idBirthCert],
+                ['Gender', s.gender], ['Phone', s.phone], ['Course', s.admissionCourse]];
+            const right = [['Address', s.postalAddress], ['Email', s.email],
+                ['Date Of Birth', s.dob ? s.dob.split('-').reverse().join('/') : ''],
+                ['Campus', s.campus], ['Academic Status', active ? 'Active' : 'Inactive'], ['Enrollment', s.enrollment]];
+
+            const documentsTable = list => `<div class="table-wrap"><table class="data-table">
+                <thead><tr><th>Document Type</th><th>File Name</th><th>Uploaded</th><th>Actions</th></tr></thead>
+                <tbody>${list.length ? list.map(d => `
+                    <tr>
+                        <td>${escapeHtml(d.docType)}</td>
+                        <td>${escapeHtml(d.fileName)}</td>
+                        <td>${escapeHtml(formatDate(d.uploadedAt))}</td>
+                        <td>
+                            <button type="button" class="btn-small" onclick="viewDocument(${documentFiles.indexOf(d)}, false)">View</button>
+                            <button type="button" class="btn-small" onclick="viewDocument(${documentFiles.indexOf(d)}, true)">Download</button>
+                        </td>
+                    </tr>`).join('') : '<tr class="empty-row"><td colspan="4">No documents uploaded yet.</td></tr>'}
+                </tbody></table></div>`;
+
+            const tile = (cls, value, label, iconName, tab) => `
+                <div class="enquiry-tile ${cls}">
+                    <div class="enquiry-tile-main">
+                        <div><div class="enquiry-tile-value">${value}</div><div class="enquiry-tile-label">${label}</div></div>
+                        <span class="enquiry-tile-icon">${icon(iconName)}</span>
+                    </div>
+                    <button type="button" class="enquiry-tile-more" onclick="showPortalTab('${tab}')">More info &rarr;</button>
+                </div>`;
+
+            const panels = {
+                profile: `
+                    <div class="enquiry-box">
+                        <div class="portal-title">Basic information</div>
+                        <div class="portal-basic">
+                            <div class="portal-photo-col">${photo('portal-photo')}</div>
+                            ${[left, right].map(pairs => `<dl class="portal-info">${pairs.map(([label, value]) => `
+                                <dt>${label}</dt>
+                                <dd class="${label === 'Academic Status' ? (active ? 'status-active' : 'status-inactive') : ''}">${escapeHtml(value) || '—'}</dd>`).join('')}
+                            </dl>`).join('')}
+                        </div>
+                        <div class="portal-buttons">
+                            <button type="button" class="portal-btn documents" onclick="showPortalTab('documents')">View Documents</button>
+                            <button type="button" class="portal-btn status" onclick="showPortalTab('status')">View Status History</button>
+                            <button type="button" class="portal-btn edit" onclick="showPortalTab('password')">Change Password</button>
+                        </div>
+                    </div>`,
+                overview: `
+                    ${box('Quick Actions', `<div class="enquiry-actions">
+                        <button type="button" onclick="showPortalTab('documents')">My Documents</button>
+                        <button type="button" onclick="showPortalTab('family')">My Contacts</button>
+                        <button type="button" onclick="showPortalTab('password')">Change Password</button>
+                        <button type="button" onclick="window.print()">Print</button>
+                    </div>`)}
+                    <div class="enquiry-tiles">
+                        ${tile('blue', 'KES —', 'Fee Balance', 'fees', 'fees')}
+                        ${tile('green', documentFiles.length, 'Documents Uploaded', 'documents', 'documents')}
+                        ${tile(active ? 'orange' : 'red', active ? 'Active' : 'Inactive', 'Academic Status', 'status', 'status')}
+                        ${tile('purple', daysSince, `Day${daysSince === 1 ? '' : 's'} Since Admission`, 'calendar', 'admission')}
+                    </div>
+                    ${box('Recent Documents', documentsTable(documentFiles.slice(0, 5)),
+                        `<button type="button" onclick="showPortalTab('documents')">View All Documents</button>`)}`,
+                admission: box(null,
+                    detailSection('Admission Details', [['Campus', s.campus], ['Course', s.admissionCourse], ['Study Session', s.studySession],
+                        ['Enrollment', s.enrollment], ['Student Type', s.studentType], ['Group', s.group], ['Status', active ? 'Active' : 'Inactive']]) +
+                    detailSection('Personal Information', [['Adm No.', s.admNo], ['Gender', s.gender], ['Date of Birth', s.dob],
+                        ['Email', s.email], ['Phone', s.phone], ['ID/Birth Certificate No.', s.idBirthCert], ['Passport No.', s.passportNo],
+                        ['Nationality', s.nationality], ['Postal Address', s.postalAddress], ['Specialization', s.specialization]])),
+                documents: box(null, documentsTable(documentFiles)),
+                status: box(null, `<dl class="detail-grid">
+                        <div><dt>Current Status</dt><dd>${active ? 'Active' : 'Inactive'}</dd></div>
+                        <div><dt>Admitted On</dt><dd>${escapeHtml(formatDate(s.createdAt)) || '—'}</dd></div>
+                        <div><dt>Course</dt><dd>${escapeHtml(s.admissionCourse) || '—'}</dd></div>
+                    </dl>
+                    ${deferrals.length ? `<div class="report-subtitle">Deferrals / Suspensions</div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Type</th><th>Start Date</th><th>End Date</th><th>Reason</th></tr></thead>
+                        <tbody>${deferrals.map(d => `<tr><td>${escapeHtml(d.type)}</td><td>${escapeHtml(formatDate(d.startDate))}</td>
+                            <td>${escapeHtml(formatDate(d.endDate)) || '—'}</td><td>${escapeHtml(d.reason)}</td></tr>`).join('')}</tbody>
+                    </table></div>` : ''}`),
+                family: box(null,
+                    (['father', 'mother', 'guardian'].map(p => detailSection(p[0].toUpperCase() + p.slice(1),
+                        [['Name', person(p)], ['Phone', s[p + 'Phone']], ['Email', s[p + 'Email']], ['Occupation', s[p + 'Occupation']]], true)).join('')
+                        || '<div class="report-subtitle">Parents / Guardian</div><p class="empty-state">No parent or guardian details recorded.</p>') +
+                    detailSection('Emergency Contact', [['Full Name', s.emergencyName], ['Relationship', s.emergencyRelationship],
+                        ['Primary Phone', s.emergencyPhone], ['Alternative Phone', s.emergencyAltPhone], ['Email', s.emergencyEmail]])),
+                fees: box(null, '<p class="empty-state">No fee records yet. Ask the college accounts office for your fee statement.</p>'),
+                password: `
+                    <div class="enquiry-box">
+                        <div class="portal-title">${passwordOnly ? 'Choose Your Own Password' : 'Change Password'}</div>
+                        <form class="cp-form sp-password-form" onsubmit="saveOwnPassword(event)" autocomplete="off">
+                            <div id="spPasswordError" class="cp-error cp-full" hidden></div>
+                            <label for="spNew">New Password:</label>
+                            <input type="password" id="spNew" autocomplete="new-password" required>
+                            <label for="spConfirm">Confirm Password:</label>
+                            <input type="password" id="spConfirm" autocomplete="new-password" required>
+                            <ul id="spRules" class="password-rules cp-full"></ul>
+                            <div class="cp-full"><button type="submit" class="btn-submit">Save Password</button></div>
+                        </form>
+                    </div>`
+            };
+
+            // Until a temporary password is replaced, only Change Password is offered
+            const nav = passwordOnly ? [['Settings', [['password', 'Change Password']]]] : [
+                ['Dashboard', [['profile', 'Personal Profile'], ['overview', 'Overview']]],
+                ['Academics', [['admission', 'Admission Details'], ['documents', `Documents (${documentFiles.length})`], ['status', 'Status History']]],
+                ['Contacts', [['family', 'Family & Contacts']]],
+                ['Financials', [['fees', 'Fee Statement']]],
+                ['Settings', [['password', 'Change Password']]]
+            ];
+            portalTab = passwordOnly ? 'password' : (portalTab === 'password' ? 'profile' : portalTab);
+
+            document.getElementById('spBody').innerHTML = `
+                <aside class="enquiry-side">
+                    ${nav.map(([heading, items]) => `
+                        <div class="enquiry-nav-heading">${heading}</div>
+                        ${items.map(([key, name]) => `<button type="button" class="enquiry-nav${key === portalTab ? ' active' : ''}"
+                            data-portal-tab="${key}" onclick="showPortalTab('${key}')" title="${name}">${icon(key)}
+                            <span class="nav-text">${name}</span></button>`).join('')}`).join('')}
+                </aside>
+                <main class="enquiry-main">
+                    <!-- Back to Home (Personal Profile) from any other page -->
+                    <div id="spCrumbs" class="sp-crumbs" hidden>
+                        <button type="button" class="sp-home" onclick="showPortalTab('profile')">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg>
+                            Home</button>
+                        <span class="sp-crumb-sep" aria-hidden="true">&rsaquo;</span>
+                        <span id="spCrumbPage"></span>
+                    </div>
+                    ${Object.entries(panels).map(([key, html]) => `<div class="portal-panel" data-portal-panel="${key}"
+                        ${key === portalTab ? '' : 'hidden'}>${html}</div>`).join('')}
+                </main>`;
+
+            // The user menu shows the student's photo (or initials) and name
+            document.getElementById('spUserButton').innerHTML = `${photo('sp-user-photo')}
+                <span class="sp-user-name">${escapeHtml(fullName(s).toUpperCase())}</span>
+                <svg class="sp-user-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+
+            if (s.photo) {
+                const url = URL.createObjectURL(s.photo);
+                document.querySelectorAll('img[data-photo]').forEach(img => img.src = url);
+            }
+            document.querySelectorAll('#spBody input[type="password"]').forEach(addPasswordEye);
+            renderPasswordRules('spNew', 'spRules', s.admNo);
+            document.getElementById('spNew').addEventListener('input', () => renderPasswordRules('spNew', 'spRules', s.admNo));
+            showPortalTab(portalTab);
+        }
+
+        async function loadPortal() {
+            student = (await readAll('students')).find(s => s.id === currentStudentId());
+            // Removed or deactivated by the college office since logging in: sign out
+            if (!student) {
+                alert('Your student record is no longer available. Please contact the college office.');
+                return studentLogout();
+            }
+            if (student.activeStudent === 'no') {
+                alert('Your student account is no longer active. Please contact the college office.');
+                return studentLogout();
+            }
+
+            const settings = await readAll('settings');
+            const org = settings.find(s => s.key === 'organization');
+            // The college name as in the staff sidebar: the first word large, the rest below it
+            if (org && org.collegeName) {
+                const [first, ...rest] = org.collegeName.trim().split(/\s+/);
+                document.getElementById('spCollege').innerHTML = `<b>${escapeHtml(first)}</b><small>${escapeHtml(rest.join(' '))}</small>`;
+            }
+            if (org && org.logo) document.querySelector('.sp-logo').src = org.logo;
+            try {
+                if (localStorage.getItem('fewaPortalSideCollapsed') === 'yes') document.querySelector('.sp-shell').classList.add('side-collapsed');
+            } catch { }
+            document.getElementById('spYear').innerText = new Date().getFullYear();
+
+            documentFiles = (await readAll('documents')).filter(d => d.studentId === student.id)
+                .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+            deferrals = (await readAll('deferrals')).filter(d => d.studentId === student.id)
+                .sort((a, b) => b.startDate.localeCompare(a.startDate));
+            render();
+        }
+
+        loadPortal();
+
+        /* Changes made by the college office show without refreshing: when staff save student data in another
+           tab or window, or when the student comes back to this tab, the portal reads the latest details again.
+           It waits while the student is typing a new password, so nothing they typed is lost. */
+        let refreshTimer = null;
+        function refreshPortal() {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => {
+                const typing = document.activeElement && document.activeElement.closest('.sp-password-form');
+                if (typing) return;
+                loadPortal();
+            }, 300);
+        }
+        onDataChange(refreshPortal);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshPortal();
+        });
+    </script>
+</body>
+
+</html>

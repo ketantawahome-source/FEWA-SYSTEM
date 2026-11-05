@@ -1,0 +1,200 @@
+<!-- Styles for this form (e.g. .family-grid) are in styles.css -->
+
+<form id="studentAdmissionsForm" onsubmit="saveStudent(event)">
+
+    <!-- 1. STUDENT PERSONAL INFORMATION -->
+    <div class="form-section">
+        <div class="section-title">Student Personal Information</div>
+        <div class="grid-3">
+            <div class="form-group"><label>First Name <span class="req">*</span></label><input type="text"
+                    name="firstName" required></div>
+            <div class="form-group"><label>Last Name <span class="req">*</span></label><input type="text"
+                    name="lastName" required></div>
+
+            <div class="form-group">
+                <label>Gender <span class="req">*</span></label>
+                <select name="gender" required>
+                    <option value="">-- select gender --</option>
+                    <option value="FEMALE">FEMALE</option>
+                    <option value="MALE">MALE</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date of Birth <span class="req">*</span></label>
+                <input type="date" name="dob" required>
+            </div>
+            <div class="form-group">
+                <label>Enter AdmNo <span class="req">*</span> / Reg. No.</label>
+                <input type="text" name="admNo" required>
+            </div>
+
+            <div class="form-group">
+                <label>Student Email <span class="req">*</span></label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label>ID/Birth Certificate No. <span class="req">*</span></label>
+                <input type="text" name="idBirthCert" required>
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" name="phone">
+            </div>
+
+            <div class="form-group">
+                <label>Postal Address</label>
+                <input type="text" name="postalAddress">
+            </div>
+            <div class="form-group">
+                <label>Nationality</label>
+                <select name="nationality">
+                    <option value="KENYAN" selected>KENYAN</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Passport No.</label>
+                <input type="text" name="passportNo">
+            </div>
+
+            <div class="form-group">
+                <label>Area of Specialization</label>
+                <input type="text" name="specialization">
+            </div>
+        </div>
+
+        <div style="margin-top: 12px;">
+            <label>Student Photo Upload:</label><br>
+            <input type="file" name="studentPhoto" style="margin-top: 4px; font-size: 12px;">
+        </div>
+    </div>
+
+    <!-- 2-4. FATHER, MOTHER AND GUARDIAN DETAILS: one row each -->
+    <div class="form-section">
+        <div class="section-title">PARENT / GUARDIAN DETAILS</div>
+        <div class="family-grid">
+            <span></span>
+            <span class="family-head">First Name</span>
+            <span class="family-head">Last Name</span>
+            <span class="family-head">Phone</span>
+            <span class="family-head">Email</span>
+            <span class="family-head">Occupation</span>
+
+            <span class="family-role">Father</span>
+            <input type="text" name="fatherFirstName" placeholder="First Name">
+            <input type="text" name="fatherLastName" placeholder="Last Name">
+            <input type="text" name="fatherPhone" placeholder="Phone">
+            <input type="email" name="fatherEmail" placeholder="Email">
+            <input type="text" name="fatherOccupation" placeholder="Occupation">
+
+            <span class="family-role">Mother</span>
+            <input type="text" name="motherFirstName" placeholder="First Name">
+            <input type="text" name="motherLastName" placeholder="Last Name">
+            <input type="text" name="motherPhone" placeholder="Phone">
+            <input type="email" name="motherEmail" placeholder="Email">
+            <input type="text" name="motherOccupation" placeholder="Occupation">
+
+            <span class="family-role">Guardian</span>
+            <input type="text" name="guardianFirstName" placeholder="First Name">
+            <input type="text" name="guardianLastName" placeholder="Last Name">
+            <input type="text" name="guardianPhone" placeholder="Phone">
+            <input type="email" name="guardianEmail" placeholder="Email">
+            <input type="text" name="guardianOccupation" placeholder="Occupation">
+        </div>
+    </div>
+
+    <!-- 5. EMERGENCY CONTACTS -->
+    <div class="form-section">
+        <div class="section-title">EMERGENCY CONTACTS</div>
+        <div class="grid-3">
+            <div class="form-group"><label>Contact Full Name <span class="req">*</span></label><input type="text"
+                    name="emergencyName" required></div>
+            <div class="form-group"><label>Relationship <span class="req">*</span></label><input type="text"
+                    name="emergencyRelationship" placeholder="e.g. Parent, Sibling, Uncle" required></div>
+            <div class="form-group"><label>Primary Phone Number <span class="req">*</span></label><input type="text"
+                    name="emergencyPhone" required></div>
+            <div class="form-group"><label>Alternative Phone Number</label><input type="text" name="emergencyAltPhone">
+            </div>
+            <div class="form-group"><label>Email Address</label><input type="email" name="emergencyEmail"></div>
+            <div class="form-group"><label>Physical / Postal Address</label><input type="text" name="emergencyAddress">
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. ADMISSION DETAILS -->
+    <div class="form-section">
+        <div class="section-title">Admission Details</div>
+        <div class="grid-3">
+            <div class="form-group">
+                <label>Admission Course <span class="req">*</span></label>
+                <input type="text" name="admissionCourse" placeholder="Type Course name here..." required>
+            </div>
+            <div class="form-group">
+                <label>Study Session</label>
+                <select name="studySession">
+                    <option value="">-- select session --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Enrollment <span class="req">*</span></label>
+                <select name="enrollment" required>
+                    <option value="">-- select one --</option>
+                    <option value="REGULAR">Regular</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Student Type <span class="req">*</span></label>
+                <select name="studentType" required>
+                    <option value="STUDENT" selected>STUDENT</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Group <span class="req">*</span></label>
+                <select name="group" required>
+                    <option value="DEFAULT" selected>DEFAULT GROUP</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. STUDENT STATUS -->
+    <div class="form-section">
+        <div class="section-title">Student Status</div>
+        <div style="display: flex; align-items: center; gap: 40px; padding: 10px 0;">
+            <span style="font-size: 14px; font-weight: bold; color: #24103a; min-width: 120px;">Active Student</span>
+            <div style="display: flex; gap: 30px; align-items: center;">
+                <label
+                    style="cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: bold;">
+                    <input type="radio" name="activeStudent" value="no"
+                        style="width: 16px; height: 16px; accent-color: #24103a;"> NO
+                </label>
+                <label
+                    style="cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: bold;">
+                    <input type="radio" name="activeStudent" value="yes" checked
+                        style="width: 16px; height: 16px; accent-color: #24103a;"> YES
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <button type="submit" class="btn-submit">Save Student Record</button>
+    </div>
+</form>
+
+<script>
+    function saveStudent(event) {
+        event.preventDefault();
+        const form = event.target;
+
+        // Every field marked * must be filled in (spaces alone don't count) before the record is saved
+        const missing = [...form.querySelectorAll('[required]')].filter(f => !f.value.trim());
+        if (missing.length) {
+            const names = missing.map(f => f.closest('.form-group').querySelector('label').textContent
+                .replace('*', '').replace(/\s+/g, ' ').trim());
+            alert('Student record NOT saved. Please fill in:\n\n- ' + names.join('\n- '));
+            missing[0].focus();
+            return;
+        }
+        alert('Student Record Saved Successfully!');
+    }
+</script>

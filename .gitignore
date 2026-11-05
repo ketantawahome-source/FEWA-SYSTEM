@@ -1,0 +1,15 @@
+# Passwords for Supabase and the local PostgreSQL - never upload (db-config.example.json shows the layout)
+db-config.json
+
+# Backups contain staff accounts and student data
+FEWA-backup*.json
+FEWA-data-from-this-browser*.json
+
+# Installed by "npm install" (start-server.bat does it by itself)
+node_modules/
+
+# Windows / editor clutter
+Thumbs.db
+desktop.ini
+.vscode/
+*.log

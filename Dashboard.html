@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="school-data.js"></script>
+    <script src="notify.js"></script>
+    <script>requireLogin();</script>
+    <link rel="stylesheet" href="styles.css?v=20261104h">
+</head>
+
+<body>
+
+    <!-- Sidebar Navigation: other sections live on StudentAdmissions.html and Staff.html -->
+    <div id="sidebar">
+        <div class="brand">FEWA BEAUTY & FASHION COLLEGE</div>
+        <ul class="menu-list">
+            <li class="nav-item active"><a href="Dashboard.html">Dashboard</a></li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'studentsSubmenu')">Students Management</a>
+                <ul id="studentsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('students')">
+                        <span class="icon-circle"></span> Student Hub
+                    </li>
+                    <li class="submenu-item" onclick="openSection('documents')">
+                        <span class="icon-circle"></span> Student Documents
+                    </li>
+                    <li class="submenu-item" onclick="openSection('queries')">
+                        <span class="icon-circle"></span> Student Queries
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'financeSubmenu')">Manage Finance</a>
+                <ul id="financeSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('finance')">
+                        <span class="icon-circle"></span> Payments
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-details')">
+                        <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">
+                    <span class="icon-bar"></span> <span style="margin-left: 6px;">Reports</span>
+                </a>
+                <ul id="reportsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('reports-all')">
+                        <span class="icon-circle"></span> All Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-standard')">
+                        <span class="icon-circle"></span> Standard Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-performance')">
+                        <span class="icon-circle"></span> Performance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-class')">
+                        <span class="icon-circle"></span> Class Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-finance')">
+                        <span class="icon-circle"></span> Finance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-hr')">
+                        <span class="icon-circle"></span> HR & Payroll Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-excel')">
+                        <span class="icon-circle"></span> Excel Reports
+                    </li>
+                </ul>
+            </li>
+
+            <!-- Staff Management (administrators only) -->
+            <li id="staffNavItem" class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
+                <ul id="staffSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="location.href = 'Staff.html'">
+                        <span class="icon-circle"></span> Staff List
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'settingsSubmenu')">Settings</a>
+                <ul id="settingsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('settings-access')">
+                        <span class="icon-circle"></span> Access Management
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'ChangePassword.html'">
+                        <span class="icon-circle"></span> Change Password
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-general')">
+                        <span class="icon-circle"></span> Institution Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-organisation')">
+                        <span class="icon-circle"></span> Organisation Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-setup')">
+                        <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-backups')">
+                        <span class="icon-circle"></span> System Data Backups
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-wrapper">
+        <div id="topbar">
+            <div class="search-box">
+                <input type="text" placeholder="Search for a student... (press Enter)"
+                    onkeydown="if (event.key === 'Enter') searchStudents(this.value)">
+            </div>
+            <div class="topbar-user">
+                <div class="user-info">
+                    <span id="currentUserName">Administrator</span>
+                    <span id="currentUserEmail"></span>
+                </div>
+                <button type="button" class="btn-logout" onclick="confirmLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <div class="dash-header">
+                <div>
+                    <div class="dash-title">Dashboard</div>
+                    <div id="dashDate" class="dash-date"></div>
+                </div>
+            </div>
+
+            <!-- Headline numbers -->
+            <div class="dash-grid-4">
+                <div class="dash-card dash-stat">
+                    <div class="dash-stat-label">Active students</div>
+                    <div id="statActive" class="dash-stat-value">—</div>
+                    <div class="dash-stat-note">Currently enrolled</div>
+                </div>
+                <div class="dash-card dash-stat">
+                    <div class="dash-stat-label">New admissions</div>
+                    <div id="statNew" class="dash-stat-value">—</div>
+                    <div class="dash-stat-note">This term</div>
+                    <a href="NewStudents.html" class="dash-toggle">View new students</a>
+                </div>
+                <div class="dash-card dash-stat">
+                    <div class="dash-stat-label">Students who left</div>
+                    <div id="statLeft" class="dash-stat-value">—</div>
+                    <div class="dash-stat-note">This term</div>
+                </div>
+                <div class="dash-card dash-stat">
+                    <div class="dash-stat-label">Students with a fee balance</div>
+                    <div class="dash-stat-value">—</div>
+                    <div class="dash-stat-note">No fee records yet</div>
+                </div>
+            </div>
+
+            <!-- Fees -->
+            <div class="dash-grid-main">
+                <div class="dash-card">
+                    <div class="dash-card-title">Fee collection by month</div>
+                    <div id="feeChartYear" class="dash-card-sub"></div>
+                    <div id="feeChart" class="fee-chart"></div>
+                    <div id="feeMonths" class="fee-months"></div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-title">Finance summary</div>
+                    <div class="dash-rows">
+                        <div class="dash-row"><span>Fees expected</span><b>KES —</b></div>
+                        <div class="dash-row"><span>Fees collected</span><b>KES —</b></div>
+                        <div class="dash-row"><span>Fees outstanding</span><b>KES —</b></div>
+                    </div>
+                    <a href="#" class="dash-link" onclick="openSection('finance'); return false;">Open Manage Finance</a>
+                </div>
+            </div>
+
+            <!-- Recent activity -->
+            <div class="dash-card">
+                <div class="dash-card-title">Recent activity</div>
+                <div class="table-wrap">
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>Area</th>
+                                <th>Activity</th>
+                                <th>Name</th>
+                                <th>Date</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityBody">
+                            <tr class="empty-row"><td colspan="5">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Across the college -->
+            <div class="dash-section-title">Across the college</div>
+            <div class="dash-grid-4">
+                <div class="dash-card">
+                    <div class="dash-card-title">Academic Performance</div>
+                    <div class="dash-rows">
+                        <div class="dash-row"><span>Average score</span><b>—</b></div>
+                        <div class="dash-row"><span>Courses offered</span><b id="statCourses">—</b></div>
+                    </div>
+                    <a href="#" class="dash-link" onclick="openSection('reports-performance'); return false;">Open
+                        Performance Reports</a>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-title">Payroll</div>
+                    <div class="dash-rows">
+                        <div class="dash-row"><span>Paid this month</span><b>KES —</b></div>
+                        <div class="dash-row"><span>Staff pending pay</span><b>—</b></div>
+                    </div>
+                    <a href="#" class="dash-link" onclick="openSection('reports-hr'); return false;">Open HR & Payroll
+                        Reports</a>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-title">Staff</div>
+                    <div class="dash-rows">
+                        <div class="dash-row"><span>Teaching staff</span><b id="statTeaching">—</b></div>
+                        <div class="dash-row"><span>Support staff</span><b id="statSupport">—</b></div>
+                    </div>
+                    <a id="staffLink" href="Staff.html" class="dash-link">Open Staff Management</a>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-title">Reports</div>
+                    <div class="dash-rows">
+                        <div class="dash-row"><a href="#" class="dash-link"
+                                onclick="openSection('reports-standard'); return false;">Standard Reports</a></div>
+                        <div class="dash-row"><a href="#" class="dash-link"
+                                onclick="openSection('reports-class'); return false;">Class Reports</a></div>
+                    </div>
+                    <a href="#" class="dash-link" onclick="openSection('reports-all'); return false;">Open All Reports</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById(submenuId).classList.toggle('open');
+        }
+
+        // Opens a section of the student page (see data-open names in StudentAdmissions.html)
+        function openSection(name) {
+            location.href = 'StudentAdmissions.html?open=' + encodeURIComponent(name);
+        }
+
+        function searchStudents(value) {
+            if (value.trim()) location.href = 'StudentAdmissions.html?search=' + encodeURIComponent(value.trim());
+        }
+
+        /* ---------- Fee collection chart ----------
+           monthTotals holds 12 amounts (Jan-Dec). Fee payments are not stored yet, so it is all zeros for now. */
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        function renderFeeChart(monthTotals, today = new Date()) {
+            const max = Math.max(...monthTotals);
+            document.getElementById('feeChartYear').innerText = `Fees received in ${today.getFullYear()}, in KES`;
+            document.getElementById('feeChart').innerHTML = monthTotals.map((amount, i) =>
+                `<div class="fee-bar${i === today.getMonth() ? ' current' : ''}"
+                      style="height: ${max ? (amount / max) * 100 : 0}%"
+                      title="${MONTHS[i]}: KES ${amount.toLocaleString()}"></div>`).join('') +
+                (max ? '' : '<div class="fee-chart-empty">No fee payments recorded yet</div>');
+            document.getElementById('feeMonths').innerHTML = MONTHS.map(m => `<span>${m}</span>`).join('');
+        }
+
+        /* ---------- Recent activity ---------- */
+        function renderActivity(students, staff) {
+            const events = [
+                ...students.map(s => ({
+                    area: 'Students', activity: 'Student admitted', name: fullName(s),
+                    date: s.createdAt, details: s.admissionCourse
+                })),
+                ...students.filter(s => s.activeStudent === 'no').map(s => ({
+                    area: 'Students', activity: 'Student left', name: fullName(s),
+                    date: s.statusRecordedAt || s.exitDate, details: s.exitReason || s.admissionCourse
+                })),
+                ...staff.map(a => ({
+                    area: 'Staff', activity: 'Staff added', name: accountName(a),
+                    date: a.createdAt, details: a.jobTitle
+                }))
+            ].filter(e => e.date).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
+
+            document.getElementById('activityBody').innerHTML = events.length
+                ? events.map(e => `
+                    <tr>
+                        <td>${escapeHtml(e.area)}</td>
+                        <td>${escapeHtml(e.activity)}</td>
+                        <td>${escapeHtml(e.name)}</td>
+                        <td>${escapeHtml(formatDate(e.date))}</td>
+                        <td>${escapeHtml(e.details || '—')}</td>
+                    </tr>`).join('')
+                : '<tr class="empty-row"><td colspan="5">No activity yet.</td></tr>';
+        }
+
+        async function loadDashboard() {
+            const today = new Date();
+            const settings = await readAll('settings');
+            const term = termFromSettings(settings, today);
+            const inTerm = term.inTerm;
+
+            document.getElementById('dashDate').innerText = today.toLocaleDateString('en-GB',
+                { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' + term.name;
+
+            const students = await readAll('students');
+            const left = students.filter(s => s.activeStudent === 'no');
+            document.getElementById('statActive').innerText = students.length - left.length;
+            document.getElementById('statNew').innerText = students.filter(s => inTerm(s.createdAt)).length;
+            document.getElementById('statLeft').innerText =
+                left.filter(s => inTerm(s.exitDate || s.statusRecordedAt)).length;
+
+            // Teaching staff are tutors, trainers and lecturers; everyone else active is support staff
+            const staff = getAccounts();
+            const activeStaff = staff.filter(a => a.status !== 'Inactive');
+            const teaching = activeStaff.filter(a => /tutor|trainer|lecturer|teacher/i.test(a.jobTitle || ''));
+            document.getElementById('statTeaching').innerText = teaching.length;
+            document.getElementById('statSupport').innerText = activeStaff.length - teaching.length;
+
+            const courses = settings.find(s => s.key === 'courses');
+            document.getElementById('statCourses').innerText = courses ? courses.items.length : 0;
+
+            applyCollegeName(settings);
+
+            renderFeeChart(new Array(12).fill(0), today);
+            renderActivity(students, staff);
+        }
+
+        function showCurrentUser() {
+            const account = currentAccount();
+            document.getElementById('currentUserName').innerText = account ? accountName(account) : 'Administrator';
+            document.getElementById('currentUserEmail').innerText = account ? account.username : '';
+            // Only administrators manage staff
+            document.getElementById('staffNavItem').style.display = isAdmin() ? '' : 'none';
+            document.getElementById('staffLink').style.display = isAdmin() ? '' : 'none';
+        }
+
+        function confirmLogout() {
+            if (confirm('Log out of the FEWA system?')) logout();
+        }
+
+        showCurrentUser();
+        loadDashboard();
+        // Figures update when data changes in another tab or window
+        whenDataChanges(() => {
+            showCurrentUser();
+            loadDashboard();
+        });
+    </script>
+
+</body>
+
+</html>

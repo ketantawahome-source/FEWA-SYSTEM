@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="email-config.js"></script>
+    <script src="icons.js"></script>
+    <script src="notify.js"></script>
+    <script>
+        requireLogin();
+        // Only administrators manage staff
+        if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20261104h">
+</head>
+
+<body>
+
+    <!-- Sidebar Navigation: other sections live on StudentAdmissions.html -->
+    <div id="sidebar">
+        <div class="brand">FEWA BEAUTY & FASHION COLLEGE</div>
+        <ul class="menu-list">
+            <li class="nav-item"><a href="Dashboard.html">Dashboard</a></li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'studentsSubmenu')">Students Management</a>
+                <ul id="studentsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('students')">
+                        <span class="icon-circle"></span> Student Hub
+                    </li>
+                    <li class="submenu-item" onclick="openSection('documents')">
+                        <span class="icon-circle"></span> Student Documents
+                    </li>
+                    <li class="submenu-item" onclick="openSection('queries')">
+                        <span class="icon-circle"></span> Student Queries
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'financeSubmenu')">Manage Finance</a>
+                <ul id="financeSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('finance')">
+                        <span class="icon-circle"></span> Payments
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-details')">
+                        <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">
+                    <span class="icon-bar"></span> <span style="margin-left: 6px;">Reports</span>
+                </a>
+                <ul id="reportsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('reports-all')">
+                        <span class="icon-circle"></span> All Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-standard')">
+                        <span class="icon-circle"></span> Standard Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-performance')">
+                        <span class="icon-circle"></span> Performance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-class')">
+                        <span class="icon-circle"></span> Class Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-finance')">
+                        <span class="icon-circle"></span> Finance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-hr')">
+                        <span class="icon-circle"></span> HR & Payroll Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-excel')">
+                        <span class="icon-circle"></span> Excel Reports
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu active">
+                <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
+                <ul id="staffSubmenu" class="submenu open">
+                    <li class="submenu-item active">
+                        <span class="icon-circle"></span> Staff List
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'settingsSubmenu')">Settings</a>
+                <ul id="settingsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('settings-access')">
+                        <span class="icon-circle"></span> Access Management
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'ChangePassword.html'">
+                        <span class="icon-circle"></span> Change Password
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-general')">
+                        <span class="icon-circle"></span> Institution Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-organisation')">
+                        <span class="icon-circle"></span> Organisation Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-setup')">
+                        <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-backups')">
+                        <span class="icon-circle"></span> System Data Backups
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-wrapper">
+        <div id="topbar">
+            <div class="search-box">
+                <input type="text" placeholder="Search for a staff member..." oninput="searchFromTopbar(this.value)">
+            </div>
+            <div class="topbar-user">
+                <div class="user-info">
+                    <span id="currentUserName">Administrator</span>
+                    <span id="currentUserEmail"></span>
+                </div>
+                <button type="button" class="btn-logout" onclick="confirmLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <div id="content-area">
+
+            <!-- STAFF PAGE (administrators only) -->
+            <div id="staffTab">
+                <div class="form-section">
+                    <div class="list-toolbar">
+                        <div id="staffFormTitle" class="section-title" style="margin: 0; border: none; padding: 0;">Add
+                            Staff Member</div>
+                        <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
+                            onclick="resetStaffForm()">Cancel Edit</button>
+                    </div>
+                    <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
+                        <input type="hidden" name="id">
+                        <div class="grid-3">
+                            <div class="form-group">
+                                <label>First Name <span class="req">*</span></label>
+                                <input type="text" name="firstName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Last Name <span class="req">*</span></label>
+                                <input type="text" name="lastName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email (Username) <span class="req">*</span></label>
+                                <input type="email" name="username" required placeholder="e.g. jane@fewacollege.ac.ke">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone Number <span class="req">*</span></label>
+                                <input type="tel" name="phone" required placeholder="e.g. 0712 345 678">
+                            </div>
+                            <div class="form-group">
+                                <label>Role <span class="req">*</span></label>
+                                <!-- Options come from Settings > Access Management > Roles -->
+                                <select name="jobTitle" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Access Level <span class="req">*</span></label>
+                                <select name="role" required>
+                                    <option value="Staff">Staff</option>
+                                    <option value="Administrator">Administrator</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status <span class="req">*</span></label>
+                                <select name="status" required>
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="staff-note">New staff are emailed a link to set their own password. Their email is
+                            their username.</p>
+                        <div class="action-bar">
+                            <button type="submit" id="staffSaveButton" class="btn-submit">Save Staff &amp; Send
+                                Password Link</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="form-section">
+                    <div class="list-toolbar">
+                        <div class="section-title" style="margin: 0; border: none; padding: 0;">Staff List</div>
+                        <div class="list-toolbar-actions">
+                            <input type="text" id="staffSearch" class="toolbar-search"
+                                placeholder="Search name, email, role..." oninput="renderStaffList()">
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email (Username)</th>
+                                    <th>Phone</th>
+                                    <th>Role</th>
+                                    <th>Access</th>
+                                    <th>Status</th>
+                                    <th>Password</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staffTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById(submenuId).classList.toggle('open');
+        }
+
+        // Opens a section of the student page (see data-open names in StudentAdmissions.html)
+        function openSection(name) {
+            location.href = 'StudentAdmissions.html?open=' + encodeURIComponent(name);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function statusBadge(value) {
+            return value === 'Inactive'
+                ? '<span class="badge inactive">Inactive</span>'
+                : '<span class="badge active">Active</span>';
+        }
+
+        function searchFromTopbar(value) {
+            document.getElementById('staffSearch').value = value;
+            renderStaffList();
+        }
+
+        /* ---------- Staff Management (administrators only) ---------- */
+        const PASSWORD_LINK_MESSAGES = {
+            sent: email => `A password link has been emailed to ${email}.`,
+            'not-configured': email => `The password link could not be emailed to ${email} because email sending is not set up yet. ` +
+                'Once it is, press "Send Reset Link" next to their name.',
+            failed: email => `The password link could not be emailed to ${email}. Check the internet connection, ` +
+                'then press "Send Reset Link" next to their name.',
+            unknown: email => `${email} is deactivated, so no password link was sent.`
+        };
+
+        const activeAdmins = accounts => accounts.filter(a => a.role === ROLE_ADMIN && a.status !== 'Inactive');
+
+        function renderStaffList() {
+            const term = document.getElementById('staffSearch').value.trim().toLowerCase();
+            const me = currentAccount();
+            const staff = getAccounts()
+                .sort((a, b) => accountName(a).localeCompare(accountName(b)))
+                .filter(a => !term || [accountName(a), a.username, a.jobTitle, a.role].join(' ').toLowerCase().includes(term));
+
+            const tbody = document.getElementById('staffTableBody');
+            if (!staff.length) {
+                tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${term ? 'No staff match your search.' : 'No staff yet.'}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = staff.map(a => {
+                const isMe = me && a.id === me.id;
+                return `
+                <tr>
+                    <td>${escapeHtml(accountName(a))}${isMe ? ' <small>(you)</small>' : ''}</td>
+                    <td>${escapeHtml(a.username)}</td>
+                    <td>${escapeHtml(a.phone)}</td>
+                    <td>${escapeHtml(a.jobTitle)}</td>
+                    <td>${escapeHtml(a.role)}</td>
+                    <td>${statusBadge(a.status)}</td>
+                    <td>${a.hash ? 'Set' : a.adminResetRequired
+                        ? '<em>Cancelled: send reset link</em>' : '<em>Not set yet</em>'}</td>
+                    <td>
+                        ${iconButton('edit', `Edit ${escapeHtml(accountName(a))}`, `editStaff('${a.id}')`)}
+                        <button type="button" class="btn-small" onclick="sendStaffPasswordLink('${a.id}')">Send Reset Link</button>
+                        ${isMe ? '' : iconButton('delete', `Delete ${escapeHtml(accountName(a))}`, `deleteStaff('${a.id}')`)}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Roles set up in Settings > Access Management > Roles (loaded when the page opens)
+        let staffRoles = DEFAULT_STAFF_ROLES;
+
+        // Keeps a role that is no longer in Settings so existing staff don't lose it
+        function fillRoleSelect(current = '') {
+            const roles = current && !staffRoles.includes(current) ? [...staffRoles, current] : staffRoles;
+            const select = document.getElementById('staffForm').elements['jobTitle'];
+            select.innerHTML = `<option value="">${roles.length ? '-- select role --' : 'No roles yet: add them in Settings'}</option>` +
+                roles.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+            select.value = current;
+        }
+
+        function resetStaffForm() {
+            const form = document.getElementById('staffForm');
+            form.reset();
+            form.elements['id'].value = '';
+            fillRoleSelect();
+            document.getElementById('staffFormTitle').innerText = 'Add Staff Member';
+            document.getElementById('staffSaveButton').innerText = 'Save Staff & Send Password Link';
+            document.getElementById('staffCancelEdit').style.display = 'none';
+        }
+
+        function editStaff(id) {
+            const account = getAccounts().find(a => a.id === id);
+            if (!account) return;
+            const form = document.getElementById('staffForm');
+            fillRoleSelect(account.jobTitle || '');
+            ['id', 'firstName', 'lastName', 'username', 'phone', 'jobTitle', 'role', 'status'].forEach(name =>
+                form.elements[name].value = account[name] || '');
+            document.getElementById('staffFormTitle').innerText = 'Edit Staff Member - ' + accountName(account);
+            document.getElementById('staffSaveButton').innerText = 'Save Changes';
+            document.getElementById('staffCancelEdit').style.display = 'inline-block';
+            document.getElementById('main-wrapper').scrollTop = 0;
+        }
+
+        async function saveStaff(event) {
+            event.preventDefault();
+            const form = event.target;
+            const missing = [...form.querySelectorAll('[required]')].filter(f => !f.value.trim());
+            if (missing.length) {
+                alert('Staff NOT saved. Please fill in:\n\n- ' + missing.map(f =>
+                    f.closest('.form-group').querySelector('label').textContent.replace('*', '').trim()).join('\n- '));
+                return missing[0].focus();
+            }
+
+            const id = form.elements['id'].value;
+            const accounts = getAccounts();
+            const existing = accounts.find(a => a.id === id);
+            const staff = {
+                firstName: form.elements['firstName'].value.trim(),
+                lastName: form.elements['lastName'].value.trim(),
+                username: form.elements['username'].value.trim(),
+                phone: normalizeKenyanPhone(form.elements['phone'].value),
+                jobTitle: form.elements['jobTitle'].value.trim(),
+                role: form.elements['role'].value,
+                status: form.elements['status'].value
+            };
+
+            if (!staff.phone) return alert('Enter a valid Kenyan mobile number, e.g. 0712 345 678 or +254 712 345 678.');
+            const duplicate = accounts.find(a => a.id !== id && sameEmail(a.username, staff.username));
+            if (duplicate) return alert(`${staff.username} is already used by ${accountName(duplicate)}.`);
+            const adminsAfter = activeAdmins(accounts.map(a => a.id === id ? { ...a, ...staff } : a));
+            if (existing && !adminsAfter.length) return alert('There must always be at least one active Administrator.');
+
+            if (existing) {
+                const editingMyself = sameEmail(existing.username, currentUser());
+                const deactivatingMyself = editingMyself && staff.status === 'Inactive';
+                const leavingAdmin = editingMyself && staff.role !== ROLE_ADMIN;
+                if (deactivatingMyself && !confirm('You are deactivating your own account. You will be logged out and ' +
+                    'will not be able to log in again until another Administrator activates you. Continue?')) return;
+                if (!deactivatingMyself && leavingAdmin && !confirm('You are changing your own Access Level to Staff. ' +
+                    'You will no longer be able to manage staff. Continue?')) return;
+
+                const deactivating = staff.status === 'Inactive' && existing.status !== 'Inactive';
+                const reactivating = staff.status !== 'Inactive' && existing.status === 'Inactive';
+                if (deactivating && !deactivatingMyself && !confirm(`Deactivate ${accountName(staff)}?\n\n` +
+                    'They will be logged out and their password cancelled. If they are activated again, ' +
+                    'you must press Send Reset Link so they can set a new password.')) return;
+                if (reactivating && !confirm(`Activate ${accountName(staff)}?\n\n` +
+                    'They will be able to use the system again once they set a new password. ' +
+                    'Their old password will NOT work: they need a reset link from an administrator.')) return;
+
+                saveStaffAccount({ id, ...staff });
+                // Changing your own email changes the username you are logged in with
+                if (editingMyself) startSession(staff.username);
+                if (deactivatingMyself) return logout();
+                if (leavingAdmin) return location.replace('StudentAdmissions.html');
+                showCurrentUser();
+                showToast(`${accountName(staff)}'s details updated successfully.` + (deactivating
+                    ? ' Their account is deactivated and their password cancelled.' : ''));
+                // A reactivated account has no password until an administrator sends a reset link
+                const account = getAccounts().find(a => a.id === id);
+                if (reactivating && account && account.adminResetRequired &&
+                    confirm(`${accountName(staff)} is active again, but their old password no longer works.\n\n` +
+                        'Send them a password reset link now?')) {
+                    await sendStaffPasswordLink(id);
+                }
+            } else {
+                saveStaffAccount(staff);
+                const result = staff.status === 'Inactive'
+                    ? 'unknown' : await sendPasswordLink(staff.username, { newStaff: true });
+                // When the password link could not be emailed a pop-up explains what to do next
+                if (result === 'sent') {
+                    showToast(`${accountName(staff)} added successfully. ` + PASSWORD_LINK_MESSAGES.sent(staff.username));
+                } else {
+                    showToast(`${accountName(staff)} added successfully.`);
+                    alert(PASSWORD_LINK_MESSAGES[result](staff.username));
+                }
+            }
+            resetStaffForm();
+            renderStaffList();
+        }
+
+        async function sendStaffPasswordLink(id) {
+            const account = getAccounts().find(a => a.id === id);
+            if (!account) return;
+            if (account.status === 'Inactive') {
+                return alert(`${accountName(account)} is Inactive. Set their Status to Active and save first, then send the reset link.`);
+            }
+            const result = await sendPasswordLink(account.username, { newStaff: !account.hash, byAdmin: true });
+            if (result === 'sent') showToast(PASSWORD_LINK_MESSAGES.sent(account.username));
+            else alert(PASSWORD_LINK_MESSAGES[result](account.username));
+        }
+
+        function deleteStaff(id) {
+            const accounts = getAccounts();
+            const account = accounts.find(a => a.id === id);
+            if (!account) return;
+            if (!activeAdmins(accounts.filter(a => a.id !== id)).length) {
+                return alert('There must always be at least one active Administrator.');
+            }
+            if (!confirm(`Delete ${accountName(account)} (${account.username})? They will no longer be able to log in.`)) return;
+            deleteStaffAccount(id);
+            showToast(`${accountName(account)} deleted successfully.`);
+            renderStaffList();
+        }
+
+
+        function showCurrentUser() {
+            const account = currentAccount();
+            document.getElementById('currentUserName').innerText = account ? accountName(account) : 'Administrator';
+            document.getElementById('currentUserEmail').innerText = account ? account.username : '';
+        }
+
+        function confirmLogout() {
+            if (confirm('Log out of the FEWA system?')) logout();
+        }
+
+        // Reads one Settings record from the database (db.js); null when there is none
+        function readSetting(key) {
+            if (!fewaServer.online) return Promise.resolve(null);
+            return fewaDB.getOne('settings', key).then(record => record || null).catch(() => null);
+        }
+
+        async function loadSettings() {
+            const org = await readSetting('organization');
+            if (org && org.collegeName) setBrandName(org.collegeName);
+
+            const roles = await readSetting('roles');
+            if (roles) staffRoles = roles.items.map(i => i.name);
+            // Refresh the dropdown without losing a role already picked in the form
+            fillRoleSelect(document.getElementById('staffForm').elements['jobTitle'].value);
+        }
+
+        showCurrentUser();
+        resetStaffForm();
+        renderStaffList();
+        loadSettings();
+
+        // The staff list and the Role choices update when staff or roles change in another tab or window
+        whenDataChanges(() => {
+            showCurrentUser();
+            renderStaffList();
+            if (!hasUnsavedChanges(document.getElementById('staffForm'))) loadSettings();
+        });
+    </script>
+
+</body>
+
+</html>
