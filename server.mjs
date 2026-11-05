@@ -81,7 +81,7 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
 pg.types.setTypeParser(1082, value => value);
 
 async function loadConfig() {
-    // Online (e.g. on Render) the database address and password come from the DATABASE_URL setting,
+    // Online (e.g. on Azure App Service) the database address and password come from the DATABASE_URL setting,
     // e.g. postgresql://postgres.xxxx:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
     if (process.env.DATABASE_URL) {
         const url = new URL(process.env.DATABASE_URL);
@@ -1107,7 +1107,7 @@ function readBody(req) {
 async function handleApi(req, res, parts) {
     const [area, a, b] = parts;
     const method = req.method;
-    // Render (and other hosts) check that the server is up; this answer gives nothing away
+    // Azure's health check (and other hosts') checks that the server is up; this answer gives nothing away
     if (area === 'health' && method === 'GET' && req.headers['x-fewa-client'] !== '1') return send(res, 200, { ok: !!pool });
     // Only the system's own pages send this header; a request from another website cannot
     if (req.headers['x-fewa-client'] !== '1') return send(res, 403, { error: 'Forbidden' });

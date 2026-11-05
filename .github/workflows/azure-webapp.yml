@@ -1,0 +1,50 @@
+# Puts the FEWA system online on Microsoft Azure App Service, from this GitHub repository.
+# Every push to main builds the system and deploys it to the Azure web app named below.
+#
+# One-time setup (see README.md, "Online (Microsoft Azure)"):
+#   1. In the Azure portal create a Web App: Publish = Code, Runtime = Node 22 LTS, Operating system = Linux.
+#      Put its name in AZURE_WEBAPP_NAME below.
+#   2. In the web app: Settings > Environment variables > add DATABASE_URL (the Supabase address and password).
+#   3. In the web app: Overview > Download publish profile. In GitHub: this repository > Settings >
+#      Secrets and variables > Actions > New repository secret, named AZURE_WEBAPP_PUBLISH_PROFILE,
+#      with the whole content of the downloaded file.
+# Passwords never go in this file or anywhere else in GitHub.
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # also: Actions tab > Deploy to Azure > Run workflow
+
+env:
+  AZURE_WEBAPP_NAME: fewa-system # the name of the Azure web app (change it if Azure gave a different one)
+  NODE_VERSION: '22.x'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install what the server needs (the PostgreSQL driver)
+        run: npm ci --omit=dev
+
+      - name: Check the server code
+        run: node --check server.mjs
+
+      - name: Deploy to the Azure web app
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
