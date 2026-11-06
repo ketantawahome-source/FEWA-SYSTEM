@@ -5480,3 +5480,141 @@ body:has(#main-wrapper) {
 .dash-report-btn:hover { background: #5b2d8e; }
 .dash-click { cursor: pointer; }
 .dash-click:hover td { background: #f6f2fb; }
+
+/* =====================================================================================================
+   Phones (screens up to 768px wide): the sidebar slides in over the page from the ☰ button (auth.js),
+   the top bar fits the screen, forms are one column and wide tables scroll sideways inside their box.
+   ===================================================================================================== */
+.mobile-menu-backdrop { display: none; }
+
+@media (max-width: 768px) {
+    body { display: block; height: auto; }
+
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 270px !important;
+        max-width: 85vw;
+        transform: translateX(-105%);
+        transition: transform 0.22s ease-out;
+        z-index: 1100;
+        overflow-y: auto;
+    }
+    html.mobile-menu-open #sidebar { transform: none; }
+    html.mobile-menu-open .mobile-menu-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(20, 8, 34, 0.45);
+        z-index: 1050;
+    }
+
+    #main-wrapper { height: 100vh; height: 100dvh; width: 100%; }
+
+    #topbar {
+        height: auto;
+        min-height: 52px;
+        padding: 8px 12px;
+        gap: 8px;
+        position: sticky;
+        top: 0;
+        z-index: 900;
+    }
+    #topbar .search-box { flex: 1; min-width: 0; gap: 8px; }
+    #topbar .search-box input { width: 100%; min-width: 0; flex: 1; }
+    .topbar-user { gap: 8px; flex-shrink: 0; }
+    .topbar-user .user-info { display: none; }
+
+    #content-area { padding: 12px; }
+    .form-section { padding: 14px 12px; }
+
+    /* One column for every form grid */
+    .grid-2, .grid-3, .grid-4, .dash-grid-main, .dash-grid-4, .detail-grid, .family-grid,
+    .options-form, .contacts-filters, .deferral-form, .excel-form, .cp-form, .report-summary {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .options-form .options-picture { display: none; }
+    .family-grid .family-head { display: none; }
+    .family-grid .family-role { margin-top: 8px; font-weight: 700; }
+    .form-group, .inline-field { min-width: 0; }
+
+    /* 16px text stops phones zooming in when a box is tapped */
+    input, select, textarea { font-size: 16px !important; max-width: 100%; }
+    .toolbar-search { min-width: 0; width: 100%; }
+    .list-toolbar-actions { width: 100%; }
+
+    /* Tabs scroll sideways instead of running off the screen */
+    .settings-tabs, .page-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .settings-tab, .page-tab { flex-shrink: 0; }
+    .page-tab-note { display: none; }
+
+    /* Wide tables scroll sideways inside their box */
+    .table-wrap, .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table-wrap > table, .table-wrapper > table { min-width: 560px; }
+
+    .action-bar { flex-wrap: wrap; gap: 8px; }
+    .action-bar > * { flex: 1 1 auto; }
+    .btn-submit, .btn-secondary { min-height: 40px; }
+
+    .reset-backdrop { padding: 10px; align-items: flex-start; overflow-y: auto; }
+    .reset-card { width: 100%; }
+    .application-photo { width: 72px; height: 90px; }
+
+    .dash-panel-head, .dash-panel-body { padding-left: 12px; padding-right: 12px; }
+}
+
+/* On a phone the "shrink to icons" sidebar is not used (the slide-in menu shows names) */
+@media (max-width: 768px) {
+    html.sidebar-collapsed #sidebar .nav-label { display: inline !important; }
+    html.sidebar-collapsed #sidebar .brand-name { display: block !important; }
+}
+
+/* Phones: footer, details boxes and dashboard numbers */
+@media (max-width: 768px) {
+    .system-footer { flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; font-size: 11px; justify-content: flex-start; }
+    .system-footer > span:nth-child(n+3) { display: none; } /* college name and system update: no room */
+    .reset-details { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); padding: 10px; }
+    .reset-details dd { word-break: normal; overflow-wrap: anywhere; }
+    .application-photo { float: none; display: block; margin: 0 0 10px; }
+    .dash-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px; }
+    .dash-stat { padding: 14px 12px; }
+    .dash-stat-value { font-size: 26px; }
+}
+@media (max-width: 768px) {
+    .dash-panel .table-wrap > table { min-width: 0; }
+}
+
+/* Student Portal on a phone: the menu slides in from ≡ (StudentPortal.html), and the top bar fits */
+.sp-phone-backdrop { display: none; }
+@media (max-width: 768px) {
+    .sp-shell .enquiry-side {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 270px !important;
+        max-width: 85vw;
+        transform: translateX(-105%);
+        transition: transform 0.22s ease-out;
+        z-index: 1100;
+    }
+    .sp-shell.phone-menu-open .enquiry-side { transform: none; }
+    .sp-shell.phone-menu-open .sp-phone-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(20, 8, 34, 0.45);
+        z-index: 1050;
+    }
+
+    .sp-brand { width: 56px; padding: 6px 0; }
+    .sp-brand .brand-logo { width: 42px; height: 42px; }
+    .sp-bar { flex: 1; min-width: 0; gap: 8px; padding: 0 8px; }
+    .sp-search { flex: 1; min-width: 0; width: auto; margin-left: 0; }
+    .sp-user-chevron { display: none; }
+    .sp-user-button { padding: 2px; }
+    .sp-user-photo { width: 38px; height: 38px; }
+}

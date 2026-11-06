@@ -571,8 +571,24 @@ document.addEventListener('DOMContentLoaded', () => {
     menuButton.title = 'Show or hide the menu names';
     menuButton.setAttribute('aria-label', 'Show or hide the menu names');
     menuButton.innerHTML = navIconSvg('<path d="M3 6h18M3 12h18M3 18h18"/>');
-    menuButton.addEventListener('click', () =>
-        setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed')));
+    // On a phone the menu slides in over the page instead (styles.css, max-width 768px) and closes again
+    // when a page or section is chosen, or when the dimmed page beside it is tapped
+    const isPhone = () => window.matchMedia('(max-width: 768px)').matches;
+    const setPhoneMenu = open => document.documentElement.classList.toggle('mobile-menu-open', open);
+    if (isPhone()) document.documentElement.classList.remove('sidebar-collapsed'); // names always show on a phone
+    const backdrop = document.createElement('div');
+    backdrop.className = 'mobile-menu-backdrop';
+    backdrop.addEventListener('click', () => setPhoneMenu(false));
+    document.body.appendChild(backdrop);
+    sidebar.addEventListener('click', event => {
+        if (!isPhone()) return;
+        const link = event.target.closest('.submenu-item, .menu-list > .nav-item:not(.has-submenu) > a');
+        if (link) setPhoneMenu(false);
+    });
+    menuButton.addEventListener('click', () => {
+        if (isPhone()) return setPhoneMenu(!document.documentElement.classList.contains('mobile-menu-open'));
+        setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
+    });
     search.insertBefore(menuButton, search.firstChild);
 
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)

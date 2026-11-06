@@ -64,6 +64,7 @@
             </div>
         </div>
         <div id="spBody" class="enquiry-body"></div>
+        <div class="sp-phone-backdrop"></div>
         <footer class="system-footer sp-footer">
             <span><b>Copyright &copy; <span id="spYear"></span></b> <span class="footer-brand">WAFA Systems</span></span>
             <span>Student Portal</span>
@@ -162,10 +163,20 @@
         document.addEventListener('keydown', event => {
             if (event.key === 'Escape') closeUserMenu();
         });
+        document.addEventListener('click', event => {
+            const shell = document.querySelector('.sp-shell');
+            if (!shell || !shell.classList.contains('phone-menu-open')) return;
+            if (event.target.closest('.enquiry-nav') || event.target.classList.contains('sp-phone-backdrop')) {
+                shell.classList.remove('phone-menu-open');
+            }
+        });
 
         // ≡ shrinks the sidebar to its icons, and back; remembered on this computer
+        // On a phone (up to 768px wide) ≡ slides the menu in over the page instead; choosing a section, or
+        // tapping the dimmed page beside it, closes it again
         function toggleSideMenu() {
             const shell = document.querySelector('.sp-shell');
+            if (window.matchMedia('(max-width: 768px)').matches) return shell.classList.toggle('phone-menu-open');
             shell.classList.toggle('side-collapsed');
             try {
                 localStorage.setItem('fewaPortalSideCollapsed', shell.classList.contains('side-collapsed') ? 'yes' : 'no');
@@ -411,7 +422,10 @@
             }
             if (org && org.logo) document.querySelector('.sp-logo').src = org.logo;
             try {
-                if (localStorage.getItem('fewaPortalSideCollapsed') === 'yes') document.querySelector('.sp-shell').classList.add('side-collapsed');
+                // (not on a phone, where the menu slides in with its names)
+                if (localStorage.getItem('fewaPortalSideCollapsed') === 'yes' && !window.matchMedia('(max-width: 768px)').matches) {
+                    document.querySelector('.sp-shell').classList.add('side-collapsed');
+                }
             } catch { }
             document.getElementById('spYear').innerText = new Date().getFullYear();
 
