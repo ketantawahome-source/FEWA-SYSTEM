@@ -84,8 +84,15 @@ pg.types.setTypeParser(1082, value => value);
 async function loadConfig() {
     // Online (e.g. on Azure App Service) the database address and password come from the DATABASE_URL setting,
     // e.g. postgresql://postgres.xxxx:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
-    if (process.env.DATABASE_URL) {
-        const url = new URL(process.env.DATABASE_URL);
+    // Small slips when typing it in a hosting dashboard are forgiven: spaces or small letters in the name,
+    // "DATABASE_URL=" or quotes pasted in front of the value
+    const urlKey = Object.keys(process.env).find(k => k.trim().toUpperCase() === 'DATABASE_URL');
+    const databaseUrl = urlKey && process.env[urlKey].trim().replace(/^DATABASE_URL\s*=\s*/i, '').replace(/^["']|["']$/g, '').trim();
+    if (databaseUrl) {
+        let url;
+        try { url = new URL(databaseUrl); } catch {
+            throw new Error('DATABASE_URL is not a valid address. It must start with postgresql:// (check it in the hosting dashboard).');
+        }
         // Encrypted (as Supabase needs) unless the address ends in ?sslmode=disable
         const ssl = url.searchParams.get('sslmode') === 'disable' ? false : { rejectUnauthorized: false };
         url.searchParams.delete('sslmode');
@@ -96,8 +103,12 @@ async function loadConfig() {
     }
     // Online (Render, Azure...) there is no db-config.json: the hosting's DATABASE_URL setting is missing
     if (process.env.PORT && !existsSync(path.join(root, 'db-config.json'))) {
+        // Names only (never values), to spot a mistyped setting
+        const similar = Object.keys(process.env).filter(k => /DATA|URL|POSTGRES|SUPA|DB/i.test(k) && !/^RENDER_/.test(k));
         throw new Error('DATABASE_URL is not set. In the hosting dashboard (Render: the service > Environment) add ' +
-            'DATABASE_URL with the Supabase address and password, save, and let it redeploy.');
+            'DATABASE_URL with the Supabase address and password, then "Save, rebuild, and deploy".' +
+            (urlKey ? ' (DATABASE_URL is there but empty.)' : '') +
+            (similar.length ? ' Similar settings found: ' + similar.join(', ') + '.' : ' No similar setting was found.'));
     }
     let config;
     try {
