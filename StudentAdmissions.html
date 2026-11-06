@@ -1071,7 +1071,7 @@
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
-            backup: { title: 'Backup & Restore', render: () => renderBackupPage() }
+            backup: { title: 'Where Data Is Kept', render: () => renderBackupPage() }
         };
 
         /* ---------- Settings > System Data Backups, using backup.js ---------- */
@@ -1082,63 +1082,18 @@
                 content.innerHTML = '<div class="empty-state">Only administrators can back up or restore the system.</div>';
                 return;
             }
-            const handle = backupSupported() ? await getBackupHandle() : null;
             content.innerHTML = `
                 <div class="backup-page">
-                    <p class="backup-intro">All staff accounts, rights, students, photos, documents and settings are kept in the
-                        <b>Supabase</b> database, with a copy in <b>PostgreSQL</b> on the office computer. Clearing the browsing data
-                        does not delete them. A backup file is an extra copy you can keep yourself, e.g. before big changes or once a
-                        week: press <b>Download Backup</b> and keep the file in the <b>OneDrive</b> folder.</p>
+                    <p class="backup-intro">All staff accounts, rights, students, photos, documents and settings are saved straight
+                        into the database every time you press Save. Nothing is saved in this browser, on this computer or in OneDrive,
+                        so clearing the browsing data or changing computers loses nothing.</p>
                     <div class="backup-status">
-                        <div><span>Automatic backup file:</span> <b>${handle ? escapeHtml(handle.name) : 'Not set up'}</b></div>
-                        <div><span>Last backup:</span> <b>${escapeHtml(lastBackupText())}</b></div>
+                        <div><span>Online system:</span> <b>fewa-system.onrender.com</b></div>
+                        <div><span>Main database:</span> <b>Supabase</b> (online)</div>
+                        <div><span>Copy:</span> <b>PostgreSQL</b> on the office computer (kept in step both ways)</div>
                     </div>
-                    <div class="backup-actions">
-                        ${backupSupported() ? `<button type="button" class="btn-submit" onclick="backupPageAction('choose')">
-                            ${handle ? 'Change Backup File' : 'Set Up Automatic Backup'}</button>` : ''}
-                        ${handle ? `<button type="button" class="btn-submit" onclick="backupPageAction('now')">Back Up Now</button>` : ''}
-                        <button type="button" class="btn-submit btn-secondary" onclick="backupPageAction('download')">Download Backup</button>
-                        <label class="btn-submit btn-secondary backup-restore-label">Restore from Backup
-                            <input type="file" accept=".json,application/json" hidden onchange="restoreFromSettings(this)"></label>
-                    </div>
-                    ${backupSupported() ? '' : `<p class="backup-note">This browser cannot save to a file by itself. Use
-                        "Download Backup" regularly, or open the system in Microsoft Edge or Google Chrome.</p>`}
-                    <p class="backup-note">Optional: "Set Up Automatic Backup" saves a file on this computer again a few seconds after
-                        every change. After the browser is restarted it may ask once for permission to keep saving.</p>
+                    <p class="backup-note">Backups of the database are made in Supabase: <b>Supabase &gt; Database &gt; Backups</b>.</p>
                 </div>`;
-        }
-
-        async function backupPageAction(action) {
-            if (action === 'download') {
-                const backup = await downloadBackup();
-                localStorage.setItem(LAST_BACKUP_KEY, backup.savedAt);
-                showToast('Backup downloaded: ' + backupSummary(backup) + '. Keep the file somewhere safe.');
-            } else {
-                const result = action === 'choose' ? await chooseBackupFile() : await backupNow({ askPermission: true });
-                if (result === 'saved') showToast('Backup saved. It will now update by itself after every change.');
-                else if (result !== 'cancelled') showToast('The backup could not be saved. Try again, or use Download Backup.', 'warning');
-            }
-            renderBackupPage();
-        }
-
-        async function restoreFromSettings(input) {
-            const file = input.files[0];
-            input.value = '';
-            if (!file) return;
-            let backup;
-            try {
-                backup = await readBackupFile(file);
-            } catch (error) {
-                return alert(error.message);
-            }
-            if (!confirm(`Restore the backup from ${new Date(backup.savedAt).toLocaleString('en-GB')}?\n\n` +
-                `It holds ${backupSummary(backup)}.\n\n` + (backup.merge
-                    ? 'These records will be ADDED to the system. Nothing else is changed.'
-                    : 'EVERYTHING in the system now will be replaced by the backup.'))) return;
-            await restoreBackup(backup);
-            showToast('Backup restored successfully.');
-            // The signed-in account may differ in the backup
-            setTimeout(() => location.reload(), 1200);
         }
 
         let activeSettingsGroup = 'setup';

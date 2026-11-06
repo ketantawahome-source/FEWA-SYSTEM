@@ -1,10 +1,8 @@
 /* ---------- Backup & Restore ----------
    Everything the system keeps lives in the PostgreSQL database (through db.js): staff accounts and rights,
-   students, photos, documents, settings and deferrals. A full copy can also be kept in a backup file on this
-   computer (best inside the OneDrive folder, so it is also copied online):
-   - Settings > System Data Backups: choose the backup file once; after that it is saved again
-     by itself a few seconds after every change. "Download Backup" saves a copy by hand (any browser).
-   - The login page's "Restore from backup" puts everything in a backup file back into the database.
+   students, photos, documents, settings and deferrals (Supabase, with a two-way synced PostgreSQL copy).
+   Backup files on this computer / OneDrive are switched off for now (BACKUP_FILES_ON below).
+   Reading an old backup file still works: the login page's "Restore from backup" (first setup only).
    Needs db.js and auth.js (account keys, announceDataChange) loaded first. */
 const BACKUP_APP = 'FEWA College System';
 const BACKUP_STORES = ['students', 'documents', 'settings', 'deferrals'];
@@ -171,15 +169,20 @@ async function chooseBackupFile() {
     return backupNow({ askPermission: true });
 }
 
-// Called after every change (staff accounts, rights, or any student data)
+// Called after every change. Backup files on this computer / OneDrive are switched off for now: the data is
+// kept online (Supabase) and in the PostgreSQL copy, so nothing is saved to a file any more.
+const BACKUP_FILES_ON = false;
 let backupTimer = null;
 function scheduleBackup() {
+    if (!BACKUP_FILES_ON) return;
     clearTimeout(backupTimer);
     backupTimer = setTimeout(async () => {
         const result = await backupNow();
         if (result === 'needs-permission' || result === 'failed') showBackupBar(result);
     }, BACKUP_DELAY_MS);
 }
+// A backup file chosen earlier is forgotten, so the browser no longer keeps writing to it
+if (!BACKUP_FILES_ON && typeof indexedDB !== 'undefined') forgetBackupHandle().catch(() => { });
 
 function lastBackupText() {
     const at = localStorage.getItem(LAST_BACKUP_KEY);
@@ -219,12 +222,5 @@ function showBackupBar(reason) {
     content.insertBefore(bar, crumbs ? crumbs.nextSibling : content.firstChild);
 }
 
-// Asks the browser to keep the system's data permanently, so it is never removed by itself (e.g. when the
-// disk is low on space). Only the person clearing the browsing data can remove it, hence the backup file.
-if (navigator.storage && navigator.storage.persist) {
-    navigator.storage.persisted().then(already => already || navigator.storage.persist()).catch(() => { });
-}
-
 // The data is kept in the database (Supabase, plus the PostgreSQL copy on the office computer), so pages no
-// longer warn when no backup file is set up. Backup files are optional, from Settings > System Data Backups;
-// the bar above only shows if an automatic backup file was chosen there and saving it stops working.
+// longer warn about backup files; Settings > System Data Backups shows where the data is kept.
