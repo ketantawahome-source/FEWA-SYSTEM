@@ -298,6 +298,7 @@ async function exportLegacyData() {
 /* ---------- Opened as a file, or the server/database is not available ---------- */
 function showServerProblem() {
     const asFile = location.protocol === 'file:';
+    const online = !asFile && !['localhost', '127.0.0.1'].includes(location.hostname);
     const box = document.createElement('div');
     box.className = 'fewa-server-problem';
     box.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#f6f2fb;display:flex;align-items:center;' +
@@ -307,7 +308,9 @@ function showServerProblem() {
                     border-top:5px solid #d4a843;line-height:1.55">
             <h2 style="margin:0 0 12px">${asFile ? 'Open the FEWA system through its server' : 'The FEWA system cannot reach its database'}</h2>
             <p style="margin:0 0 12px" class="problem-text"></p>
-            <ol style="margin:0 0 16px;padding-left:20px">
+            <p style="margin:0 0 16px;${online ? '' : 'display:none'}">The online system is not available right now.
+                Please try again in a few minutes, or tell the college office.</p>
+            <ol style="margin:0 0 16px;padding-left:20px;${online ? 'display:none' : ''}">
                 <li>Double-click <b>start-server.bat</b> in the FEWA SYSTEM folder and keep its window open.</li>
                 <li>Open <a href="${FEWA_ADDRESS}" style="color:#5b2d8e;font-weight:bold">${FEWA_ADDRESS}</a></li>
             </ol>

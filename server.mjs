@@ -36,6 +36,7 @@
    { __newFile: true, type, name, data: <base64> } and the server stores its bytes in stored_files. */
 import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +93,11 @@ async function loadConfig() {
             connectionString: url.toString(), ssl,
             host: url.hostname, port: Number(url.port || 5432), database: decodeURIComponent(url.pathname.slice(1)) || 'postgres'
         };
+    }
+    // Online (Render, Azure...) there is no db-config.json: the hosting's DATABASE_URL setting is missing
+    if (process.env.PORT && !existsSync(path.join(root, 'db-config.json'))) {
+        throw new Error('DATABASE_URL is not set. In the hosting dashboard (Render: the service > Environment) add ' +
+            'DATABASE_URL with the Supabase address and password, save, and let it redeploy.');
     }
     let config;
     try {
