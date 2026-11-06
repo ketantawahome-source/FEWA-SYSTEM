@@ -281,6 +281,12 @@ function logout() {
     location.replace('login.html');
 }
 
+// A system update logs everyone out; the login page says why
+function logOutAfterUpdate() {
+    endServerSession();
+    location.replace('login.html?updated=1');
+}
+
 /* ---------- Emailed 6-digit codes (OTP login and password reset) ----------
    Only a code's hash is kept; it expires after a few minutes and is cancelled after CODE_MAX_ATTEMPTS wrong tries.
    Each code belongs to one account, so staff can't use each other's codes. */
@@ -416,7 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ---------- Footer at the bottom of every page ----------
    Copyright (this year) WAFA Systems | Last Activity: when this person last did something here |
-   the college name | Last System Update: when this page's file was last changed */
+   the college name | Last System Update: when Settings > System Update last finished (asked again every 30 seconds) */
+const FOOTER_CHECK_MS = 30000;
 const formatFooterTime = date => date.toLocaleString('en-GB', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
 }).replace(',', '');
@@ -433,10 +440,30 @@ document.addEventListener('DOMContentLoaded', () => {
         <span><b>Copyright &copy; ${new Date().getFullYear()}</b> <span class="footer-brand">WAFA Systems</span></span>
         <span>Last Activity: <span id="footerActivity"></span></span>
         <span id="footerCollege"></span>
-        <span>Last System Update: ${formatFooterTime(new Date(document.lastModified))}</span>`;
+        <span>Last System Update: <span id="footerUpdate">...</span></span>`;
     wrapper.appendChild(footer);
     document.getElementById('footerCollege').textContent =
         (brandName || 'FEWA Beauty & Fashion College').toUpperCase();
+
+    /* Last System Update, kept up to date while the page is open. When an update finishes, the server logs
+       everyone out: this page notices within 30 seconds and goes to the login page. */
+    const loggedIn = !!fewaSession.kind;
+    let lastUpdate;
+    const checkUpdate = async () => {
+        try {
+            const { finishedAt, kind } = await api('GET', '/system-update/last');
+            const updated = lastUpdate !== undefined && finishedAt !== lastUpdate;
+            lastUpdate = finishedAt;
+            document.getElementById('footerUpdate').textContent = finishedAt ? formatFooterTime(new Date(finishedAt)) : 'Not run yet';
+            if (loggedIn && !kind) {
+                if (updated || finishedAt && Date.now() - new Date(finishedAt) < 5 * 60000) return logOutAfterUpdate();
+                endServerSession();
+                return location.replace('login.html');
+            }
+        } catch { } // the server is restarting or the internet is down: ask again next time
+        setTimeout(checkUpdate, FOOTER_CHECK_MS);
+    };
+    if (fewaServer.online) checkUpdate();
 
     /* Last Activity: when this person last actually did something (a click, typing, a save), on any page or tab.
        Opening or refreshing a page does not count. */

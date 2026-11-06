@@ -644,6 +644,11 @@
             history.replaceState(null, '', location.pathname);
             showResetForm(linkParams.get('reset'), linkParams.get('user') || '');
         }
+        // Sent here after a system update (auth.js logOutAfterUpdate)
+        if (linkParams.get('updated') && !settingUp) {
+            history.replaceState(null, '', location.pathname);
+            showError('The system has been updated. Please log in again.');
+        }
 
         // Every successful login: confirm on screen and email the username that logged in.
         // The first login waits for "Continue"; later logins carry on to the system by themselves.

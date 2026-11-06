@@ -1400,14 +1400,36 @@ async function updateInfo(check) {
     return { place: updatePlace, online: onlineHost, version, waiting: notes.filter(n => !n.installed).length, notes, problem, history: rows, run: updateRun };
 }
 
-async function runSystemUpdate(by) {
+// When the last update that worked finished (shown at the bottom of every page)
+async function lastSystemUpdate() {
+    const { rows } = await pool.query(`SELECT finished_at AS "finishedAt" FROM ${T('system_updates')}
+        WHERE status <> 'Failed' AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1`);
+    return rows.length ? rows[0].finishedAt : null;
+}
+
+// After an update everyone logs in again, so every page opens with the new code
+async function logOutEveryone() {
+    await pool.query(`DELETE FROM ${T('sessions')}`);
+    forgetSessions();
+}
+
+// The log's times are in the time zone of the person who pressed Update (the online server runs on UTC)
+function validTimeZone(zone) {
+    try {
+        return zone && new Intl.DateTimeFormat('en-GB', { timeZone: String(zone) }) && String(zone);
+    } catch {
+        return undefined;
+    }
+}
+
+async function runSystemUpdate(by, timeZone) {
     if (updateRun && ['Running', 'Restarting'].includes(updateRun.status)) return updateRun;
     const id = 'upd-' + Date.now().toString(36) + randomBytes(3).toString('hex');
     const run = updateRun = { id, status: 'Running', percent: 0, step: '', log: [], by, startedAt: new Date().toISOString(), place: updatePlace };
     const say = (percent, text) => {
         run.percent = percent;
         run.step = text;
-        run.log.push(`${new Date().toLocaleTimeString('en-GB')}  ${text}`);
+        run.log.push(`${new Date().toLocaleTimeString('en-GB', { timeZone })}  ${text}`);
         console.log(new Date().toLocaleString(), '[System update]', text);
     };
     const save = (fields = {}) => pool.query(`INSERT INTO ${T('system_updates')} (id, started_at, started_by, place, from_version, to_version,
@@ -1469,8 +1491,10 @@ async function runSystemUpdate(by) {
             const to = await currentVersion();
             run.status = restart ? 'Restarting' : changes ? 'Done' : 'Up to date';
             say(restart ? 95 : 100, `${databases} database(s) updated - no script failures.` +
-                (restart ? ' Restarting the system with the new code...' : ' Rocket landed: the update is complete.'));
+                (restart ? ' Restarting the system with the new code...' : ' Rocket landed: the update is complete.') +
+                ' Everyone is logged out and logs in again.');
             await save({ to, changes, databases, status: changes ? 'Done' : 'Up to date', finished: true });
+            await logOutEveryone().catch(err => console.log(new Date().toLocaleString(), '[System update] Could not log everyone out:', err.message));
             if (restart) {
                 setTimeout(() => {
                     console.log(new Date().toLocaleString(), '[System update] Restarting now (start-server.bat starts the server again).');
@@ -1666,10 +1690,17 @@ async function handleApi(req, res, parts) {
 
     /* ---------- System Update (administrators only) ---------- */
     if (area === 'system-update') {
+        // Every page asks this now and then: the footer's "Last System Update", and whether this person is still
+        // logged in (an update logs everyone out)
+        if (method === 'GET' && a === 'last') return send(res, 200, { finishedAt: await lastSystemUpdate(), kind: session.kind });
+        // The administrator's page keeps following the rocket after the update has logged everyone out
+        if (method === 'GET' && a === 'progress' && !admin) return send(res, 200,
+            { run: updateRun && { id: updateRun.id, status: updateRun.status, percent: updateRun.percent, step: '', log: [] } });
         if (!admin) throw forbidden();
         if (method === 'GET' && !a) return send(res, 200, await updateInfo(new URL('http://x' + req.url).searchParams.has('check')));
         if (method === 'GET' && a === 'progress') return send(res, 200, { run: updateRun });
-        if (method === 'POST' && !a) return send(res, 200, { run: await runSystemUpdate(session.account.username) });
+        if (method === 'POST' && !a) return send(res, 200,
+            { run: await runSystemUpdate(session.account.username, validTimeZone((await readBody(req) || {}).timeZone)) });
     }
 
     send(res, 404, { error: 'Unknown request' });

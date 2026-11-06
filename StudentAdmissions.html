@@ -1235,9 +1235,9 @@
 
         async function startSystemUpdate() {
             if (!confirm('Run the system update now?\n\nThe system downloads the new changes from GitHub, updates the database tables ' +
-                'and restarts. It takes about a minute; anyone using the system may need to press Refresh afterwards.')) return;
+                'and restarts. It takes about a minute. When it is finished, everyone (you too) is logged out and logs in again.')) return;
             try {
-                showUpdateRun((await api('POST', '/system-update')).run);
+                showUpdateRun((await api('POST', '/system-update', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })).run);
             } catch (error) {
                 return alert('The update could not start: ' + error.message);
             }
@@ -1253,18 +1253,22 @@
                 try {
                     const { run } = await api('GET', '/system-update/progress');
                     if (restarting && !run) {
-                        // The server is back with the new code: show the finished update and the new release notes
-                        showToast('System update complete. The system is running the new version.');
-                        return setTimeout(() => location.reload(), 1500);
+                        // The server is back with the new code: log in again
+                        showToast('System update complete. The system is running the new version.', 'success');
+                        return setTimeout(logOutAfterUpdate, 2500);
                     }
                     if (run) {
-                        showUpdateRun(run);
+                        if (run.log.length) showUpdateRun(run); // (once logged out, the server no longer sends the log)
+                        else showUpdateRun({ ...run, step: document.getElementById('updateStep').textContent,
+                            log: document.getElementById('updateLog').textContent.split('\n').filter(Boolean) });
                         if (run.status === 'Restarting') restarting = true;
-                        if (['Done', 'Up to date', 'Failed'].includes(run.status)) {
-                            showToast(run.status === 'Failed' ? 'The system update failed. See the log under the rocket.' :
-                                run.status === 'Up to date' ? 'The system is already up to date. Database tables checked.' : 'System update complete.',
-                                run.status === 'Failed' ? 'warning' : 'success');
+                        if (run.status === 'Failed') {
+                            showToast('The system update failed. See the log under the rocket.', 'warning');
                             return setTimeout(() => renderSystemUpdate(false), 1500);
+                        }
+                        if (['Done', 'Up to date'].includes(run.status)) {
+                            showToast(run.status === 'Up to date' ? 'The system is already up to date. Database tables checked.' : 'System update complete.', 'success');
+                            return setTimeout(logOutAfterUpdate, 2500);
                         }
                     }
                 } catch {
