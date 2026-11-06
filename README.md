@@ -16,6 +16,13 @@ postgresql://postgres.<project-ref>:<database-password>@aws-0-eu-west-1.pooler.s
 
 Create the first administrator account on the office computer first (setting up is never allowed online).
 
+## Backups
+
+Nothing is kept in the browser or on the computer. **Settings > System Data Backups > Back Up Now** (administrators)
+saves a full copy of all data in Supabase: the table `backups.snapshots` (newest 30 kept), and, when the
+Supabase secret / service_role key is set as `SUPABASE_SERVICE_KEY` on Render (or `supabaseServiceKey` in
+`db-config.json`), also as a file in Supabase **Storage > backups**. Restoring first backs up the current data.
+
 ## Later: Microsoft Azure instead
 
 `.github/workflows/azure-webapp.yml` deploys the system to an Azure App Service web app (started by hand
@@ -59,7 +66,7 @@ from the Actions tab until `push` is added back to it). One-time setup:
 | Path | What it is |
 |---|---|
 | `server.mjs` | Web server, logins and data API; creates the tables, syncs the local copy |
-| `database/*.sql` | Table definitions, one file per schema (students, settings, finance, staff, files) |
+| `database/*.sql` | Table definitions, one file per schema (students, settings, finance, staff, files, backups) |
 | `db.js` | Data access used by every page (talks to the server) |
 | `auth.js` | Logins, staff rights, shared page parts |
 | `StudentAdmissions.html` | Student Hub, documents, queries, finance, reports, settings |

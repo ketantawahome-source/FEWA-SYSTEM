@@ -1071,7 +1071,7 @@
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
-            backup: { title: 'Where Data Is Kept', render: () => renderBackupPage() }
+            backup: { title: 'Backups in Supabase', render: () => renderBackupPage() }
         };
 
         /* ---------- Settings > System Data Backups, using backup.js ---------- */
@@ -1082,18 +1082,93 @@
                 content.innerHTML = '<div class="empty-state">Only administrators can back up or restore the system.</div>';
                 return;
             }
+            content.innerHTML = '<div class="empty-state">Loading the backups...</div>';
+            let list;
+            try {
+                list = await api('GET', '/backups');
+            } catch (error) {
+                content.innerHTML = `<div class="empty-state">The backups could not be loaded: ${escapeHtml(error.message)}</div>`;
+                return;
+            }
+            const sizeText = bytes => bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((bytes || 0) / 1024)) + ' KB';
+            const rows = list.backups.map(b => {
+                const s = b.summary || {};
+                return `<tr>
+                    <td>${escapeHtml(new Date(b.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
+                    <td>${escapeHtml(b.note || '')}</td>
+                    <td>${escapeHtml(`${s.students || 0} student(s), ${s.documents || 0} document(s), ${s.staff || 0} staff, ${s.files || 0} file(s)`)}</td>
+                    <td>${escapeHtml(sizeText(b.sizeBytes))}</td>
+                    <td>${b.storagePath ? 'Database + Storage' : 'Database'}</td>
+                    <td>${escapeHtml(b.createdBy || '')}</td>
+                    <td style="white-space:nowrap">
+                        <button type="button" class="btn-submit btn-secondary" onclick="restoreOnlineBackup('${escapeHtml(b.id)}')">Restore</button>
+                        <button type="button" class="btn-submit btn-secondary" onclick="deleteOnlineBackup('${escapeHtml(b.id)}')">Delete</button>
+                    </td></tr>`;
+            }).join('');
             content.innerHTML = `
                 <div class="backup-page">
                     <p class="backup-intro">All staff accounts, rights, students, photos, documents and settings are saved straight
-                        into the database every time you press Save. Nothing is saved in this browser, on this computer or in OneDrive,
-                        so clearing the browsing data or changing computers loses nothing.</p>
+                        into the database every time you press Save. Nothing is saved in this browser, on this computer or in OneDrive.
+                        <b>Back Up Now</b> keeps a full copy of everything in <b>Supabase</b>: in the database (schema
+                        <b>backups</b>, table <b>snapshots</b>)${list.storage ? ' and as a file in <b>Storage &gt; backups</b>' : ''}.</p>
                     <div class="backup-status">
                         <div><span>Online system:</span> <b>fewa-system.onrender.com</b></div>
                         <div><span>Main database:</span> <b>Supabase</b> (online)</div>
                         <div><span>Copy:</span> <b>PostgreSQL</b> on the office computer (kept in step both ways)</div>
+                        <div><span>Supabase Storage copy:</span> <b>${list.storage ? 'On' : 'Off (the Supabase service key is not set)'}</b></div>
                     </div>
-                    <p class="backup-note">Backups of the database are made in Supabase: <b>Supabase &gt; Database &gt; Backups</b>.</p>
+                    <div class="backup-actions">
+                        <input type="text" id="backupNote" maxlength="200" placeholder="Note (optional), e.g. Before the January intake"
+                            style="flex:1;min-width:220px;padding:10px;border:1px solid #d8cfe3;border-radius:8px">
+                        <button type="button" class="btn-submit" id="backupNowButton" onclick="makeOnlineBackup()">Back Up Now</button>
+                    </div>
+                    ${list.backups.length ? `<div class="table-wrapper" style="overflow-x:auto;margin-top:16px"><table class="data-table">
+                        <thead><tr><th>Made</th><th>Note</th><th>Contents</th><th>Size</th><th>Saved in</th><th>By</th><th></th></tr></thead>
+                        <tbody>${rows}</tbody></table></div>`
+                    : '<div class="empty-state" style="margin-top:16px">No backups yet. Press Back Up Now to make the first one.</div>'}
+                    <p class="backup-note">The newest 30 backups are kept. Restoring first makes a backup of the data as it is now,
+                        so a restore can always be undone.</p>
                 </div>`;
+        }
+
+        async function makeOnlineBackup() {
+            const button = document.getElementById('backupNowButton');
+            button.disabled = true;
+            button.textContent = 'Backing up...';
+            try {
+                const result = await api('POST', '/backups', { note: document.getElementById('backupNote').value.trim() });
+                showToast(result.storage.saved ? 'Backup saved in Supabase (database and Storage).'
+                    : 'Backup saved in the Supabase database. ' + result.storage.reason, result.storage.saved ? 'success' : 'warning');
+            } catch (error) {
+                showToast('The backup could not be made: ' + error.message, 'warning');
+            }
+            renderBackupPage();
+        }
+
+        async function restoreOnlineBackup(id) {
+            if (!confirm('Restore this backup?\n\nEVERYTHING in the system now (students, documents, settings, staff accounts) ' +
+                'will be replaced by the backup. A backup of the data as it is now is made first, so this can be undone.')) return;
+            try {
+                const result = await api('POST', `/backups/${encodeURIComponent(id)}/restore`);
+                if (result.result === 'no-staff') return alert('This backup has no staff accounts, so nobody could log in after restoring it. It was not restored.');
+                if (result.result !== 'ok') return alert('This backup no longer exists.');
+                showToast('Backup restored successfully.');
+                // The signed-in account may differ in the backup
+                setTimeout(() => location.reload(), 1200);
+            } catch (error) {
+                alert('The backup could not be restored: ' + error.message + '\n\nNothing was changed.');
+            }
+        }
+
+        async function deleteOnlineBackup(id) {
+            if (!confirm('Delete this backup from Supabase? This cannot be undone.')) return;
+            try {
+                await api('DELETE', `/backups/${encodeURIComponent(id)}`);
+                showToast('Backup deleted.');
+            } catch (error) {
+                showToast('The backup could not be deleted: ' + error.message, 'warning');
+            }
+            renderBackupPage();
         }
 
         let activeSettingsGroup = 'setup';

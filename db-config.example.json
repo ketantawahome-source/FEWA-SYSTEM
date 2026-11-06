@@ -5,6 +5,7 @@
     "password": "YOUR-SUPABASE-DATABASE-PASSWORD",
     "database": "postgres",
     "ssl": { "rejectUnauthorized": false },
+    "supabaseServiceKey": "OPTIONAL: Supabase > Project Settings > API keys > secret / service_role key (backups also go to Storage)",
 
     "mirror": {
         "host": "localhost",

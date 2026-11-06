@@ -97,7 +97,7 @@ async function loadConfig() {
         const ssl = url.searchParams.get('sslmode') === 'disable' ? false : { rejectUnauthorized: false };
         url.searchParams.delete('sslmode');
         return {
-            connectionString: url.toString(), ssl,
+            connectionString: url.toString(), ssl, projectUser: decodeURIComponent(url.username),
             host: url.hostname, port: Number(url.port || 5432), database: decodeURIComponent(url.pathname.slice(1)) || 'postgres'
         };
     }
@@ -331,6 +331,7 @@ async function startDatabase() {
     }
     const firstConnection = !pool;
     pool = newPool;
+    setUpBackupStorage(config);
     databaseError = null;
     console.log(`Connected to PostgreSQL: database "${config.database}" on ${config.host}:${config.port}.`);
     if (firstConnection) startMirror();
@@ -1098,6 +1099,113 @@ async function startMirror() {
     setInterval(() => mirrorChanged(SYNC_ORDER), MIRROR_FULL_SYNC_MS);
 }
 
+/* ---------- Backups (Settings > System Data Backups) ----------
+   "Back Up Now" copies every table into one row of backups.snapshots in the main database (Supabase), and,
+   when the Supabase service key is set (SUPABASE_SERVICE_KEY online, "supabaseServiceKey" in db-config.json),
+   also as a file in Supabase Storage, bucket "backups". Nothing is saved on the computer.
+   Restoring first makes a backup of the data as it is, then puts the chosen backup's rows back. */
+const BACKUP_TABLES = Object.keys(SCHEMA_OF).filter(t => t !== 'sessions' && t !== 'password_reset_codes');
+const BACKUPS_KEPT = 30;
+const BACKUP_BUCKET = 'backups';
+let backupStorage = null; // { url, key } of Supabase Storage, when set up
+let bucketReady = false;
+
+function setUpBackupStorage(config) {
+    const ref = (String(config.projectUser || config.user || '').match(/^postgres\.([a-z0-9]+)$/) || [])[1];
+    const key = (process.env.SUPABASE_SERVICE_KEY || config.supabaseServiceKey || '').trim();
+    backupStorage = ref && key ? { url: `https://${ref}.supabase.co/storage/v1`, key } : null;
+}
+
+async function storageRequest(method, address, body, type = 'application/json') {
+    const { url, key } = backupStorage;
+    // New Supabase secret keys (sb_secret_...) go in "apikey" only; the older service_role key also as Bearer
+    const headers = { apikey: key, 'Content-Type': type, 'x-upsert': 'true' };
+    if (!key.startsWith('sb_')) headers.Authorization = `Bearer ${key}`;
+    const response = await fetch(url + address, { method, headers, body });
+    const text = await response.text();
+    return { ok: response.ok, status: response.status, text };
+}
+
+// Saves a backup as a file in Supabase Storage; the reason when it cannot
+async function saveBackupToStorage(id) {
+    if (!backupStorage) return { saved: false, reason: 'The Supabase service key is not set, so the Storage copy is skipped.' };
+    try {
+        if (!bucketReady) {
+            const made = await storageRequest('POST', '/bucket', JSON.stringify({ id: BACKUP_BUCKET, name: BACKUP_BUCKET, public: false }));
+            if (!made.ok && !/already exists|Duplicate/i.test(made.text)) throw new Error(`creating the bucket: ${made.status} ${made.text.slice(0, 200)}`);
+            bucketReady = true;
+        }
+        const { rows } = await pool.query('SELECT data::text AS data FROM backups.snapshots WHERE id = $1', [id]);
+        const file = `FEWA-backup-${id}.json`;
+        const sent = await storageRequest('POST', `/object/${BACKUP_BUCKET}/${file}`, rows[0].data);
+        if (!sent.ok) throw new Error(`${sent.status} ${sent.text.slice(0, 200)}`);
+        await pool.query('UPDATE backups.snapshots SET storage_path = $2 WHERE id = $1', [id, `${BACKUP_BUCKET}/${file}`]);
+        return { saved: true };
+    } catch (err) {
+        console.log(new Date().toLocaleString(), 'The backup could not be saved in Supabase Storage:', err.message);
+        return { saved: false, reason: 'Supabase Storage did not accept it: ' + err.message };
+    }
+}
+
+async function createBackup(createdBy, note) {
+    const id = new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomBytes(3).toString('hex');
+    const tables = BACKUP_TABLES.map(t => `'${t}', (SELECT coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) FROM ${T(t)} x)`);
+    await pool.query(`INSERT INTO backups.snapshots (id, created_by, note, data)
+        VALUES ($1, $2, $3, jsonb_build_object(${tables.join(', ')}))`, [id, createdBy || null, note || null]);
+    await pool.query(`UPDATE backups.snapshots SET size_bytes = pg_column_size(data), summary = jsonb_build_object(
+            'students', jsonb_array_length(data->'students'), 'documents', jsonb_array_length(data->'documents'),
+            'staff', jsonb_array_length(data->'staff_accounts'), 'files', jsonb_array_length(data->'stored_files'))
+        WHERE id = $1`, [id]);
+    const storage = await saveBackupToStorage(id);
+    // Only the newest backups are kept, so the database does not fill up
+    const old = await pool.query(`DELETE FROM backups.snapshots WHERE id NOT IN
+        (SELECT id FROM backups.snapshots ORDER BY created_at DESC LIMIT ${BACKUPS_KEPT}) RETURNING storage_path`);
+    for (const { storage_path } of old.rows) if (storage_path && backupStorage) {
+        storageRequest('DELETE', `/object/${storage_path}`).catch(() => { });
+    }
+    return { id, storage };
+}
+
+const listBackups = async () => (await pool.query(`SELECT id, created_at AS "createdAt", created_by AS "createdBy", note,
+    summary, size_bytes AS "sizeBytes", storage_path AS "storagePath" FROM backups.snapshots ORDER BY created_at DESC`)).rows;
+
+async function restoreBackupOnServer(id, by) {
+    const found = await pool.query(`SELECT jsonb_array_length(coalesce(data->'staff_accounts', '[]'::jsonb)) AS staff,
+        created_at FROM backups.snapshots WHERE id = $1`, [id]);
+    if (!found.rows.length) return { result: 'none' };
+    // A backup without any staff account would leave nobody able to log in
+    if (!found.rows[0].staff) return { result: 'no-staff' };
+    const safety = await createBackup(by, `Made automatically before restoring the backup of ${found.rows[0].created_at.toISOString()}`);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        for (const table of BACKUP_TABLES) {
+            const has = await client.query('SELECT data ? $2 AS has FROM backups.snapshots WHERE id = $1', [id, table]);
+            if (!has.rows[0].has) continue; // a table that did not exist yet when the backup was made is left as it is
+            await client.query(`DELETE FROM ${T(table)}`);
+            await client.query(`INSERT INTO ${T(table)} SELECT * FROM jsonb_populate_recordset(NULL::${T(table)},
+                (SELECT data->$2 FROM backups.snapshots WHERE id = $1))`, [id, table]);
+        }
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => { });
+        throw err;
+    } finally {
+        client.release();
+    }
+    columnCache.clear();
+    forgetSessions();
+    forgetAccountCount();
+    mirrorChanged(SYNC_ORDER);
+    return { result: 'ok', safetyId: safety.id };
+}
+
+async function deleteBackup(id) {
+    const { rows } = await pool.query('DELETE FROM backups.snapshots WHERE id = $1 RETURNING storage_path', [id]);
+    if (rows.length && rows[0].storage_path && backupStorage) await storageRequest('DELETE', `/object/${rows[0].storage_path}`).catch(() => { });
+    return { result: rows.length ? 'ok' : 'none' };
+}
+
 /* ---------- The API ---------- */
 function readBody(req) {
     return new Promise((resolve, reject) => {
@@ -1256,6 +1364,16 @@ async function handleApi(req, res, parts) {
         }
         mirrorChanged(valueTables(a));
         return send(res, 200, { ok: true });
+    }
+
+    /* ---------- Backups (administrators only) ---------- */
+    if (area === 'backups') {
+        if (!admin) throw forbidden();
+        const by = session.account.username;
+        if (method === 'GET' && !a) return send(res, 200, { backups: await listBackups(), storage: !!backupStorage });
+        if (method === 'POST' && !a) return send(res, 200, await createBackup(by, String((await readBody(req) || {}).note || '').slice(0, 200)));
+        if (method === 'POST' && a && b === 'restore') return send(res, 200, await restoreBackupOnServer(a, by));
+        if (method === 'DELETE' && a) return send(res, 200, await deleteBackup(a));
     }
 
     send(res, 404, { error: 'Unknown request' });
