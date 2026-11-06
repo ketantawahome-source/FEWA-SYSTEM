@@ -588,9 +588,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (link.parentElement.classList.contains('has-submenu')) {
             link.addEventListener('click', () => {
                 if (document.documentElement.classList.contains('sidebar-collapsed')) setSidebarCollapsed(false);
+                openMenuStraightAway(link.parentElement);
             });
         }
     });
+
+    /* One tap on a main menu (e.g. Settings) goes straight there: its list opens, the other lists close (so it
+       is not lost at the bottom of the menu), and its first section opens, unless one of its sections is
+       already open. (The page's own onclick has just opened or closed the list.) */
+    function openMenuStraightAway(item) {
+        const list = item.querySelector('.submenu');
+        if (!list || !list.classList.contains('open')) return;
+        sidebar.querySelectorAll('.submenu.open').forEach(other => { if (other !== list) other.classList.remove('open'); });
+        const subs = [...list.querySelectorAll('.submenu-item')].filter(sub => sub.style.display !== 'none');
+        if (subs.length && !subs.some(sub => sub.classList.contains('active'))) subs[0].click();
+    }
+
+    // A quick double tap on a main menu would open its list and close it again at once: the second tap is ignored
+    sidebar.addEventListener('click', event => {
+        if (event.detail > 1 && event.target.closest('.menu-list > .nav-item.has-submenu > a')) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }, true);
 
     const menuButton = document.createElement('button');
     menuButton.type = 'button';

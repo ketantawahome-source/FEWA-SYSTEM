@@ -166,6 +166,10 @@ body {
 /* Sidebar icons and the three-line menu button (auth.js) */
 #sidebar {
     transition: width 0.2s ease-in-out;
+    /* Tapping a menu name does not select (grey-highlight) its words, and the phone does not wait for a double tap */
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
 }
 
 .menu-list > .nav-item > a {
