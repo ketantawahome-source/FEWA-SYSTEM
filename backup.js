@@ -225,15 +225,6 @@ if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persisted().then(already => already || navigator.storage.persist()).catch(() => { });
 }
 
-// On staff pages: check the backup when the page opens
-document.addEventListener('DOMContentLoaded', () => {
-    if (!backupSupported() || !currentUser() || !document.getElementById('content-area')) return;
-    // Wait for auth.js to add "Home ›" so the bar goes under it
-    setTimeout(async () => {
-        const handle = await getBackupHandle();
-        if (!handle) return showBackupBar('no-file');
-        try {
-            if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') showBackupBar('needs-permission');
-        } catch { }
-    }, 0);
-});
+// The data is kept in the database (Supabase, plus the PostgreSQL copy on the office computer), so pages no
+// longer warn when no backup file is set up. Backup files are optional, from Settings > System Data Backups;
+// the bar above only shows if an automatic backup file was chosen there and saving it stops working.

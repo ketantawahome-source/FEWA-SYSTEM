@@ -1085,9 +1085,10 @@
             const handle = backupSupported() ? await getBackupHandle() : null;
             content.innerHTML = `
                 <div class="backup-page">
-                    <p class="backup-intro">All staff accounts, rights, students, photos, documents and settings are kept inside this
-                        browser. <b>Clearing the browsing data deletes them.</b> A backup file on this computer keeps a copy that
-                        can be restored at any time. Save it inside the <b>OneDrive</b> folder so it is also kept online.</p>
+                    <p class="backup-intro">All staff accounts, rights, students, photos, documents and settings are kept in the
+                        <b>Supabase</b> database, with a copy in <b>PostgreSQL</b> on the office computer. Clearing the browsing data
+                        does not delete them. A backup file is an extra copy you can keep yourself, e.g. before big changes or once a
+                        week: press <b>Download Backup</b> and keep the file in the <b>OneDrive</b> folder.</p>
                     <div class="backup-status">
                         <div><span>Automatic backup file:</span> <b>${handle ? escapeHtml(handle.name) : 'Not set up'}</b></div>
                         <div><span>Last backup:</span> <b>${escapeHtml(lastBackupText())}</b></div>
@@ -1102,8 +1103,8 @@
                     </div>
                     ${backupSupported() ? '' : `<p class="backup-note">This browser cannot save to a file by itself. Use
                         "Download Backup" regularly, or open the system in Microsoft Edge or Google Chrome.</p>`}
-                    <p class="backup-note">Automatic backup saves the file again a few seconds after every change. After the browser
-                        is restarted it may ask once for permission to keep saving.</p>
+                    <p class="backup-note">Optional: "Set Up Automatic Backup" saves a file on this computer again a few seconds after
+                        every change. After the browser is restarted it may ask once for permission to keep saving.</p>
                 </div>`;
         }
 
