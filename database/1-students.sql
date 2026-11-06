@@ -181,6 +181,14 @@ CREATE TABLE IF NOT EXISTS students.applications (
     review_note                 text,
     extra                       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Admission Details, the same as on the student admission form (since Nov 2026; the school, class_applied,
+-- year_admitted, term and intake columns above are kept for the applications sent before)
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS campus text;            -- from settings.campuses
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_course text;  -- from settings.courses
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS study_session text;     -- from settings.study_sessions
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS enrollment text;        -- from settings.enrollment_types
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS student_type text;      -- the first of settings.student_types
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_group text;   -- the first of settings.student_groups, given on Admit
 CREATE INDEX IF NOT EXISTS applications_status ON students.applications (status);
 -- Each prospect number (e.g. PRP-00001) belongs to one applicant only
 CREATE UNIQUE INDEX IF NOT EXISTS applications_reference ON students.applications (reference);

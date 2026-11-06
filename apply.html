@@ -85,6 +85,8 @@
 
         .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+        .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        select:disabled { background: var(--soft); color: var(--text); opacity: 1; cursor: not-allowed; }
         .full { grid-column: 1 / -1; }
 
         label { display: block; font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
@@ -165,17 +167,21 @@
 
             <div class="card">
                 <h2>Admission Details</h2>
-                <div class="body grid">
-                    <div id="schoolField"><label>Select School <span class="req">*</span></label>
-                        <select name="school"></select></div>
-                    <div><label>Class Applied For <span class="req">*</span></label>
-                        <select name="classApplied" required></select></div>
-                    <div><label>Year to be Admitted <span class="req">*</span></label>
-                        <select name="yearAdmitted" required></select></div>
-                    <div id="termField"><label>Term to be Admitted <span class="req">*</span></label>
-                        <select name="term"></select></div>
-                    <div class="full"><label>Intake <span class="req">*</span></label>
-                        <select name="intake" required></select></div>
+                <!-- The same as the student admission form; the choices come from Settings -->
+                <div class="body grid grid-3">
+                    <div><label>Campus <span class="req" id="campusRequired">*</span></label>
+                        <select name="campus"></select></div>
+                    <div><label>Admission Course <span class="req">*</span></label>
+                        <select name="admissionCourse" required></select></div>
+                    <div><label>Study Session</label>
+                        <select name="studySession"></select></div>
+                    <div><label>Enrollment <span class="req" id="enrollmentRequired">*</span></label>
+                        <select name="enrollment"></select></div>
+                    <!-- Set by the college, not chosen: shown so the applicant sees what they will be -->
+                    <div><label>Student Type <span class="req">*</span></label>
+                        <select id="studentType" disabled></select></div>
+                    <div><label>Group <span class="req">*</span></label>
+                        <select id="group" disabled></select></div>
                 </div>
             </div>
 
@@ -275,7 +281,7 @@
         const API = '/api';
         const MAX_FILE = 5 * 1024 * 1024;
         const form = document.getElementById('applyForm');
-        let options = { schools: [], courses: [], terms: [], years: [], intakes: [] };
+        let options = { campuses: [], courses: [], studySessions: [], enrollments: [], studentType: '', group: '' };
         let fetchedOptions = false;
 
         // The two parent / guardian sections have the same fields; the first is required, the second optional
@@ -312,16 +318,6 @@
         document.querySelectorAll('[data-countries]').forEach(select => fill(select, COUNTRIES, '-- select country --', 'Kenya'));
         document.querySelector('[name=fatherRelationship]').value = 'Father';
 
-        // Classes follow the chosen school (courses whose Institute is that school), or all when none is chosen
-        function fillClasses() {
-            const school = form.elements.school.value;
-            const courses = options.courses.filter(c => !school || !c.school || c.school === school);
-            const chosen = form.elements.classApplied.value;
-            fill(form.elements.classApplied, courses.map(c => c.name), courses.length ? '-- select class --' : '-- no classes for this school yet --',
-                courses.some(c => c.name === chosen) ? chosen : '');
-        }
-        form.elements.school.addEventListener('change', fillClasses);
-
         async function loadOptions() {
             try {
                 const response = await fetch(API + '/apply/options', { headers: { 'X-FEWA-Client': '1' } });
@@ -341,15 +337,19 @@
                 done.style.display = 'block';
                 return;
             }
-            fill(form.elements.school, options.schools, '-- select school --');
-            document.getElementById('schoolField').style.display = options.schools.length ? '' : 'none';
-            form.elements.school.required = !!options.schools.length;
-            fill(form.elements.term, options.terms, '-- select term --');
-            document.getElementById('termField').style.display = options.terms.length ? '' : 'none';
-            form.elements.term.required = !!options.terms.length;
-            fill(form.elements.yearAdmitted, options.years, '-- select year --');
-            fill(form.elements.intake, options.intakes, '-- select intake --');
-            fillClasses();
+            // As on the admission form: one campus is chosen already; Campus and Enrollment are needed once set up
+            fill(form.elements.campus, options.campuses, options.campuses.length ? '-- select campus --' : '-- none --',
+                options.campuses.length === 1 ? options.campuses[0] : '');
+            fill(form.elements.admissionCourse, options.courses, '-- select course --');
+            fill(form.elements.studySession, options.studySessions, '-- select study session --');
+            fill(form.elements.enrollment, options.enrollments, options.enrollments.length ? '-- select enrollment --' : '-- none --');
+            for (const [field, list] of [['campus', options.campuses], ['enrollment', options.enrollments]]) {
+                form.elements[field].required = !!list.length;
+                document.getElementById(field + 'Required').style.display = list.length ? '' : 'none';
+            }
+            for (const id of ['studentType', 'group']) {
+                document.getElementById(id).innerHTML = `<option>${escapeHtml(options[id] || '—')}</option>`;
+            }
         }
 
         // Age, worked out from the date of birth

@@ -199,7 +199,7 @@
                 <div class="dash-panel-body">
                     <div class="table-wrap">
                         <table class="activity-table">
-                            <thead><tr><th>Date Applied</th><th>Student Name</th><th>Class Applied</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Date Applied</th><th>Student Name</th><th>Course</th><th>Status</th></tr></thead>
                             <tbody id="applicationsBody"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
                         </table>
                     </div>
@@ -387,7 +387,7 @@
                     <tr class="dash-click" onclick="location.href='StudentAdmissions.html?open=applications&application=${encodeURIComponent(a.id)}'">
                         <td>${escapeHtml(formatDate(a.submittedAt))}</td>
                         <td>${escapeHtml([a.reference, fullName(a)].filter(Boolean).join(' - '))}</td>
-                        <td>${escapeHtml(a.classApplied || '—')}</td>
+                        <td>${escapeHtml(a.admissionCourse || a.classApplied || '—')}</td>
                         <td><span class="badge ${APPLICATION_BADGE[APPLICATION_STATUS(a)] || 'pending'}">${escapeHtml(APPLICATION_STATUS(a))}</span></td>
                     </tr>`).join('')
                 : '<tr class="empty-row"><td colspan="4">No applications yet.</td></tr>';

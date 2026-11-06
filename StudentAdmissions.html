@@ -234,8 +234,8 @@
                                             <th>Prospect No.</th>
                                             <th>Submitted</th>
                                             <th>Full Name</th>
-                                            <th>Class Applied For</th>
-                                            <th>Intake</th>
+                                            <th>Admission Course</th>
+                                            <th>Enrollment</th>
                                             <th>Phone</th>
                                             <th>Status</th>
                                             <th>Action</th>
@@ -3307,6 +3307,9 @@
         // Applications sent before the Prospect step existed were "Pending"
         const applicationStatus = a => !a.status || a.status === 'Pending' ? 'Prospect' : a.status;
         const stillOpen = a => ['Prospect', 'Verified'].includes(applicationStatus(a));
+        // Applications sent before Nov 2026 had Class Applied For, Year and Intake instead of Admission Course and Enrollment
+        const appliedCourse = a => a.admissionCourse || a.classApplied || '';
+        const appliedEnrollment = a => a.enrollment || [a.intake, a.yearAdmitted].filter(Boolean).join(' ');
 
         async function updateApplicationsCount() {
             const pending = (await getAll('applications')).filter(stillOpen).length;
@@ -3324,7 +3327,7 @@
             updateApplicationsCount();
             const list = all
                 .filter(a => !filter || (filter === 'open' ? stillOpen(a) : applicationStatus(a) === filter))
-                .filter(a => !term || [a.reference, fullName(a), a.classApplied, a.phone, a.email, a.intake]
+                .filter(a => !term || [a.reference, fullName(a), appliedCourse(a), a.phone, a.email, appliedEnrollment(a)]
                     .join(' ').toLowerCase().includes(term))
                 .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
             const tbody = document.getElementById('applicationsTableBody');
@@ -3339,8 +3342,8 @@
                     <td>${escapeHtml(a.reference)}</td>
                     <td>${escapeHtml(formatDateTime(a.submittedAt) || '')}</td>
                     <td>${escapeHtml(fullName(a))}</td>
-                    <td>${escapeHtml(a.classApplied)}</td>
-                    <td>${escapeHtml([a.intake, a.yearAdmitted].filter(Boolean).join(' '))}</td>
+                    <td>${escapeHtml(appliedCourse(a))}</td>
+                    <td>${escapeHtml(appliedEnrollment(a))}</td>
                     <td>${escapeHtml(a.phone)}</td>
                     <td><span class="badge ${APPLICATION_BADGES[status] || 'pending'}">${escapeHtml(status)}</span></td>
                     <td style="white-space: nowrap;">
@@ -3381,6 +3384,9 @@
                     <div class="reset-title">Prospect ${escapeHtml(a.reference)} - ${escapeHtml(applicationStatus(a))}</div>
                     ${a.photo ? '<img class="application-photo" alt="Passport photo">' : ''}
                     <h4>Admission</h4><dl class="reset-details">
+                        ${row('Campus', a.campus)}${row('Admission course', a.admissionCourse)}${row('Study session', a.studySession)}
+                        ${row('Enrollment', a.enrollment)}${row('Student type', a.studentType)}
+                        ${row('Group on admission', a.admissionGroup)}
                         ${row('School', a.school)}${row('Class applied for', a.classApplied)}${row('Year', a.yearAdmitted)}
                         ${row('Term', a.term)}${row('Intake', a.intake)}${row('Group', a.group || 'PROSPECT')}
                         ${row('Submitted', formatDateTime(a.submittedAt))}</dl>
@@ -3502,16 +3508,18 @@
             set('emergencyEmail', a.fatherEmail);
             set('emergencyAddress', [a.location, a.town].filter(Boolean).join(', '));
 
-            // The course applied for, if it is one of the courses that can be picked (this also fills the AdmNo)
-            const course = form.elements['admissionCourse'];
-            if ([...course.options].some(o => o.value === a.classApplied)) {
-                course.value = a.classApplied;
-                await admissionCourseChosen();
-            }
-            // An enrollment named like the intake, e.g. "January 2027"
-            const enrollment = [...form.elements['enrollment'].options]
-                .find(o => o.value && o.value.toLowerCase() === `${a.intake} ${a.yearAdmitted}`.toLowerCase());
-            if (enrollment) form.elements['enrollment'].value = enrollment.value;
+            // The Admission Details the applicant chose, where they can still be picked (the course also fills the AdmNo)
+            const pick = (name, value) => {
+                const option = value && [...form.elements[name].options].find(o => o.value && o.value.toLowerCase() === value.toLowerCase());
+                if (option) form.elements[name].value = option.value;
+                return !!option;
+            };
+            if (pick('admissionCourse', appliedCourse(a))) await admissionCourseChosen();
+            pick('campus', a.campus);
+            pick('studySession', a.studySession);
+            pick('enrollment', appliedEnrollment(a)); // older applications: an enrollment named like the intake, e.g. "January 2027"
+            pick('studentType', a.studentType);
+            pick('group', a.admissionGroup);
             if (admittingApplication.photoCopy) setPhotoPreview(admittingApplication.photoCopy);
 
             document.getElementById('studentFormTitle').innerText =

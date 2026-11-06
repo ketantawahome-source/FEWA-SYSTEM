@@ -1105,15 +1105,17 @@ async function startMirror() {
 }
 
 /* ---------- Online applications (apply.html): anyone may apply, without logging in ----------
-   The form's choices come from Settings (schools, courses, terms). An application is checked here (required
-   fields, email, date of birth, file types and sizes), saved in students.applications as "Pending", and appears in
-   Student Hub > Online Applications, where staff Admit it (into a new student record) or Reject it. */
-const APPLY_TEXT = ['school', 'classApplied', 'yearAdmitted', 'term', 'intake', 'firstName', 'middleName', 'lastName',
+   The form's Admission Details are the same as the student admission form's, with the choices from Settings:
+   Campus, Admission Course, Study Session, Enrollment, and Student Type and Group (shown, not chosen: the first of
+   each list, given to the student on Admit). An application is checked here (required fields, email, date of
+   birth, file types and sizes), saved in students.applications as a Prospect, and appears in Student Hub > Online
+   Applications, where staff verify, Admit (into a new student record) or Reject it. */
+const APPLY_TEXT = ['campus', 'admissionCourse', 'studySession', 'enrollment', 'firstName', 'middleName', 'lastName',
     'languages', 'dob', 'gender', 'nationality', 'countryOfResidence', 'cityOfResidence', 'idBirthCert', 'heardAbout',
     'location', 'town', 'phone', 'email',
     ...['father', 'mother'].flatMap(p => ['FirstName', 'MiddleName', 'LastName', 'Phone', 'Phone2', 'Email', 'IdType',
         'NationalId', 'Nationality', 'Relationship'].map(f => p + f))];
-const APPLY_REQUIRED = ['classApplied', 'yearAdmitted', 'intake', 'firstName', 'lastName', 'languages',
+const APPLY_REQUIRED = ['admissionCourse', 'firstName', 'lastName', 'languages',
     'dob', 'gender', 'nationality', 'countryOfResidence', 'cityOfResidence', 'heardAbout', 'location', 'town', 'phone',
     'email', 'fatherFirstName', 'fatherLastName', 'fatherPhone', 'fatherEmail', 'fatherIdType', 'fatherNationalId',
     'fatherNationality', 'fatherRelationship'];
@@ -1126,22 +1128,24 @@ const APPLY_FILES = {
     motherIdCopy: { label: 'ID copy (second contact)', types: ['image/jpeg', 'image/png', 'application/pdf'], required: false }
 };
 const APPLY_MAX_FILE_BYTES = 5 * 1024 * 1024;
-const APPLY_INTAKES = ['January', 'May', 'September'];
 const APPLY_PER_HOUR = 5;
 const applyCounts = new Map(); // IP -> { count, first }
 
+// The choices, as the admission form has them (a list never saved in Settings has the same defaults as there)
 async function applicationOptions() {
-    const items = async key => ((await getRecord('settings', key)) || {}).items || [];
+    const names = async (key, defaults = [], usable = () => true) => {
+        const record = await getRecord('settings', key);
+        return (record ? record.items || [] : defaults.map(name => ({ name }))).filter(usable).map(i => i.name).filter(Boolean);
+    };
     const organization = (await getRecord('settings', 'organization')) || {};
-    const year = new Date().getFullYear();
     return {
         collegeName: organization.collegeName || '',
-        schools: (await items('schools')).map(s => s.name).filter(Boolean),
-        courses: (await items('courses')).filter(c => c.enabled !== 'NO' && c.name)
-            .map(c => ({ name: c.name, school: c.institute || '', award: c.award || '' })),
-        terms: (await items('terms')).map(t => t.name).filter(Boolean),
-        years: [year, year + 1, year + 2].map(String),
-        intakes: APPLY_INTAKES
+        campuses: await names('campuses'),
+        courses: await names('courses', [], c => c.enabled !== 'NO'),
+        studySessions: await names('studySessions', ['Full Time', 'Part Time']),
+        enrollments: await names('enrollmentTypes', [], e => e.status !== 'Inactive'),
+        studentType: (await names('studentTypes', ['STUDENT']))[0] || '',
+        group: (await names('groups', ['DEFAULT GROUP']))[0] || ''
     };
 }
 
@@ -1165,9 +1169,9 @@ async function receiveApplication(req, body) {
     }
     const options = await applicationOptions();
     const missing = APPLY_REQUIRED.filter(f => !record[f]);
-    // School and Term are asked for once the college has set them up in Settings
-    if (options.schools.length && !record.school) missing.push('school');
-    if (options.terms.length && !record.term) missing.push('term');
+    // Campus and Enrollment are asked for once the college has set them up in Settings
+    if (options.campuses.length && !record.campus) missing.push('campus');
+    if (options.enrollments.length && !record.enrollment) missing.push('enrollment');
     const secondGiven = Object.keys(record).some(f => f.startsWith('mother'));
     if (secondGiven) missing.push(...APPLY_SECOND_REQUIRED.filter(f => !record[f]));
     if (missing.length) throw problem('Please fill in every field marked *.');
@@ -1181,8 +1185,16 @@ async function receiveApplication(req, body) {
     }
     if (!['FEMALE', 'MALE'].includes(record.gender)) throw problem('Please choose the gender.');
 
-    if (options.courses.length && !options.courses.some(c => c.name === record.classApplied)) throw problem('Please choose a class from the list.');
-    if (!APPLY_INTAKES.includes(record.intake)) throw problem('Please choose an intake from the list.');
+    const fromList = (field, list, name) => {
+        if (record[field] && !list.includes(record[field])) throw problem(`Please choose the ${name} from the list.`);
+    };
+    fromList('campus', options.campuses, 'campus');
+    fromList('admissionCourse', options.courses, 'course');
+    fromList('studySession', options.studySessions, 'study session');
+    fromList('enrollment', options.enrollments, 'enrollment');
+    // Not the applicant's choice: the college's first Student Type and Group, given to the student on Admit
+    if (options.studentType) record.studentType = options.studentType;
+    if (options.group) record.admissionGroup = options.group;
 
     for (const [field, rule] of Object.entries(APPLY_FILES)) {
         const file = body[field];
