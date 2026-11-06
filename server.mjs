@@ -1349,15 +1349,55 @@ async function currentVersion() {
     return runCommand('git', ['rev-parse', 'HEAD'], 15000).catch(() => null);
 }
 
-// The changes on GitHub (newest first), each { sha, date, author, title, notes }
+/* The changes on GitHub (newest first), each { sha, date, author, title, notes }.
+   GitHub's API allows only 60 questions an hour from one internet address without signing in, and online
+   (Render) that address is shared with many other websites, so GitHub often answers 403. Then the public
+   change feed (the newest 20 changes) is read instead; if that fails too, the last list read is kept. */
 let githubCache = { at: 0, commits: null };
-async function githubCommits() {
-    if (githubCache.commits && Date.now() - githubCache.at < 5 * 60000) return githubCache.commits;
+
+const decodeEntities = text => String(text).replace(/&(#x[0-9a-f]+|#\d+|quot|apos|lt|gt|amp);/gi, (whole, code) => {
+    const named = { quot: '"', apos: "'", lt: '<', gt: '>', amp: '&' }[code.toLowerCase()];
+    if (named) return named;
+    return String.fromCodePoint(code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10));
+});
+
+async function githubApiCommits() {
     const response = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/commits?per_page=100`, {
-        headers: { 'User-Agent': 'FEWA-College-System', Accept: 'application/vnd.github+json' }
+        headers: {
+            'User-Agent': 'FEWA-College-System', Accept: 'application/vnd.github+json',
+            ...(process.env.GITHUB_TOKEN ? { Authorization: 'Bearer ' + process.env.GITHUB_TOKEN } : {})
+        }
     });
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
-    const commits = (await response.json()).map(c => splitMessage(c.sha, c.commit.author.date, c.commit.author.name, c.commit.message));
+    return (await response.json()).map(c => splitMessage(c.sha, c.commit.author.date, c.commit.author.name, c.commit.message));
+}
+
+async function githubFeedCommits() {
+    const response = await fetch(`https://github.com/${UPDATE_REPO}/commits/main.atom`, { headers: { 'User-Agent': 'FEWA-College-System' } });
+    if (!response.ok) throw new Error(`GitHub's change feed answered ${response.status}`);
+    const xml = await response.text();
+    return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, entry]) => {
+        const pick = tag => (entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`)) || [])[1] || '';
+        const sha = (pick('id').match(/Commit\/([0-9a-f]{40})/) || [])[1] || '';
+        // The full message is HTML (<pre>...</pre>) inside the XML: decoded twice
+        const message = decodeEntities(decodeEntities(pick('content')).replace(/<\/?pre[^>]*>/g, '')).trim();
+        return splitMessage(sha, pick('updated').trim(), decodeEntities(pick('name').trim()), message || decodeEntities(pick('title').trim()));
+    }).filter(c => c.sha);
+}
+
+async function githubCommits() {
+    if (githubCache.commits && Date.now() - githubCache.at < 5 * 60000) return githubCache.commits;
+    let commits;
+    try {
+        commits = await githubApiCommits();
+    } catch (apiError) {
+        try {
+            commits = await githubFeedCommits();
+        } catch {
+            if (githubCache.commits) return githubCache.commits;
+            throw apiError;
+        }
+    }
     githubCache = { at: Date.now(), commits };
     return commits;
 }
@@ -1397,7 +1437,7 @@ async function updateInfo(check) {
     const { rows } = await pool.query(`SELECT id, started_at AS "startedAt", finished_at AS "finishedAt", started_by AS "startedBy",
         place, from_version AS "fromVersion", to_version AS "toVersion", changes, databases, status
         FROM ${T('system_updates')} ORDER BY started_at DESC LIMIT 10`);
-    return { place: updatePlace, online: onlineHost, version, waiting: notes.filter(n => !n.installed).length, notes, problem, history: rows, run: updateRun };
+    return { place: updatePlace, online: onlineHost, version, waiting: problem ? null : notes.filter(n => !n.installed).length, notes, problem, history: rows, run: updateRun };
 }
 
 // When the last update that worked finished (shown at the bottom of every page)
@@ -1463,9 +1503,13 @@ async function runSystemUpdate(by, timeZone) {
                     }
                 }
             } else {
-                const latest = (await githubCommits())[0];
+                // Only to tell the person: Render installs new code by itself, so GitHub not answering is no failure
+                const latest = await githubCommits().then(list => list[0]).catch(err => {
+                    say(20, `GitHub could not be asked for new changes (${err.message}); carrying on with the database tables.`);
+                    return null;
+                });
                 changes = latest && latest.sha !== run.from ? 1 : 0;
-                say(30, changes ? 'GitHub has newer code: Render installs it by itself within a few minutes (watch the Render dashboard).'
+                if (latest) say(30, changes ? 'GitHub has newer code: Render installs it by itself within a few minutes (watch the Render dashboard).'
                     : 'The online system already runs the newest code on GitHub.');
             }
 

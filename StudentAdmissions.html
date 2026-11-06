@@ -1201,7 +1201,8 @@
                         <div class="update-panel-title">System Update</div>
                         <div class="update-last${last && last.status === 'Failed' ? ' failed' : ''}">${escapeHtml(lastText)}</div>
                         <div class="update-version">Running version <b>${escapeHtml((info.version || 'unknown').slice(0, 7))}</b> ${escapeHtml(placeWords(info.place))} ·
-                            ${info.waiting ? `<b>${info.waiting} new change(s) on GitHub</b> waiting to be installed` : 'up to date with GitHub'}</div>
+                            ${info.waiting === null ? 'GitHub could not be checked just now'
+                                : info.waiting ? `<b>${info.waiting} new change(s) on GitHub</b> waiting to be installed` : 'up to date with GitHub'}</div>
                         <div class="rocket-stage" id="rocketStage">${ROCKET_SVG}</div>
                         <div class="update-bar"><div class="update-bar-fill" id="updateBarFill"></div><span id="updateBarText">0%</span></div>
                         <div class="update-step" id="updateStep">${info.online
