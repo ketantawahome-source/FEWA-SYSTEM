@@ -8,12 +8,14 @@
      resetTemplateId - a template for the "forgot password" email; leave empty to use templateId
      publicKey     - Account > General, e.g. "AbCdEf123456"
    While serviceId, templateId or publicKey is empty, no email is sent and the login page says so. */
+// The college's EmailJS account: an Outlook service ("fewa"), one template for every email ({{message}}),
+// replies going to admin@fewa.ac.ke. These three are public by design (they are in every page anyway).
 const EMAILJS_CONFIG = {
-    serviceId: '',
-    templateId: '',
+    serviceId: 'service_7fjcvqo',
+    templateId: 'template_l4go4uc',
     otpTemplateId: '',
     resetTemplateId: '',
-    publicKey: ''
+    publicKey: 'tyVpXI39InZKyqudl'
 };
 
 const COLLEGE_NAME = 'FEWA Beauty & Fashion College';
