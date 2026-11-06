@@ -16,6 +16,14 @@ postgresql://postgres.<project-ref>:<database-password>@aws-0-eu-west-1.pooler.s
 
 Create the first administrator account on the office computer first (setting up is never allowed online).
 
+## Online application form
+
+`apply.html` (e.g. https://fewa-system.onrender.com/apply.html) lets prospects apply without logging in. Its
+choices come from Settings (Schools, Courses, Academic Terms); applications are saved in
+`students.applications` and listed in **Student Hub > Online Applications**, where staff **Admit** (the Add
+Student form opens filled in; saving it creates the student, adds the attached files as documents and marks the
+application Admitted) or **Reject** them. Up to 5 applications per hour are accepted from one connection.
+
 ## Backups
 
 Nothing is kept in the browser or in OneDrive. Backups are kept in their own PostgreSQL database on the office

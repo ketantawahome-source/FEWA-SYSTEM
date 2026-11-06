@@ -15,7 +15,7 @@
    Opened as a file, or with the server stopped, the page says how to open the system instead. */
 const FEWA_API = '/api';
 const FEWA_ADDRESS = 'http://localhost:5600/';
-const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id' };
+const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id', applications: 'id' };
 const fewaServer = { online: false, error: '' };
 
 function apiSync(method, path, body) {

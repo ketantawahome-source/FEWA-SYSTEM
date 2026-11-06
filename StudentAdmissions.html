@@ -11,6 +11,7 @@
     <script src="email-config.js"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="countries.js"></script>
     <script>
         requireLogin();
     </script>
@@ -150,6 +151,9 @@
                     <div class="settings-tabs">
                         <button type="button" id="tabManageStudent" class="settings-tab active"
                             onclick="showStudentListTab('manageStudentPane')">Manage Student</button>
+                        <button type="button" id="tabStudentApplications" class="settings-tab"
+                            onclick="showStudentListTab('studentApplicationsPane')">Online Applications <span
+                                id="applicationsCount" class="tab-count"></span></button>
                         <button type="button" id="tabStudentStatus" class="settings-tab"
                             onclick="showStudentListTab('studentStatusPane')">Student Status</button>
                         <button type="button" id="tabStudentContacts" class="settings-tab"
@@ -194,6 +198,48 @@
                             </div>
                         </form>
                     </div>
+                    </div>
+
+                    <!-- Online Applications: sent by prospects through the public form apply.html. Admit opens the
+                         Add Student form filled in from the application; Reject keeps it, marked Rejected. -->
+                    <div id="studentApplicationsPane" style="display: none;">
+                        <div class="form-section">
+                            <div class="list-toolbar">
+                                <div class="section-title" style="margin: 0; border: none; padding: 0;">Online Applications</div>
+                                <div class="list-toolbar-actions">
+                                    <input type="text" id="applicationsSearch" class="toolbar-search"
+                                        placeholder="Search name, number, class, phone..." oninput="renderApplicationsList()">
+                                    <select id="applicationsFilter" class="toolbar-search" onchange="renderApplicationsList()">
+                                        <option value="Pending">Pending</option>
+                                        <option value="Admitted">Admitted</option>
+                                        <option value="Rejected">Rejected</option>
+                                        <option value="">All Applications</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="apply-link-box">
+                                <span>Application link for prospects:</span>
+                                <a id="applyLink" target="_blank" rel="noopener"></a>
+                                <button type="button" class="btn-secondary" onclick="copyApplyLink()">Copy Link</button>
+                            </div>
+                            <div class="table-wrap">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Application No.</th>
+                                            <th>Submitted</th>
+                                            <th>Full Name</th>
+                                            <th>Class Applied For</th>
+                                            <th>Intake</th>
+                                            <th>Phone</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="applicationsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Contacts: view and correct the phone numbers or emails of active students,
@@ -1221,30 +1267,7 @@
         }
 
         // Every country (UN members and observers, plus Kosovo and Taiwan), A-Z, for the Nationality dropdown
-        const COUNTRIES = ['Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina',
-            'Armenia', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus',
-            'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei',
-            'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada',
-            'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo (Brazzaville)',
-            'Congo (DRC)', 'Costa Rica', "Côte d'Ivoire", 'Croatia', 'Cuba', 'Cyprus', 'Czechia', 'Denmark', 'Djibouti',
-            'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea',
-            'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany',
-            'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Holy See',
-            'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy',
-            'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kosovo', 'Kuwait', 'Kyrgyzstan', 'Laos',
-            'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
-            'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania',
-            'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco',
-            'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger',
-            'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama',
-            'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia',
-            'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa',
-            'San Marino', 'São Tomé and Príncipe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone',
-            'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea',
-            'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan',
-            'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia',
-            'Türkiye', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom',
-            'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'];
+        // COUNTRIES comes from countries.js
 
         async function populateAdmissionSelects(student) {
             const form = document.getElementById('studentAdmissionsForm');
@@ -2988,7 +3011,8 @@
         // and Upload Student Photos (administrators only)
         function showStudentListTab(paneId) {
             if (paneId === 'studentPhotosPane' && !isAdmin()) return alert('Only administrators can upload student photos in bulk.');
-            [['manageStudentPane', 'tabManageStudent'], ['studentStatusPane', 'tabStudentStatus'],
+            [['manageStudentPane', 'tabManageStudent'], ['studentApplicationsPane', 'tabStudentApplications'],
+                ['studentStatusPane', 'tabStudentStatus'],
                 ['studentContactsPane', 'tabStudentContacts'], ['studentDeferralsPane', 'tabStudentDeferrals'],
                 ['studentPhotosPane', 'tabStudentPhotos']]
                 .forEach(([pane, tab]) => {
@@ -2996,6 +3020,7 @@
                     document.getElementById(tab).classList.toggle('active', pane === paneId);
                 });
             if (paneId === 'studentStatusPane') renderStatusList();
+            if (paneId === 'studentApplicationsPane') renderApplicationsList();
             if (paneId === 'studentDeferralsPane') renderDeferralList();
             if (paneId === 'studentContactsPane') fillContactsFilters().then(renderContactsList);
         }
@@ -3104,6 +3129,210 @@
             showStudentView('studentListView');
             resetStudentOptions();
             showStudentListTab('manageStudentPane');
+            updateApplicationsCount();
+        }
+
+        /* ---------- Online Applications (sent by prospects through apply.html) ----------
+           Admit opens Add New Student filled in from the application (the AdmNo follows the course as usual);
+           when that student is saved, the application is marked Admitted and its birth certificate and ID copies
+           become the student's documents. Reject marks it Rejected (it stays in the list). */
+        let admittingApplication = null; // { application, photoCopy } while its student form is open
+
+        const applyLinkUrl = () => new URL('apply.html', location.href).href.split(/[?#]/)[0];
+        const APPLICATION_BADGES = { Pending: 'pending', Admitted: 'active', Rejected: 'inactive' };
+
+        async function updateApplicationsCount() {
+            const pending = (await getAll('applications')).filter(a => (a.status || 'Pending') === 'Pending').length;
+            const badge = document.getElementById('applicationsCount');
+            badge.textContent = pending || '';
+            badge.style.display = pending ? '' : 'none';
+        }
+
+        async function renderApplicationsList() {
+            const link = document.getElementById('applyLink');
+            link.href = link.textContent = applyLinkUrl();
+            const term = document.getElementById('applicationsSearch').value.trim().toLowerCase();
+            const filter = document.getElementById('applicationsFilter').value;
+            const all = await getAll('applications');
+            updateApplicationsCount();
+            const list = all
+                .filter(a => !filter || (a.status || 'Pending') === filter)
+                .filter(a => !term || [a.reference, fullName(a), a.classApplied, a.phone, a.email, a.intake]
+                    .join(' ').toLowerCase().includes(term))
+                .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+            const tbody = document.getElementById('applicationsTableBody');
+            if (!list.length) {
+                tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${all.length ? 'No applications match.' :
+                    'No applications yet. Share the application link above with prospects.'}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = list.map(a => {
+                const status = a.status || 'Pending';
+                return `<tr>
+                    <td>${escapeHtml(a.reference)}</td>
+                    <td>${escapeHtml(formatDateTime(a.submittedAt) || '')}</td>
+                    <td>${escapeHtml(fullName(a))}</td>
+                    <td>${escapeHtml(a.classApplied)}</td>
+                    <td>${escapeHtml([a.intake, a.yearAdmitted].filter(Boolean).join(' '))}</td>
+                    <td>${escapeHtml(a.phone)}</td>
+                    <td><span class="badge ${APPLICATION_BADGES[status] || 'pending'}">${escapeHtml(status)}</span></td>
+                    <td style="white-space: nowrap;">
+                        <button type="button" class="btn-secondary" onclick="viewApplication('${escapeHtml(a.id)}')">View</button>
+                        ${status === 'Pending' ? `
+                        <button type="button" class="btn-submit" onclick="admitApplication('${escapeHtml(a.id)}')">Admit</button>
+                        <button type="button" class="btn-secondary btn-delete" onclick="rejectApplication('${escapeHtml(a.id)}')">Reject</button>` : ''}
+                    </td></tr>`;
+            }).join('');
+        }
+
+        async function copyApplyLink() {
+            try {
+                await navigator.clipboard.writeText(applyLinkUrl());
+                showToast('Application link copied. Share it with prospects (WhatsApp, email, website...).');
+            } catch {
+                prompt('Copy the application link:', applyLinkUrl());
+            }
+        }
+
+        // Every answer of an application, with its attached files, in a box
+        async function viewApplication(id) {
+            const a = await getOne('applications', id);
+            if (!a) return;
+            const row = (label, value) => value ? `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>` : '';
+            const contact = (prefix, title) => a[prefix + 'FirstName'] ? `<h4>${title}</h4><dl class="reset-details">
+                ${row('Name', [a[prefix + 'FirstName'], a[prefix + 'MiddleName'], a[prefix + 'LastName']].filter(Boolean).join(' '))}
+                ${row('Relationship', a[prefix + 'Relationship'])}${row('Phone', [a[prefix + 'Phone'], a[prefix + 'Phone2']].filter(Boolean).join(' / '))}
+                ${row('Email', a[prefix + 'Email'])}${row(a[prefix + 'IdType'] || 'ID', a[prefix + 'NationalId'])}${row('Nationality', a[prefix + 'Nationality'])}
+                </dl>` : '';
+            const files = [['Passport photo', a.photo], ['Birth certificate', a.birthCertificate],
+                ['ID copy (first contact)', a.fatherIdCopy], ['ID copy (second contact)', a.motherIdCopy]].filter(([, f]) => f);
+            const box = document.createElement('div');
+            box.className = 'reset-backdrop';
+            box.innerHTML = `
+                <div class="reset-card application-card" role="dialog" aria-modal="true">
+                    <div class="reset-title">Application ${escapeHtml(a.reference)} - ${escapeHtml(a.status || 'Pending')}</div>
+                    ${a.photo ? '<img class="application-photo" alt="Passport photo">' : ''}
+                    <h4>Admission</h4><dl class="reset-details">
+                        ${row('School', a.school)}${row('Class applied for', a.classApplied)}${row('Year', a.yearAdmitted)}
+                        ${row('Term', a.term)}${row('Intake', a.intake)}${row('Submitted', formatDateTime(a.submittedAt))}</dl>
+                    <h4>Student</h4><dl class="reset-details">
+                        ${row('Name', fullName(a))}${row('Gender', a.gender)}${row('Date of birth', a.dob)}
+                        ${row('ID / Birth Cert. No.', a.idBirthCert)}${row('Languages', a.languages)}${row('Nationality', a.nationality)}
+                        ${row('Residence', [a.location, a.town, a.cityOfResidence, a.countryOfResidence].filter(Boolean).join(', '))}
+                        ${row('Phone', a.phone)}${row('Email', a.email)}${row('Heard about us', a.heardAbout)}</dl>
+                    ${contact('father', 'First contact')}${contact('mother', 'Second contact')}
+                    ${files.length ? `<h4>Attached files</h4><div class="application-files">${files.map(([label], i) =>
+                        `<button type="button" class="btn-secondary" data-file="${i}">${escapeHtml(label)}</button>`).join('')}</div>` : ''}
+                    ${a.reviewedBy ? `<p class="hint">${escapeHtml(a.status)} by ${escapeHtml(a.reviewedBy)} on ${escapeHtml(formatDateTime(a.reviewedAt))}
+                        ${a.reviewNote ? ' - ' + escapeHtml(a.reviewNote) : ''}</p>` : ''}
+                    <div class="reset-buttons">
+                        ${(a.status || 'Pending') === 'Pending' ? `<button type="button" class="btn-submit" data-act="admit">Admit</button>
+                            <button type="button" class="btn-secondary btn-delete" data-act="reject">Reject</button>` : ''}
+                        <button type="button" class="btn-secondary" data-act="close">Close</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(box);
+            const urls = [];
+            const close = () => { urls.forEach(URL.revokeObjectURL); box.remove(); };
+            if (a.photo) { const url = URL.createObjectURL(a.photo); urls.push(url); box.querySelector('.application-photo').src = url; }
+            box.querySelectorAll('[data-file]').forEach(button => button.onclick = () => {
+                const url = URL.createObjectURL(files[button.dataset.file][1]);
+                urls.push(url);
+                window.open(url, '_blank');
+            });
+            box.querySelector('[data-act=close]').onclick = close;
+            box.addEventListener('click', e => { if (e.target === box) close(); });
+            const admit = box.querySelector('[data-act=admit]');
+            if (admit) admit.onclick = () => { close(); admitApplication(id); };
+            const reject = box.querySelector('[data-act=reject]');
+            if (reject) reject.onclick = () => { close(); rejectApplication(id); };
+        }
+
+        async function rejectApplication(id) {
+            if (!allowed('students', 'edit')) return;
+            const a = await getOne('applications', id);
+            if (!a) return;
+            const note = prompt(`Reject the application of ${fullName(a)} (${a.reference})?\n\nReason (optional):`, '');
+            if (note === null) return;
+            await putOne('applications', { ...a, status: 'Rejected', reviewNote: note.trim(), reviewedBy: currentAccountName(),
+                reviewedAt: new Date().toISOString() });
+            showToast(`The application of ${fullName(a)} was rejected.`);
+            renderApplicationsList();
+        }
+
+        const currentAccountName = () => (typeof fewaSession !== 'undefined' && fewaSession.username) || '';
+
+        // A copy of a file, so the student keeps it even if the application is deleted later
+        const fileCopy = (blob, name) => blob ? new File([blob], name || blob.name || 'file', { type: blob.type }) : null;
+
+        async function admitApplication(id) {
+            if (!allowed('students', 'add')) return;
+            const a = await getOne('applications', id);
+            if (!a) return;
+            if ((a.status || 'Pending') !== 'Pending') return alert('This application has already been ' + a.status.toLowerCase() + '.');
+            admittingApplication = { application: a, photoCopy: fileCopy(a.photo, `${a.reference}-photo.${(a.photo && a.photo.type === 'image/png') ? 'png' : 'jpg'}`) };
+            await openStudentForm(null, true);
+            const form = document.getElementById('studentAdmissionsForm');
+            const set = (name, value) => { if (form.elements[name] && value) form.elements[name].value = value; };
+
+            ['firstName', 'middleName', 'lastName', 'gender', 'dob', 'email', 'phone', 'idBirthCert', 'nationality']
+                .forEach(name => set(name, a[name]));
+            set('postalAddress', [a.location, a.town, a.cityOfResidence].filter(Boolean).join(', '));
+
+            // Each contact goes to Father, Mother or Guardian by the relationship the applicant chose
+            const slots = new Set();
+            for (const prefix of ['father', 'mother']) {
+                if (!a[prefix + 'FirstName']) continue;
+                const relation = (a[prefix + 'Relationship'] || '').toLowerCase();
+                let slot = relation === 'father' ? 'father' : relation === 'mother' ? 'mother' : 'guardian';
+                if (slots.has(slot)) slot = ['father', 'mother', 'guardian'].find(s => !slots.has(s));
+                slots.add(slot);
+                set(slot + 'FirstName', [a[prefix + 'FirstName'], a[prefix + 'MiddleName']].filter(Boolean).join(' '));
+                set(slot + 'LastName', a[prefix + 'LastName']);
+                set(slot + 'Phone', a[prefix + 'Phone']);
+                set(slot + 'Email', a[prefix + 'Email']);
+            }
+            // The first contact is the emergency contact
+            set('emergencyName', [a.fatherFirstName, a.fatherMiddleName, a.fatherLastName].filter(Boolean).join(' '));
+            set('emergencyRelationship', a.fatherRelationship);
+            set('emergencyPhone', a.fatherPhone);
+            set('emergencyAltPhone', a.fatherPhone2);
+            set('emergencyEmail', a.fatherEmail);
+            set('emergencyAddress', [a.location, a.town].filter(Boolean).join(', '));
+
+            // The course applied for, if it is one of the courses that can be picked (this also fills the AdmNo)
+            const course = form.elements['admissionCourse'];
+            if ([...course.options].some(o => o.value === a.classApplied)) {
+                course.value = a.classApplied;
+                await admissionCourseChosen();
+            }
+            // An enrollment named like the intake, e.g. "January 2027"
+            const enrollment = [...form.elements['enrollment'].options]
+                .find(o => o.value && o.value.toLowerCase() === `${a.intake} ${a.yearAdmitted}`.toLowerCase());
+            if (enrollment) form.elements['enrollment'].value = enrollment.value;
+            if (admittingApplication.photoCopy) setPhotoPreview(admittingApplication.photoCopy);
+
+            document.getElementById('studentFormTitle').innerText =
+                `Admit Application ${a.reference} - ${fullName(a)}`;
+            showToast('Check the details, choose what is still empty (e.g. Enrollment, Student Type, Group), then press Save Student Record.', 'warning');
+        }
+
+        // After the admitted student is saved: the application is Admitted and its files become student documents
+        async function finishAdmission(student) {
+            const { application: a } = admittingApplication;
+            admittingApplication = null;
+            const documents = [['Birth Certificate', a.birthCertificate], ['Parent/Guardian ID (first contact)', a.fatherIdCopy],
+                ['Parent/Guardian ID (second contact)', a.motherIdCopy]].filter(([, file]) => file);
+            for (const [description, file] of documents) {
+                const copy = fileCopy(file, file.name || description);
+                await putOne('documents', {
+                    id: newId(), studentId: student.id, docType: description, description: `From online application ${a.reference}`,
+                    fileName: copy.name, fileType: copy.type, size: copy.size, file: copy, uploadedAt: new Date().toISOString()
+                });
+            }
+            await putOne('applications', { ...a, status: 'Admitted', studentId: student.id, reviewedBy: currentAccountName(),
+                reviewedAt: new Date().toISOString(), reviewNote: `Admitted as ${student.admNo}` });
+            updateApplicationsCount();
         }
 
         // "Name (AdmNo)" in every student picker; inactive (deactivated, deferred or suspended) students are marked
@@ -3547,7 +3776,8 @@
             lockAdmissionNumber(!course);
         }
 
-        async function openStudentForm(id = null) {
+        async function openStudentForm(id = null, keepAdmission = false) {
+            if (!keepAdmission) admittingApplication = null;
             const form = document.getElementById('studentAdmissionsForm');
             form.reset();
             form.elements['id'].value = '';
@@ -3707,7 +3937,8 @@
                 ...data,
                 id: data.id || newId(),
                 // A newly chosen photo replaces the old one; Remove Photo clears it; otherwise it is kept
-                photo: photoFile || (existing && !photoRemoved ? existing.photo : null),
+                photo: photoFile || (existing && !photoRemoved ? existing.photo : null) ||
+                    (!existing && !photoRemoved && admittingApplication ? admittingApplication.photoCopy : null),
                 createdAt: existing ? existing.createdAt : new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -3716,6 +3947,8 @@
 
             // Changing the status to Inactive cancels the Student Portal password
             await putOne('students', deactivatedStudent(student, existing || {}));
+            // Admitting an online application: mark it Admitted and keep its documents with the new student
+            if (admittingApplication && !existing) await finishAdmission(student);
             // Stay on this student's form (now saved) with a message at the top, rather than leaving the page
             await openStudentForm(student.id);
             showToast(`${fullName(student)}'s record ${existing ? 'updated' : 'saved'} successfully.`);

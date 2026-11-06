@@ -5428,3 +5428,36 @@ body:has(#main-wrapper) {
     min-width: 0;
     height: 100%;
 }
+
+/* ---------- Student Hub > Online Applications ---------- */
+.tab-count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 6px;
+    margin-left: 4px;
+    border-radius: 9px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+}
+.tab-count:empty { display: none; }
+.badge.pending { background: #fff4d6; color: #8a6100; border: 1px solid #f1d38b; }
+.apply-link-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    background: #f6f2fb;
+    border: 1px dashed #c9b8de;
+    border-radius: 8px;
+    font-size: 13px;
+}
+.apply-link-box a { font-weight: 700; color: #5b2d8e; word-break: break-all; }
+.application-card { max-width: 640px; max-height: 88vh; overflow-y: auto; }
+.application-card h4 { margin: 14px 0 6px; color: #24103a; font-size: 13px; text-transform: uppercase; }
+.application-photo { float: right; width: 96px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #d8cfe3; margin: 0 0 8px 12px; }
+.application-files { display: flex; flex-wrap: wrap; gap: 8px; }

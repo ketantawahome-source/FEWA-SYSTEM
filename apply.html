@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply - FEWA Beauty & Fashion College</title>
+    <!-- The online application form, open to everyone (no login). Sent to the server (POST /api/apply), saved in
+         students.applications and shown to staff in Student Hub > Online Applications. Uses no other page script. -->
+    <script src="countries.js"></script>
+    <style>
+        :root {
+            --purple: #24103a;
+            --purple-2: #5b2d8e;
+            --gold: #dfb15b;
+            --line: #d8cfe3;
+            --soft: #f6f2fb;
+            --text: #1f1530;
+            --muted: #6b5f7d;
+            --red: #c0392b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            font-size: 14px;
+            color: var(--text);
+            background: var(--soft);
+        }
+
+        header {
+            background: var(--purple);
+            color: #fff;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            justify-content: center;
+            text-align: center;
+            flex-wrap: wrap;
+        }
+
+        header img { width: 64px; height: 64px; border-radius: 10px; background: #fff; object-fit: contain; }
+        header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; color: var(--gold); }
+        header p { margin: 2px 0 0; font-size: 13px; opacity: .9; }
+
+        main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+        .note {
+            display: inline-block;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: var(--purple-2);
+            margin-bottom: 12px;
+        }
+
+        .req { color: var(--red); }
+
+        .card {
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .card h2 {
+            margin: 0;
+            padding: 12px 16px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--purple);
+            background: linear-gradient(#fff, var(--soft));
+            border-bottom: 1px solid var(--line);
+        }
+
+        .card h2 small { text-transform: none; font-weight: normal; color: var(--muted); letter-spacing: 0; }
+        .card .body { padding: 14px 16px; }
+
+        .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+        .full { grid-column: 1 / -1; }
+
+        label { display: block; font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font: inherit;
+            background: #fff;
+            color: var(--text);
+        }
+
+        input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+        input[type=file] { padding: 6px; border-style: dashed; background: var(--soft); }
+        textarea { resize: vertical; min-height: 54px; }
+        .hint { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+        .inner { border: 1px solid var(--line); border-radius: 8px; margin-top: 12px; }
+        .inner h3 { margin: 0; padding: 8px 12px; font-size: 12.5px; text-transform: uppercase; color: var(--purple); border-bottom: 1px solid var(--line); background: var(--soft); }
+        .inner .grid { padding: 10px 12px; }
+
+        .actions { text-align: center; margin: 8px 0 30px; }
+
+        button {
+            background: var(--purple);
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 34px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:hover { background: var(--purple-2); }
+        button:disabled { opacity: .6; cursor: wait; }
+
+        .message { border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; display: none; }
+        .message.error { display: block; background: #fdecea; color: var(--red); border: 1px solid #f5c6c0; }
+
+        .done {
+            display: none;
+            max-width: 640px;
+            margin: 30px auto;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-top: 5px solid var(--gold);
+            border-radius: 12px;
+            padding: 28px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .done .ref { font-size: 22px; font-weight: 800; color: var(--purple); letter-spacing: 1px; }
+        .robot-trap { position: absolute; left: -9999px; }
+
+        @media (max-width: 760px) {
+            .columns, .grid { grid-template-columns: 1fr; }
+            header h1 { font-size: 17px; }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <img src="fewa-logo.jpg" alt="FEWA logo">
+        <div>
+            <h1 id="collegeName">FEWA BEAUTY &amp; FASHION COLLEGE</h1>
+            <p>Online Application Form</p>
+        </div>
+    </header>
+
+    <main>
+        <form id="applyForm" novalidate>
+            <span class="note">Application Form &nbsp;<span class="req">*</span> means mandatory information</span>
+            <div id="formMessage" class="message" role="alert"></div>
+
+            <div class="card">
+                <h2>Admission Details</h2>
+                <div class="body grid">
+                    <div id="schoolField"><label>Select School <span class="req">*</span></label>
+                        <select name="school"></select></div>
+                    <div><label>Class Applied For <span class="req">*</span></label>
+                        <select name="classApplied" required></select></div>
+                    <div><label>Year to be Admitted <span class="req">*</span></label>
+                        <select name="yearAdmitted" required></select></div>
+                    <div id="termField"><label>Term to be Admitted <span class="req">*</span></label>
+                        <select name="term"></select></div>
+                    <div class="full"><label>Intake <span class="req">*</span></label>
+                        <select name="intake" required></select></div>
+                </div>
+            </div>
+
+            <div class="columns">
+                <div class="card">
+                    <h2>Student Information</h2>
+                    <div class="body">
+                        <div class="grid">
+                            <div><label>First Name <span class="req">*</span></label>
+                                <input name="firstName" placeholder="First Name" maxlength="100" required></div>
+                            <div><label>Middle Name</label>
+                                <input name="middleName" placeholder="Middle Name" maxlength="100"></div>
+                            <div><label>Surname <span class="req">*</span></label>
+                                <input name="lastName" placeholder="Surname" maxlength="100" required></div>
+                            <div><label>Languages Spoken <span class="req">*</span></label>
+                                <textarea name="languages" placeholder="e.g. English, Kiswahili" maxlength="300" required></textarea></div>
+                            <div><label>Date Of Birth <span class="req">*</span></label>
+                                <input type="date" name="dob" required></div>
+                            <div><label>Age</label>
+                                <input id="age" readonly tabindex="-1" placeholder="Worked out from the date of birth"></div>
+                            <div><label>Gender <span class="req">*</span></label>
+                                <select name="gender" required>
+                                    <option value="">-- select gender --</option>
+                                    <option value="FEMALE">FEMALE</option>
+                                    <option value="MALE">MALE</option>
+                                </select></div>
+                            <div><label>ID / Birth Certificate No.</label>
+                                <input name="idBirthCert" maxlength="40"></div>
+                            <div><label>Student Nationality <span class="req">*</span></label>
+                                <select name="nationality" data-countries required></select></div>
+                            <div><label>Country of residence <span class="req">*</span></label>
+                                <select name="countryOfResidence" data-countries required></select></div>
+                            <div class="full"><label>City of residence <span class="req">*</span></label>
+                                <input name="cityOfResidence" value="Nairobi" maxlength="100" required></div>
+                            <div class="full"><label>Birth Certificate <span class="req">*</span></label>
+                                <input type="file" name="birthCertificate" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>
+                                <div class="hint">PDF, JPG or PNG, up to 5MB.</div></div>
+                            <div class="full"><label>Passport photo <span class="req">*</span></label>
+                                <input type="file" name="photo" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required>
+                                <div class="hint">JPG or PNG, up to 5MB.</div></div>
+                            <div class="full"><label>Please let us know how you heard about us <span class="req">*</span></label>
+                                <select name="heardAbout" required>
+                                    <option value="">-- select one --</option>
+                                    <option>Facebook</option><option>Instagram</option><option>TikTok</option>
+                                    <option>YouTube</option><option>Google / Website</option><option>Radio</option>
+                                    <option>Television</option><option>Newspaper</option><option>Friend / Family</option>
+                                    <option>Former Student</option><option>School / Career Fair</option><option>Poster / Flyer</option>
+                                    <option>Other</option>
+                                </select></div>
+                        </div>
+                        <div class="inner">
+                            <h3>Residential Details</h3>
+                            <div class="grid">
+                                <div><label>Location <span class="req">*</span></label>
+                                    <input name="location" placeholder="Enter home area name" maxlength="100" required></div>
+                                <div><label>Town <span class="req">*</span></label>
+                                    <input name="town" placeholder="Enter home town name" maxlength="100" required></div>
+                            </div>
+                        </div>
+                        <div class="grid" style="margin-top: 12px;">
+                            <div><label>Student Phone Number <span class="req">*</span></label>
+                                <input type="tel" name="phone" placeholder="0722...... or 254722......" maxlength="20" required></div>
+                            <div><label>Student Email <span class="req">*</span></label>
+                                <input type="email" name="email" placeholder="email@example.com" maxlength="120" required></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <!-- Parent / guardian 1 is kept in the father... fields and 2 in the mother... fields; Relationship says who they are -->
+                    <div class="card" data-contact="father">
+                        <h2>Parent / Guardian - First Contact</h2>
+                        <div class="body grid"></div>
+                    </div>
+                    <div class="card" data-contact="mother">
+                        <h2>Parent / Guardian - Second Contact <small>(optional)</small></h2>
+                        <div class="body grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <input class="robot-trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <div class="actions"><button type="submit" id="submitButton">Submit Application</button></div>
+        </form>
+
+        <div class="done" id="done">
+            <h2 style="margin-top:0">Thank you! Your application has been received.</h2>
+            <p>Your application number is</p>
+            <div class="ref" id="reference"></div>
+            <p>Please keep this number. The admissions office will contact you on the phone number or email you gave.</p>
+            <button type="button" onclick="location.reload()">Send another application</button>
+        </div>
+    </main>
+
+    <script>
+        const API = '/api';
+        const MAX_FILE = 5 * 1024 * 1024;
+        const form = document.getElementById('applyForm');
+        let options = { schools: [], courses: [], terms: [], years: [], intakes: [] };
+        let fetchedOptions = false;
+
+        // The two parent / guardian sections have the same fields; the first is required, the second optional
+        function contactFields(prefix, required) {
+            const star = required ? ' <span class="req">*</span>' : '';
+            const req = required ? ' required' : '';
+            return `
+                <div><label>First Name${star}</label><input name="${prefix}FirstName" placeholder="First Name" maxlength="100"${req}></div>
+                <div><label>Middle Name</label><input name="${prefix}MiddleName" placeholder="Middle Name" maxlength="100"></div>
+                <div class="full"><label>Surname${star}</label><input name="${prefix}LastName" placeholder="Surname" maxlength="100"${req}></div>
+                <div><label>Phone Number 1${star}</label><input type="tel" name="${prefix}Phone" placeholder="0722...... or 254722......" maxlength="20"${req}></div>
+                <div><label>Phone Number 2</label><input type="tel" name="${prefix}Phone2" placeholder="0722...... or 254722......" maxlength="20"></div>
+                <div><label>Email Address${star}</label><input type="email" name="${prefix}Email" placeholder="email@example.com" maxlength="120"${req}></div>
+                <div><label>Confirm Email Address${star}</label><input type="email" data-confirm="${prefix}Email" placeholder="email@example.com" maxlength="120"${req}></div>
+                <div><label>ID Type${star}</label><select name="${prefix}IdType"${req}><option>National ID</option><option>Passport</option><option>Alien ID</option></select></div>
+                <div><label>National ID / Passport No.${star}</label><input name="${prefix}NationalId" placeholder="National ID" maxlength="40"${req}></div>
+                <div class="full"><label>Nationality${star}</label><select name="${prefix}Nationality" data-countries${req}></select></div>
+                <div class="full"><label>Relationship to child${star}</label><select name="${prefix}Relationship"${req}>
+                    <option value="">-- select --</option><option>Father</option><option>Mother</option><option>Guardian</option>
+                    <option>Sponsor</option><option>Other</option></select></div>
+                <div class="full"><label>National ID (Copy)${star}</label>
+                    <input type="file" name="${prefix}IdCopy" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"${req}>
+                    <div class="hint">PDF, JPG or PNG, up to 5MB.</div></div>`;
+        }
+        document.querySelector('[data-contact=father] .body').innerHTML = contactFields('father', true);
+        document.querySelector('[data-contact=mother] .body').innerHTML = contactFields('mother', false);
+
+        const fill = (select, values, placeholder, chosen = '') => {
+            select.innerHTML = `<option value="">${placeholder}</option>` +
+                values.map(v => `<option${v === chosen ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('');
+        };
+        const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        document.querySelectorAll('[data-countries]').forEach(select => fill(select, COUNTRIES, '-- select country --', 'Kenya'));
+        document.querySelector('[name=fatherRelationship]').value = 'Father';
+
+        // Classes follow the chosen school (courses whose Institute is that school), or all when none is chosen
+        function fillClasses() {
+            const school = form.elements.school.value;
+            const courses = options.courses.filter(c => !school || !c.school || c.school === school);
+            const chosen = form.elements.classApplied.value;
+            fill(form.elements.classApplied, courses.map(c => c.name), courses.length ? '-- select class --' : '-- no classes for this school yet --',
+                courses.some(c => c.name === chosen) ? chosen : '');
+        }
+        form.elements.school.addEventListener('change', fillClasses);
+
+        async function loadOptions() {
+            try {
+                const response = await fetch(API + '/apply/options', { headers: { 'X-FEWA-Client': '1' } });
+                if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'not available');
+                options = await response.json();
+                fetchedOptions = true;
+            } catch (err) {
+                showError('The application form cannot load right now (' + err.message + '). Please try again in a minute.');
+            }
+            if (options.collegeName) document.getElementById('collegeName').textContent = options.collegeName.toUpperCase();
+            // No courses set up yet in Settings: nothing to apply for
+            if (fetchedOptions && !options.courses.length) {
+                form.style.display = 'none';
+                const done = document.getElementById('done');
+                done.innerHTML = '<h2 style="margin-top:0">Applications are not open yet</h2>' +
+                    '<p>Please check again soon, or contact the college admissions office.</p>';
+                done.style.display = 'block';
+                return;
+            }
+            fill(form.elements.school, options.schools, '-- select school --');
+            document.getElementById('schoolField').style.display = options.schools.length ? '' : 'none';
+            form.elements.school.required = !!options.schools.length;
+            fill(form.elements.term, options.terms, '-- select term --');
+            document.getElementById('termField').style.display = options.terms.length ? '' : 'none';
+            form.elements.term.required = !!options.terms.length;
+            fill(form.elements.yearAdmitted, options.years, '-- select year --');
+            fill(form.elements.intake, options.intakes, '-- select intake --');
+            fillClasses();
+        }
+
+        // Age, worked out from the date of birth
+        form.elements.dob.max = new Date().toISOString().slice(0, 10);
+        form.elements.dob.addEventListener('change', () => {
+            const dob = new Date(form.elements.dob.value);
+            if (isNaN(dob)) return document.getElementById('age').value = '';
+            const now = new Date();
+            let age = now.getFullYear() - dob.getFullYear();
+            if (now < new Date(now.getFullYear(), dob.getMonth(), dob.getDate())) age--;
+            document.getElementById('age').value = age >= 0 ? age + ' years' : '';
+        });
+
+        function showError(text) {
+            const box = document.getElementById('formMessage');
+            box.textContent = text;
+            box.className = 'message error';
+            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        const readFile = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ type: file.type, name: file.name, data: reader.result.slice(reader.result.indexOf(',') + 1) });
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+
+        // A phone number as the college keeps them: +254XXXXXXXXX for Kenyan numbers, others as typed
+        function cleanPhone(value) {
+            const digits = value.replace(/[^\d+]/g, '');
+            if (/^0[17]\d{8}$/.test(digits)) return '+254' + digits.slice(1);
+            if (/^254[17]\d{8}$/.test(digits)) return '+' + digits;
+            if (/^\+?\d{9,15}$/.test(digits)) return digits.startsWith('+') ? digits : '+' + digits;
+            return null;
+        }
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            document.getElementById('formMessage').className = 'message';
+
+            // The second contact is only checked once something is filled in there
+            const secondUsed = [...form.querySelectorAll('[data-contact=mother] input:not([type=file]), [data-contact=mother] select')]
+                .some(f => f.value.trim() && !['motherIdType', 'motherNationality'].includes(f.name));
+            ['motherFirstName', 'motherLastName', 'motherPhone', 'motherRelationship'].forEach(name => form.elements[name].required = secondUsed);
+
+            const missing = [...form.querySelectorAll('[required]')].filter(f => f.type === 'file' ? !f.files.length : !f.value.trim());
+            if (missing.length) {
+                missing[0].focus();
+                const labels = missing.map(f => f.closest('div').querySelector('label').textContent.replace('*', '').trim());
+                return showError('Please fill in: ' + labels.join(', ') + '.');
+            }
+            const badEmail = [...form.querySelectorAll('input[type=email]')].find(f => f.value && !f.checkValidity());
+            if (badEmail) { badEmail.focus(); return showError('Please check the email address: ' + badEmail.value); }
+            for (const confirmBox of form.querySelectorAll('[data-confirm]')) {
+                const email = form.elements[confirmBox.dataset.confirm];
+                if (email.value.trim() && email.value.trim().toLowerCase() !== confirmBox.value.trim().toLowerCase()) {
+                    confirmBox.focus();
+                    return showError('The two email addresses of a parent / guardian are not the same.');
+                }
+            }
+
+            const data = {};
+            for (const field of form.elements) {
+                if (!field.name || field.type === 'file' || field.dataset.confirm !== undefined) continue;
+                if (field.name.startsWith('mother') && !secondUsed) continue;
+                data[field.name] = field.value.trim();
+            }
+            for (const name of ['phone', 'fatherPhone', 'fatherPhone2', 'motherPhone', 'motherPhone2']) {
+                if (!data[name]) continue;
+                const phone = cleanPhone(data[name]);
+                if (!phone) { form.elements[name].focus(); return showError('Please enter a valid phone number, e.g. 0722 123 456.'); }
+                data[name] = phone;
+            }
+            for (const name of ['photo', 'birthCertificate', 'fatherIdCopy', 'motherIdCopy']) {
+                const file = form.elements[name].files[0];
+                if (!file) continue;
+                if (file.size > MAX_FILE) { form.elements[name].focus(); return showError(file.name + ' is larger than 5MB. Please choose a smaller file.'); }
+                data[name] = await readFile(file);
+            }
+
+            const button = document.getElementById('submitButton');
+            button.disabled = true;
+            button.textContent = 'Sending...';
+            try {
+                const response = await fetch(API + '/apply', {
+                    method: 'POST',
+                    headers: { 'X-FEWA-Client': '1', 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || result.result !== 'ok') throw new Error(result.error || 'The application could not be sent.');
+                form.style.display = 'none';
+                document.getElementById('reference').textContent = result.reference;
+                document.getElementById('done').style.display = 'block';
+                window.scrollTo(0, 0);
+            } catch (err) {
+                showError(err.message === 'Failed to fetch' ? 'No connection. Please check the internet and try again.' : err.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Submit Application';
+            }
+        });
+
+        loadOptions();
+    </script>
+</body>
+
+</html>

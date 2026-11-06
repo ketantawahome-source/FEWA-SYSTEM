@@ -119,8 +119,75 @@ CREATE TABLE IF NOT EXISTS students.deferrals (
 CREATE INDEX IF NOT EXISTS deferrals_student_id ON students.deferrals (student_id);
 
 
+-- ---------- Online applications (the public form apply.html; Student Hub > Online Applications) ----------
+-- Filled in by prospects themselves. Staff then Admit (the details go into a new student record) or Reject.
+CREATE TABLE IF NOT EXISTS students.applications (
+    id                          text PRIMARY KEY,
+    reference                   text,           -- given to the applicant, e.g. APP-2026-7K3QX
+    status                      text,           -- Pending, Admitted or Rejected
+    submitted_at                timestamptz,
+
+    school                      text,           -- from settings.schools
+    class_applied               text,           -- a course name from settings.courses
+    year_admitted               text,
+    term                        text,           -- from settings.academic_terms
+    intake                      text,           -- January, May, September
+
+    first_name                  text,
+    middle_name                 text,
+    last_name                   text,           -- surname
+    languages                   text,
+    dob                         date,
+    gender                      text,           -- FEMALE or MALE
+    nationality                 text,
+    country_of_residence        text,
+    city_of_residence           text,
+    id_birth_cert               text,           -- ID / Birth Certificate No.
+    birth_certificate           jsonb,          -- copy of the birth certificate, in files.stored_files
+    photo                       jsonb,          -- passport photo, in files.stored_files
+    heard_about                 text,           -- how they heard about the college
+    location                    text,           -- home area
+    town                        text,
+    phone                       text,
+    email                       text,
+
+    mother_first_name           text,
+    mother_middle_name          text,
+    mother_last_name            text,
+    mother_phone                text,
+    mother_phone2               text,
+    mother_email                text,
+    mother_id_type              text,           -- National ID or Passport
+    mother_national_id          text,
+    mother_nationality          text,
+    mother_relationship         text,
+    mother_id_copy              jsonb,          -- copy of the ID, in files.stored_files
+
+    father_first_name           text,
+    father_middle_name          text,
+    father_last_name            text,
+    father_phone                text,
+    father_phone2               text,
+    father_email                text,
+    father_id_type              text,
+    father_national_id          text,
+    father_nationality          text,
+    father_relationship         text,
+    father_id_copy              jsonb,
+
+    student_id                  text,           -- students.students.id once admitted
+    reviewed_by                 text,           -- the staff member who admitted or rejected it
+    reviewed_at                 timestamptz,
+    review_note                 text,
+    extra                       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS applications_status ON students.applications (status);
+COMMENT ON TABLE students.applications IS 'Applications sent through the online application form (apply.html). Admitted ones point to their student in student_id.';
+
+
 -- Row level security with no policies: only the owner (the FEWA server's login, and you in pgAdmin as postgres)
 -- can read or change the rows.
 ALTER TABLE students.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students.deferrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE students.applications ENABLE ROW LEVEL SECURITY;

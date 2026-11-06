@@ -160,7 +160,7 @@ async function inTransaction(work) {
    Record field  <->  column:  admNo <-> adm_no,  firstName <-> first_name,  group <-> "group".
    The columns are read from the database itself (every 15 seconds at most), so columns added, removed or
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
-const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'staff_accounts'];
+const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff_accounts'];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
 
@@ -170,7 +170,7 @@ const sqlName = name => pg.escapeIdentifier(name);
 /* ---------- Schemas: the tables are grouped by area (folders under Schemas in pgAdmin) ----------
    Each schema's tables are defined in database/<n>-<schema>.sql. */
 const SCHEMA_OF = {
-    students: 'students', documents: 'students', deferrals: 'students',
+    students: 'students', documents: 'students', deferrals: 'students', applications: 'students',
     settings: 'settings', schools: 'settings', courses: 'settings', enrollment_types: 'settings',
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings',
@@ -473,7 +473,7 @@ async function moveSettingsIntoTables(client) {
 }
 
 /* ---------- Record stores: students, documents, deferrals (columns) and settings (tables above) ---------- */
-const STORES = { students: 'id', documents: 'id', deferrals: 'id', settings: 'key' };
+const STORES = { students: 'id', documents: 'id', deferrals: 'id', applications: 'id', settings: 'key' };
 const hasColumns = store => COLUMN_TABLES.includes(store);
 
 async function selectRecords(db, store, id) {
@@ -890,6 +890,7 @@ const tablesToSync = new Set();
 // The tables a save to a store (or a value) changes
 const STORE_TABLES = {
     students: ['students', 'stored_files'], documents: ['documents', 'stored_files'], deferrals: ['deferrals'],
+    applications: ['applications', 'stored_files'],
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
 const valueTables = key => key === ACCOUNTS_KEY ? ['staff_accounts']
@@ -1102,6 +1103,105 @@ async function startMirror() {
     setInterval(() => mirrorChanged(SYNC_ORDER), MIRROR_FULL_SYNC_MS);
 }
 
+/* ---------- Online applications (apply.html): anyone may apply, without logging in ----------
+   The form's choices come from Settings (schools, courses, terms). An application is checked here (required
+   fields, email, date of birth, file types and sizes), saved in students.applications as "Pending", and appears in
+   Student Hub > Online Applications, where staff Admit it (into a new student record) or Reject it. */
+const APPLY_TEXT = ['school', 'classApplied', 'yearAdmitted', 'term', 'intake', 'firstName', 'middleName', 'lastName',
+    'languages', 'dob', 'gender', 'nationality', 'countryOfResidence', 'cityOfResidence', 'idBirthCert', 'heardAbout',
+    'location', 'town', 'phone', 'email',
+    ...['father', 'mother'].flatMap(p => ['FirstName', 'MiddleName', 'LastName', 'Phone', 'Phone2', 'Email', 'IdType',
+        'NationalId', 'Nationality', 'Relationship'].map(f => p + f))];
+const APPLY_REQUIRED = ['classApplied', 'yearAdmitted', 'intake', 'firstName', 'lastName', 'languages',
+    'dob', 'gender', 'nationality', 'countryOfResidence', 'cityOfResidence', 'heardAbout', 'location', 'town', 'phone',
+    'email', 'fatherFirstName', 'fatherLastName', 'fatherPhone', 'fatherEmail', 'fatherIdType', 'fatherNationalId',
+    'fatherNationality', 'fatherRelationship'];
+// The second parent / guardian is optional; once any of their details is given, these are needed too
+const APPLY_SECOND_REQUIRED = ['motherFirstName', 'motherLastName', 'motherPhone', 'motherRelationship'];
+const APPLY_FILES = {
+    photo: { label: 'Passport photo', types: ['image/jpeg', 'image/png'], required: true },
+    birthCertificate: { label: 'Birth certificate', types: ['image/jpeg', 'image/png', 'application/pdf'], required: true },
+    fatherIdCopy: { label: 'ID copy (first contact)', types: ['image/jpeg', 'image/png', 'application/pdf'], required: true },
+    motherIdCopy: { label: 'ID copy (second contact)', types: ['image/jpeg', 'image/png', 'application/pdf'], required: false }
+};
+const APPLY_MAX_FILE_BYTES = 5 * 1024 * 1024;
+const APPLY_INTAKES = ['January', 'May', 'September'];
+const APPLY_PER_HOUR = 5;
+const applyCounts = new Map(); // IP -> { count, first }
+
+async function applicationOptions() {
+    const items = async key => ((await getRecord('settings', key)) || {}).items || [];
+    const organization = (await getRecord('settings', 'organization')) || {};
+    const year = new Date().getFullYear();
+    return {
+        collegeName: organization.collegeName || '',
+        schools: (await items('schools')).map(s => s.name).filter(Boolean),
+        courses: (await items('courses')).filter(c => c.enabled !== 'NO' && c.name)
+            .map(c => ({ name: c.name, school: c.institute || '', award: c.award || '' })),
+        terms: (await items('terms')).map(t => t.name).filter(Boolean),
+        years: [year, year + 1, year + 2].map(String),
+        intakes: APPLY_INTAKES
+    };
+}
+
+async function receiveApplication(req, body) {
+    const problem = message => Object.assign(new Error(message), { status: 400 });
+    body = body && typeof body === 'object' ? body : {};
+    if (body.website) return { result: 'ok', reference: 'APP-' + randomBytes(3).toString('hex').toUpperCase() }; // a robot
+
+    // A few applications per hour from one place, so the form cannot be used to flood the database
+    const ip = clientIp(req);
+    const seen = applyCounts.get(ip);
+    if (seen && Date.now() - seen.first < 3600000 && seen.count >= APPLY_PER_HOUR) {
+        throw Object.assign(new Error('Too many applications were sent from this connection. Please try again in an hour.'), { status: 429 });
+    }
+
+    const record = {};
+    for (const field of APPLY_TEXT) {
+        const value = String(body[field] ?? '').trim();
+        if (value.length > 300) throw problem('One of the answers is too long.');
+        if (value) record[field] = value;
+    }
+    const options = await applicationOptions();
+    const missing = APPLY_REQUIRED.filter(f => !record[f]);
+    // School and Term are asked for once the college has set them up in Settings
+    if (options.schools.length && !record.school) missing.push('school');
+    if (options.terms.length && !record.term) missing.push('term');
+    const secondGiven = Object.keys(record).some(f => f.startsWith('mother'));
+    if (secondGiven) missing.push(...APPLY_SECOND_REQUIRED.filter(f => !record[f]));
+    if (missing.length) throw problem('Please fill in every field marked *.');
+
+    const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const f of ['email', 'fatherEmail', 'motherEmail']) {
+        if (record[f] && !email.test(record[f])) throw problem('One of the email addresses is not valid.');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(record.dob) || isNaN(new Date(record.dob)) || record.dob > new Date().toISOString().slice(0, 10)) {
+        throw problem('The date of birth is not valid.');
+    }
+    if (!['FEMALE', 'MALE'].includes(record.gender)) throw problem('Please choose the gender.');
+
+    if (options.courses.length && !options.courses.some(c => c.name === record.classApplied)) throw problem('Please choose a class from the list.');
+    if (!APPLY_INTAKES.includes(record.intake)) throw problem('Please choose an intake from the list.');
+
+    for (const [field, rule] of Object.entries(APPLY_FILES)) {
+        const file = body[field];
+        if (!file || !file.data) {
+            if (rule.required) throw problem(`Please attach the ${rule.label.toLowerCase()}.`);
+            continue;
+        }
+        if (!rule.types.includes(file.type)) throw problem(`${rule.label}: only ${rule.types.includes('application/pdf') ? 'PDF, ' : ''}JPG or PNG files are accepted.`);
+        if (String(file.data).length * 3 / 4 > APPLY_MAX_FILE_BYTES) throw problem(`${rule.label}: the file is larger than 5MB.`);
+        record[field] = { __newFile: true, type: file.type, name: String(file.name || field).slice(0, 120), data: String(file.data) };
+    }
+
+    const id = 'app-' + Date.now().toString(36) + randomBytes(4).toString('hex');
+    const reference = `APP-${new Date().getFullYear()}-${randomBytes(4).toString('hex').toUpperCase().slice(0, 6)}`;
+    await putRecord('applications', id, { ...record, id, reference, status: 'Pending', submittedAt: new Date().toISOString() });
+    mirrorChanged(STORE_TABLES.applications);
+    applyCounts.set(ip, seen && Date.now() - seen.first < 3600000 ? { ...seen, count: seen.count + 1 } : { count: 1, first: Date.now() });
+    return { result: 'ok', reference };
+}
+
 /* ---------- Backups (Settings > System Data Backups) ----------
    Backups are kept in their own PostgreSQL database on the office computer ("backups" in db-config.json,
    database fewa_backups, table backups.snapshots), never in Supabase, the browser or OneDrive.
@@ -1293,11 +1393,16 @@ async function handleApi(req, res, parts) {
         return send(res, 200, result);
     }
 
+    /* ---------- Online applications: open to everyone ---------- */
+    if (area === 'apply' && a === 'options' && method === 'GET') return send(res, 200, await applicationOptions());
+    if (area === 'apply' && !a && method === 'POST') return send(res, 200, await receiveApplication(req, await readBody(req)));
+
     /* ---------- Records ---------- */
     if (area === 'stores' && STORES[a]) {
         if (method === 'GET') {
             if (fullAccess) return send(res, 200, b ? await getRecord(a, b) : await getAllRecords(a));
             if (session.kind === 'student') {
+                if (a === 'applications') throw forbidden();
                 const mine = record => a === 'students' ? record.id === session.studentId
                     : a === 'settings' ? true : record.studentId === session.studentId;
                 if (b) {
