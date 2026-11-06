@@ -1133,6 +1133,8 @@
            download the changes, update the database tables and restart (server.mjs, runSystemUpdate); the page
            follows it every second, and the log under the bar shows each step. */
         let updateTimer = null;
+        // "on the office computer" / "online (Render)"
+        const placeWords = place => /online/i.test(place || '') ? 'online (Render)' : 'on the ' + (place || 'office computer');
         const ROCKET_SVG = `
             <svg class="rocket" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <g transform="rotate(45 100 100)">
@@ -1164,7 +1166,7 @@
             const last = info.history[0];
             const when = value => value ? new Date(value).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
             const lastText = last
-                ? `Last system update: ${when(last.finishedAt || last.startedAt)} by ${last.startedBy || '—'} on the ${last.place}, ` +
+                ? `Last system update: ${when(last.finishedAt || last.startedAt)} by ${last.startedBy || '—'} ${placeWords(last.place)}, ` +
                     `${last.databases ?? 0} database(s) - ${last.status === 'Failed' ? 'FAILED (see the log)' : 'no script failures'}.`
                 : 'No system update has been run yet.';
 
@@ -1198,7 +1200,7 @@
                     <div class="update-panel">
                         <div class="update-panel-title">System Update</div>
                         <div class="update-last${last && last.status === 'Failed' ? ' failed' : ''}">${escapeHtml(lastText)}</div>
-                        <div class="update-version">Running version <b>${escapeHtml((info.version || 'unknown').slice(0, 7))}</b> on the ${escapeHtml(info.place)} ·
+                        <div class="update-version">Running version <b>${escapeHtml((info.version || 'unknown').slice(0, 7))}</b> ${escapeHtml(placeWords(info.place))} ·
                             ${info.waiting ? `<b>${info.waiting} new change(s) on GitHub</b> waiting to be installed` : 'up to date with GitHub'}</div>
                         <div class="rocket-stage" id="rocketStage">${ROCKET_SVG}</div>
                         <div class="update-bar"><div class="update-bar-fill" id="updateBarFill"></div><span id="updateBarText">0%</span></div>
