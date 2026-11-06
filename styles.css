@@ -5618,3 +5618,52 @@ body:has(#main-wrapper) {
     .sp-user-button { padding: 2px; }
     .sp-user-photo { width: 38px; height: 38px; }
 }
+
+/* ---------- Settings > System Update ("running the rocket") ---------- */
+.submenu-icon { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; color: #dfb15b; }
+.update-page { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.update-panel { background: #2b3a42; color: #e8eef1; border-radius: 6px; padding: 16px; min-height: 520px; }
+.update-panel-title { font-size: 20px; margin-bottom: 14px; color: #ffffff; }
+.update-problem { background: #7a2a22; color: #fff; padding: 10px 12px; border-radius: 4px; margin-bottom: 10px; font-size: 13px; }
+.release-list { max-height: 640px; overflow-y: auto; padding-right: 4px; }
+.release-month { background: #ffffff; color: #24103a; border-radius: 4px; margin-bottom: 10px; }
+.release-month summary { padding: 12px 14px; font-size: 16px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.release-month summary::-webkit-details-marker { display: none; }
+.release-month summary::after { content: '+'; margin-left: auto; color: #8a7a9c; font-size: 20px; }
+.release-month[open] summary::after { content: '\2212'; }
+.release-note { padding: 10px 14px; border-top: 1px solid #eee6f3; }
+.release-note.new { background: #fffaf0; }
+.release-title { font-weight: 700; font-size: 13.5px; }
+.release-meta { font-size: 11.5px; color: #8a7a9c; margin-top: 2px; }
+.release-body { font-size: 12.5px; color: #4a3a5c; margin-top: 6px; white-space: pre-line; }
+.release-empty { color: #c9d4da; }
+.update-last { background: #0aa35a; color: #ffffff; padding: 14px 16px; border-radius: 3px; font-size: 14px; line-height: 1.5; }
+.update-last.failed { background: #b03a2e; }
+.update-version { font-size: 12.5px; color: #c9d4da; margin-top: 8px; }
+.rocket-stage { position: relative; height: 250px; display: flex; align-items: center; justify-content: center; color: #1ec773; }
+.rocket { width: 220px; height: 220px; transition: transform 0.6s ease; }
+.rocket-flame { opacity: 0; color: #dfb15b; }
+.rocket-dot { position: absolute; width: 10px; height: 10px; border: 2px solid #1ec773; border-radius: 50%; }
+.rocket-dot.d1 { left: 30%; bottom: 22%; } .rocket-dot.d2 { right: 30%; top: 30%; } .rocket-dot.d3 { right: 34%; bottom: 14%; }
+.rocket-stage.flying .rocket { animation: rocket-shake 0.25s infinite alternate; }
+.rocket-stage.flying .rocket-flame { opacity: 1; animation: rocket-flame 0.18s infinite alternate; }
+.rocket-stage.flying .rocket-dot { animation: rocket-dots 1.2s infinite ease-in; }
+.rocket-stage.landed .rocket { transform: translate(18px, -18px); }
+.rocket-stage.failed { color: #e05a4c; }
+@keyframes rocket-shake { from { transform: translate(0, 0); } to { transform: translate(3px, -3px); } }
+@keyframes rocket-flame { from { transform: translate(0, 0) scale(1); } to { transform: translate(-4px, 4px) scale(1.15); } }
+@keyframes rocket-dots { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(-40px, 40px); opacity: 0; } }
+.update-bar { position: relative; height: 34px; background: #555c60; border-radius: 3px; overflow: hidden; margin: 6px 24px 0; }
+.update-bar-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: #0aa35a; transition: width 0.5s ease; }
+.update-bar span { position: relative; display: block; text-align: center; line-height: 34px; font-weight: 700; color: #ffffff; }
+.update-step { text-align: center; font-size: 13px; color: #c9d4da; margin: 10px 24px 0; min-height: 18px; }
+.update-actions { text-align: center; margin-top: 12px; }
+.update-button { background: #0aa35a !important; border-color: #0aa35a !important; min-width: 200px; font-size: 16px; }
+.update-button:disabled { opacity: 0.7; cursor: wait; }
+.update-log { margin: 14px 0 0; padding: 10px 12px; background: #1b252b; color: #a8f0c6; border-radius: 4px; font: 12px/1.6 Consolas, 'Courier New', monospace; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+@media (max-width: 900px) {
+    .update-page { grid-template-columns: minmax(0, 1fr); }
+    .update-panel { min-height: 0; }
+    .rocket-stage { height: 190px; }
+    .rocket { width: 170px; height: 170px; }
+}

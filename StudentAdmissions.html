@@ -115,6 +115,9 @@
                     <li class="submenu-item" data-open="settings-backups" onclick="openSettings('backups', this)">
                         <span class="icon-circle"></span> System Data Backups
                     </li>
+                    <li class="submenu-item admin-only" data-open="settings-update" onclick="openSettings('update', this)">
+                        <svg class="submenu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg> System Update
+                    </li>
                 </ul>
             </li>
         </ul>
@@ -1113,14 +1116,160 @@
             setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
-            backups: { title: 'System Data Backups', tabs: ['backup'] }
+            backups: { title: 'System Data Backups', tabs: ['backup'] },
+            update: { title: 'System Update', tabs: ['systemUpdate'] }
         };
 
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
-            backup: { title: 'Backups in Supabase', render: () => renderBackupPage() }
+            backup: { title: 'Backups', render: () => renderBackupPage() },
+            systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() }
         };
+
+        /* ---------- Settings > System Update: "running the rocket" (administrators only) ----------
+           Left: release notes, every change on GitHub by month, with the ones not installed yet marked New.
+           Right: the last update, the rocket, the progress bar and Update. Update makes the server check GitHub,
+           download the changes, update the database tables and restart (server.mjs, runSystemUpdate); the page
+           follows it every second, and the log under the bar shows each step. */
+        let updateTimer = null;
+        const ROCKET_SVG = `
+            <svg class="rocket" viewBox="0 0 220 220" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <g class="rocket-flame"><path d="M70 150c-14 14-22 40-22 40s26-8 40-22"/><path d="M62 158c-6 8-9 18-9 18s10-3 18-9"/></g>
+                <path d="M88 132l-20-20 52-74c18-24 44-30 70-30 0 26-6 52-30 70z"/>
+                <circle cx="140" cy="80" r="14"/><path d="M140 72v8l6 4"/>
+                <path d="M74 106l-30 4-14 22 32-6"/><path d="M114 146l-4 30-22 14 6-32"/>
+                <path d="M96 124l-8 8"/>
+            </svg>
+            <span class="rocket-dot d1"></span><span class="rocket-dot d2"></span><span class="rocket-dot d3"></span>`;
+
+        async function renderSystemUpdate(check = true) {
+            document.getElementById('settingsBanner').innerText = 'System Update';
+            const content = document.getElementById('settingsContent');
+            if (!isAdmin()) {
+                content.innerHTML = '<div class="empty-state">Only administrators can update the system.</div>';
+                return;
+            }
+            if (!content.querySelector('.update-page')) content.innerHTML = '<div class="empty-state">Checking GitHub for changes...</div>';
+            let info;
+            try {
+                info = await api('GET', '/system-update' + (check ? '?check=1' : ''));
+            } catch (error) {
+                content.innerHTML = `<div class="empty-state">The update page could not be loaded: ${escapeHtml(error.message)}</div>`;
+                return;
+            }
+            const last = info.history[0];
+            const when = value => value ? new Date(value).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            const lastText = last
+                ? `Last system update: ${when(last.finishedAt || last.startedAt)} by ${last.startedBy || '—'} on the ${last.place}, ` +
+                    `${last.databases ?? 0} database(s) - ${last.status === 'Failed' ? 'FAILED (see the log)' : 'no script failures'}.`
+                : 'No system update has been run yet.';
+
+            // Release notes, by month (newest first); the month with new changes, or the newest, is open
+            const months = [];
+            for (const note of info.notes) {
+                const month = new Date(note.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+                let group = months.find(m => m.month === month);
+                if (!group) months.push(group = { month, notes: [] });
+                group.notes.push(note);
+            }
+            const notesHtml = months.length ? months.map((m, i) => {
+                const fresh = m.notes.filter(n => !n.installed).length;
+                return `<details class="release-month"${i === 0 || fresh ? ' open' : ''}>
+                    <summary>${escapeHtml(m.month)}${fresh ? ` <span class="badge pending">${fresh} new</span>` : ''}</summary>
+                    ${m.notes.map(n => `<div class="release-note${n.installed ? '' : ' new'}">
+                        <div class="release-title">${n.installed ? '' : '<span class="badge pending">New - not installed yet</span> '}${escapeHtml(n.title)}</div>
+                        <div class="release-meta">${escapeHtml(when(n.date))} · ${escapeHtml(n.author)} · ${escapeHtml(n.sha.slice(0, 7))}</div>
+                        ${n.notes ? `<div class="release-body">${escapeHtml(n.notes)}</div>` : ''}
+                    </div>`).join('')}
+                </details>`;
+            }).join('') : '<div class="release-empty">No release notes yet.</div>';
+
+            content.innerHTML = `
+                <div class="update-page">
+                    <div class="update-panel">
+                        <div class="update-panel-title">System Update Release Notes</div>
+                        ${info.problem ? `<div class="update-problem">${escapeHtml(info.problem)}</div>` : ''}
+                        <div class="release-list">${notesHtml}</div>
+                    </div>
+                    <div class="update-panel">
+                        <div class="update-panel-title">System Update</div>
+                        <div class="update-last${last && last.status === 'Failed' ? ' failed' : ''}">${escapeHtml(lastText)}</div>
+                        <div class="update-version">Running version <b>${escapeHtml((info.version || 'unknown').slice(0, 7))}</b> on the ${escapeHtml(info.place)} ·
+                            ${info.waiting ? `<b>${info.waiting} new change(s) on GitHub</b> waiting to be installed` : 'up to date with GitHub'}</div>
+                        <div class="rocket-stage" id="rocketStage">${ROCKET_SVG}</div>
+                        <div class="update-bar"><div class="update-bar-fill" id="updateBarFill"></div><span id="updateBarText">0%</span></div>
+                        <div class="update-step" id="updateStep">${info.online
+                            ? 'Online, Render installs new code from GitHub by itself; Update also updates the database tables.'
+                            : 'Update downloads the new changes from GitHub, updates the database tables and restarts the system.'}</div>
+                        <div class="update-actions"><button type="button" class="btn-submit update-button" id="updateButton" onclick="startSystemUpdate()">Update</button></div>
+                        <pre class="update-log" id="updateLog" hidden></pre>
+                    </div>
+                </div>`;
+            if (info.run) showUpdateRun(info.run);
+        }
+
+        function showUpdateRun(run) {
+            const stage = document.getElementById('rocketStage');
+            if (!stage) return;
+            const flying = ['Running', 'Restarting'].includes(run.status);
+            stage.classList.toggle('flying', flying);
+            stage.classList.toggle('landed', ['Done', 'Up to date'].includes(run.status));
+            stage.classList.toggle('failed', run.status === 'Failed');
+            document.getElementById('updateBarFill').style.width = run.percent + '%';
+            document.getElementById('updateBarText').textContent = run.percent + '%';
+            document.getElementById('updateStep').textContent = run.step;
+            const log = document.getElementById('updateLog');
+            log.hidden = !run.log.length;
+            log.textContent = run.log.join('\n');
+            log.scrollTop = log.scrollHeight;
+            const button = document.getElementById('updateButton');
+            button.disabled = flying;
+            button.textContent = flying ? 'Updating...' : 'Update';
+        }
+
+        async function startSystemUpdate() {
+            if (!confirm('Run the system update now?\n\nThe system downloads the new changes from GitHub, updates the database tables ' +
+                'and restarts. It takes about a minute; anyone using the system may need to press Refresh afterwards.')) return;
+            try {
+                showUpdateRun((await api('POST', '/system-update')).run);
+            } catch (error) {
+                return alert('The update could not start: ' + error.message);
+            }
+            followSystemUpdate();
+        }
+
+        // Asks the server every second how the rocket is doing; while it restarts there is no answer for a moment
+        function followSystemUpdate() {
+            clearTimeout(updateTimer);
+            let restarting = false;
+            const tick = async () => {
+                if (!document.getElementById('rocketStage')) return; // left the page
+                try {
+                    const { run } = await api('GET', '/system-update/progress');
+                    if (restarting && !run) {
+                        // The server is back with the new code: show the finished update and the new release notes
+                        showToast('System update complete. The system is running the new version.');
+                        return setTimeout(() => location.reload(), 1500);
+                    }
+                    if (run) {
+                        showUpdateRun(run);
+                        if (run.status === 'Restarting') restarting = true;
+                        if (['Done', 'Up to date', 'Failed'].includes(run.status)) {
+                            showToast(run.status === 'Failed' ? 'The system update failed. See the log under the rocket.' :
+                                run.status === 'Up to date' ? 'The system is already up to date. Database tables checked.' : 'System update complete.',
+                                run.status === 'Failed' ? 'warning' : 'success');
+                            return setTimeout(() => renderSystemUpdate(false), 1500);
+                        }
+                    }
+                } catch {
+                    restarting = true; // no answer: the server is restarting
+                    document.getElementById('updateStep').textContent = 'Restarting the system with the new code...';
+                }
+                updateTimer = setTimeout(tick, 1000);
+            };
+            updateTimer = setTimeout(tick, 1000);
+        }
 
         /* ---------- Settings > System Data Backups, using backup.js ---------- */
         async function renderBackupPage() {

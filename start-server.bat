@@ -26,5 +26,14 @@ if not exist "node_modules\pg" (
 rem Started by Windows at sign-in ("FEWA System Server" shortcut in the Startup folder, with "startup"):
 rem the browser is not opened then
 if /i not "%~1"=="startup" start "" "http://localhost:5600/"
+
+rem Settings > System Update stops the server with code 3 after downloading new code: it is started again here
+:run
 node server.mjs 5600
+if errorlevel 3 if not errorlevel 4 (
+    echo.
+    echo System update installed - starting the FEWA system again...
+    echo.
+    goto run
+)
 pause

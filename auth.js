@@ -603,6 +603,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (subPart && !can(subPart, 'view')) sub.style.display = 'none';
             // Backing up and restoring the whole system is for administrators only
             if (sub.textContent.trim() === 'System Data Backups' && !isAdmin()) sub.style.display = 'none';
+            // ... and so is System Update (any item marked admin-only)
+            if (sub.classList.contains('admin-only') && !isAdmin()) sub.style.display = 'none';
         });
         // A menu whose sub-items are all hidden goes too
         const subs = [...item.querySelectorAll('.submenu-item')];

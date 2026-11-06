@@ -155,3 +155,20 @@ ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
+
+
+-- ---------- System updates (Settings > System Update): one row each time the rocket is run ----------
+CREATE TABLE IF NOT EXISTS settings.system_updates (
+    id            text PRIMARY KEY,
+    started_at    timestamptz NOT NULL DEFAULT now(),
+    finished_at   timestamptz,
+    started_by    text,                     -- the administrator who pressed Update
+    place         text,                     -- office computer or online
+    from_version  text,                     -- the GitHub commit before the update
+    to_version    text,                     -- the GitHub commit after it
+    changes       integer,                  -- how many new changes (commits) came in
+    databases     integer,                  -- how many databases had their tables updated
+    status        text,                     -- Running, Done, Up to date or Failed
+    log           text                      -- every step, as shown on the page
+);
+ALTER TABLE settings.system_updates ENABLE ROW LEVEL SECURITY;
