@@ -271,6 +271,7 @@
             <h2 style="margin-top:0">Thank you! Your application has been received.</h2>
             <p>You are now a <b>prospect</b> of the college. Your prospect number is</p>
             <div class="ref" id="reference"></div>
+            <p id="emailedNote" style="color: var(--muted); font-size: 13px;"></p>
             <p>Please keep this number. The admissions office will check your details and documents and contact you on
                 the phone number or email you gave. Once you are admitted you will receive your admission number.</p>
             <button type="button" onclick="location.reload()">Send another application</button>
@@ -443,6 +444,8 @@
                 if (!response.ok || result.result !== 'ok') throw new Error(result.error || 'The application could not be sent.');
                 form.style.display = 'none';
                 document.getElementById('reference').textContent = result.reference;
+                document.getElementById('emailedNote').textContent = result.emailed
+                    ? `A confirmation with this number was emailed to ${data.email}.` : '';
                 document.getElementById('done').style.display = 'block';
                 window.scrollTo(0, 0);
             } catch (err) {

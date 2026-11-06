@@ -352,10 +352,11 @@ const RESET_GRANT_MINUTES = 10;
 
 // Returns the same results as checkCode
 async function verifyResetCode(email, code) {
-    const { result } = await api('POST', '/password-reset/verify', { email, code });
+    // email: a staff member's email, or a student's AdmNo (the server answers with it as saved)
+    const { result, username } = await api('POST', '/password-reset/verify', { email, code });
     if (result === 'ok') {
         sessionStorage.setItem(AUTH_RESET_GRANT_KEY, JSON.stringify({
-            email: email.trim().toLowerCase(), expires: Date.now() + RESET_GRANT_MINUTES * 60 * 1000
+            email: username || email.trim().toLowerCase(), expires: Date.now() + RESET_GRANT_MINUTES * 60 * 1000
         }));
     }
     return result;

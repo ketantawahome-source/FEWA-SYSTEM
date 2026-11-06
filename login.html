@@ -110,8 +110,8 @@
             <div id="resetRequestError" class="login-error"></div>
             <div id="resetRequestInfo" class="otp-info"></div>
             <div class="field">
-                <label for="resetEmail">Email Address</label>
-                <input type="email" id="resetEmail" autocomplete="username" required
+                <label for="resetEmail">Username (your email, or AdmNo for students)</label>
+                <input type="text" id="resetEmail" autocomplete="username" required
                     oninput="updateResetButtons()">
             </div>
             <button type="submit" id="resetRequestButton" class="btn-login" disabled>Send Reset Link</button>
@@ -126,7 +126,8 @@
             <div id="resetCodeError" class="login-error"></div>
             <div class="field">
                 <label for="resetFormEmail">Username</label>
-                <input type="email" id="resetFormEmail" autocomplete="username" required oninput="autoVerifyResetCode()">
+                <input type="text" id="resetFormEmail" autocomplete="username" required oninput="autoVerifyResetCode()"
+                    placeholder="Email, or AdmNo for students">
             </div>
             <div class="field">
                 <label for="resetCode">6-digit Reset Code</label>
@@ -494,13 +495,14 @@
         /* ---------- Forgot password ---------- */
         const looksLikeEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-        // "Forgot password?" and "Send Reset Link" only work once a username (email) has been typed
+        // "Forgot password?" and "Send Reset Link" only work once a username (staff: email; students: AdmNo) is typed
+        const hasUsername = value => value.trim().length >= 2;
         function updateResetButtons() {
             const forgot = document.getElementById('forgotButton');
-            forgot.disabled = !looksLikeEmail(document.getElementById('username').value);
-            forgot.title = forgot.disabled ? 'Enter your username (email) first' : '';
+            forgot.disabled = !hasUsername(document.getElementById('username').value);
+            forgot.title = forgot.disabled ? 'Enter your username (email, or AdmNo for students) first' : '';
             document.getElementById('resetRequestButton').disabled =
-                !looksLikeEmail(document.getElementById('resetEmail').value);
+                !hasUsername(document.getElementById('resetEmail').value);
         }
 
         // "change" also catches usernames filled in by the browser's saved logins
@@ -514,7 +516,7 @@
         }
 
         function showResetRequest() {
-            showForm('resetRequestForm', 'Forgot Password', 'Enter your email address and we will send you a reset link and code');
+            showForm('resetRequestForm', 'Forgot Password', 'Enter your username and we will email you a reset link and code');
             showMessage('resetRequestError', '');
             showMessage('resetRequestInfo', '');
             document.getElementById('resetEmail').value = document.getElementById('username').value.trim();
@@ -539,7 +541,7 @@
         function autoVerifyResetCode() {
             const codeInput = document.getElementById('resetCode');
             codeInput.value = codeInput.value.replace(/\D/g, '');
-            if (codeInput.value.length === 6 && looksLikeEmail(document.getElementById('resetFormEmail').value)) {
+            if (codeInput.value.length === 6 && hasUsername(document.getElementById('resetFormEmail').value)) {
                 verifyResetCodeNow();
             }
         }
@@ -553,7 +555,7 @@
             if (verifyingCode) return;
             const email = document.getElementById('resetFormEmail').value.trim();
             const code = document.getElementById('resetCode').value.trim();
-            if (!looksLikeEmail(email)) return showMessage('resetCodeError', 'Enter your username (email).');
+            if (!hasUsername(email)) return showMessage('resetCodeError', 'Enter your username (email, or AdmNo for students).');
             if (!/^\d{6}$/.test(code)) return showMessage('resetCodeError', 'Enter the 6-digit code from the email.');
 
             verifyingCode = true;
@@ -593,28 +595,32 @@
             event.preventDefault();
             showMessage('resetRequestError', '');
             showMessage('resetRequestInfo', '');
-            const email = document.getElementById('resetEmail').value.trim();
-            if (!window.crypto || !crypto.subtle) {
-                return showMessage('resetRequestError', 'This browser cannot reset passwords securely here. Open the system from http://localhost or as a local file.');
-            }
+            const username = document.getElementById('resetEmail').value.trim();
             const button = document.getElementById('resetRequestButton');
             button.disabled = true;
             button.innerText = 'Sending...';
-            // The link in the email opens this page with the username and code filled in
-            const result = await sendPasswordLink(email);
+            // The server makes the code and emails it (the link opens this page with the username and code filled
+            // in), so only the owner of the email address on the account ever sees it
+            let answer;
+            try {
+                answer = await api('POST', '/password-reset/request', { username });
+            } catch {
+                answer = { result: 'offline' };
+            }
             button.innerText = 'Send Reset Link';
             updateResetButtons();
 
-            if (result !== 'sent') {
+            if (answer.result !== 'sent') {
                 return showMessage('resetRequestError', {
-                    unknown: 'This email address is not registered, or the account has been deactivated.',
-                    'admin-only': 'Only an administrator can send password reset links. Ask the college office to send you one (Staff Management > Send Reset Link).',
-                    'not-configured': 'The reset link cannot be sent because email sending is not set up yet.',
-                    failed: 'The reset link could not be sent. Check the internet connection and try again.'
-                }[result]);
+                    unknown: 'No active account has this username. Staff: use your email. Students: use your AdmNo exactly as given.',
+                    'no-email': 'There is no email address on your record, so no reset link can be sent. Please ask the college office to reset your password.',
+                    locked: 'Too many reset requests for this username. Please wait 15 minutes, or ask the college office.',
+                    failed: 'The reset link could not be emailed just now. Please try again later, or ask the college office.',
+                    offline: 'The FEWA system cannot be reached. Check the internet connection and try again.'
+                }[answer.result] || 'The reset link could not be sent.');
             }
-            showMessage('resetRequestInfo', `A reset link and 6-digit code were sent to ${maskEmail(email)}. ` +
-                `They expire in ${RESET_VALID_MINUTES} minutes. Open the link, or press "I already have a code".`);
+            showMessage('resetRequestInfo', `A reset link and 6-digit code were sent to ${answer.to}. ` +
+                `They expire in ${answer.minutes} minutes. Open the link, or press "I already have a code".`);
         }
 
         async function submitNewPassword(event) {

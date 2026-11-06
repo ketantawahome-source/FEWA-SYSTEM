@@ -810,8 +810,71 @@ async function setStudentPasswordOnServer(session, { studentId, password, mustCh
     return { result: 'ok' };
 }
 
-/* Password reset codes: made by an administrator (Staff Management, or a new staff member's welcome email);
-   checking a code lets that person choose a new password within 10 minutes */
+/* ---------- Emails sent by the server itself (EmailJS, the same account and template as the pages) ----------
+   Used where the page asking must not see what is emailed: a password reset code asked for on the login page
+   (by a staff member or a student), and the "application received" email to an applicant.
+   EmailJS must allow this: Account > Security > "Allow EmailJS API for non-browser applications". If its
+   "Use Private Key" option is on too, the private key goes in the EMAILJS_PRIVATE_KEY setting (Render >
+   Environment, and the same name in this computer's environment); it is never put in the code. */
+const PUBLIC_SITE = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://fewa-system.onrender.com').replace(/\/+$/, '');
+const looksLikeEmail = text => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(text || '').trim());
+const maskEmail = email => { const [name, domain] = String(email).split('@'); return name.slice(0, 2) + '•••@' + domain; };
+
+async function emailSettings() {
+    const text = await readFile(path.join(root, 'email-config.js'), 'utf8').catch(() => '');
+    const pick = name => (text.match(new RegExp(`(?<![A-Za-z])${name}\\s*:\\s*'([^']*)'`)) || [])[1] || '';
+    return { serviceId: pick('serviceId'), templateId: pick('templateId'), publicKey: pick('publicKey') };
+}
+
+// true when EmailJS accepted the email
+async function sendSystemEmail(to, message) {
+    const settings = await emailSettings();
+    if (!settings.serviceId || !settings.templateId || !settings.publicKey || !looksLikeEmail(to)) return false;
+    const organization = (await getRecord('settings', 'organization').catch(() => null)) || {};
+    try {
+        const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service_id: settings.serviceId, template_id: settings.templateId, user_id: settings.publicKey,
+                ...(process.env.EMAILJS_PRIVATE_KEY ? { accessToken: process.env.EMAILJS_PRIVATE_KEY } : {}),
+                template_params: {
+                    college_name: organization.collegeName || 'FEWA Beauty & Fashion College',
+                    login_time: new Date().toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' }),
+                    to_email: String(to).trim(), message
+                }
+            }),
+            signal: AbortSignal.timeout(20000)
+        });
+        if (!response.ok) console.log(new Date().toLocaleString(), 'Email not sent:', response.status, (await response.text()).slice(0, 200));
+        return response.ok;
+    } catch (err) {
+        console.log(new Date().toLocaleString(), 'Email not sent:', err.message);
+        return false;
+    }
+}
+
+/* Password reset codes. A code is kept (as a hash) under the staff member's email, or "student:<id>" for a
+   student. Made by an administrator's page (Staff Management > Send Reset Link, a new staff member's welcome
+   email), or by the server when someone presses "Forgot your password?" on the login page (then the server
+   emails it, so nobody but the owner of that email sees it). Checking a code lets that person choose a new
+   password within 10 minutes. */
+const RESET_REQUEST_MINUTES = 15;
+
+// At most 3 reset emails per username, and 10 requests from one connection, every 15 minutes
+const resetRequests = new Map(); // key -> [times]
+function resetRequestAllowed(req, username) {
+    const now = Date.now();
+    const recent = key => (resetRequests.get(key) || []).filter(t => now - t < 15 * 60000);
+    const byName = 'u:' + lower(username);
+    const byIp = 'ip:' + clientIp(req);
+    if (recent(byName).length >= 3 || recent(byIp).length >= 10) return false;
+    resetRequests.set(byName, [...recent(byName), now]);
+    resetRequests.set(byIp, [...recent(byIp), now]);
+    if (resetRequests.size > 5000) resetRequests.clear();
+    return true;
+}
+
 async function createResetCode({ email, minutes } = {}) {
     const code = String(randomBytes(4).readUInt32BE(0) % 1000000).padStart(6, '0');
     const salt = String(Date.now());
@@ -821,39 +884,85 @@ async function createResetCode({ email, minutes } = {}) {
     return { code };
 }
 
+// Whose password a username resets: { key, email, name, kind } for an active staff member (by email) or
+// student (by AdmNo, capital letters or not); null when there is none
+async function resetTarget(username) {
+    username = String(username || '').trim();
+    if (!username) return null;
+    if (looksLikeEmail(username)) {
+        const { rows } = await pool.query(`SELECT * FROM ${T('staff')} WHERE lower(username) = $1`, [lower(username)]);
+        const account = rows.length ? recordFromRow(rows[0]) : null;
+        if (!account || account.status === 'Inactive') return null;
+        return { kind: 'staff', key: lower(account.username), email: account.username,
+            name: [account.firstName, account.lastName].filter(Boolean).join(' '), username: account.username };
+    }
+    let { rows } = await pool.query(`SELECT * FROM ${T('students')} WHERE adm_no = $1`, [username]);
+    if (!rows.length) rows = (await pool.query(`SELECT * FROM ${T('students')} WHERE lower(adm_no) = $1`, [lower(username)])).rows;
+    if (rows.length !== 1) return null;
+    const student = recordFromRow(rows[0]);
+    if (student.activeStudent === 'no') return null;
+    return { kind: 'student', key: 'student:' + student.id, email: student.email || '', studentId: student.id,
+        name: [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' '), username: student.admNo };
+}
+
+// "Forgot your password?" on the login page: emails a link and code to the owner of the username
+async function requestPasswordReset(req, { username } = {}) {
+    const target = await resetTarget(username);
+    if (!target) return { result: 'unknown' };
+    if (!looksLikeEmail(target.email)) return { result: 'no-email' };
+    const { code } = await createResetCode({ email: target.key, minutes: RESET_REQUEST_MINUTES });
+    const link = `${PUBLIC_SITE}/login.html?reset=${code}&user=${encodeURIComponent(target.username)}`;
+    const sent = await sendSystemEmail(target.email,
+        `Hello ${target.name || target.username}, a password reset was requested for your FEWA system account ` +
+        `(username ${target.username}). Your reset code is ${code}. Open this link to set a new password: ${link} ` +
+        `The code and link expire in ${RESET_REQUEST_MINUTES} minutes. If you did not ask for this, ignore this email.`);
+    if (!sent) {
+        await pool.query(`DELETE FROM ${T('password_reset_codes')} WHERE email = $1`, [target.key]);
+        return { result: 'failed' };
+    }
+    return { result: 'sent', to: maskEmail(target.email), minutes: RESET_REQUEST_MINUTES };
+}
+
 async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
-    const account = await pool.query(`SELECT status FROM ${T('staff')} WHERE lower(username) = $1`, [lower(email)]);
-    if (!account.rows.length || account.rows[0].status === 'Inactive') return { result: 'none' };
-    const { rows } = await pool.query(`SELECT data FROM ${T('password_reset_codes')} WHERE email = $1`, [lower(email)]);
+    const target = await resetTarget(email);
+    if (!target) return { result: 'none' };
+    const key = target.key;
+    const { rows } = await pool.query(`SELECT data FROM ${T('password_reset_codes')} WHERE email = $1`, [key]);
     if (!rows.length) return { result: 'none' };
     const saved = rows[0].data;
-    const remove = () => pool.query(`DELETE FROM ${T('password_reset_codes')} WHERE email = $1`, [lower(email)]);
+    const remove = () => pool.query(`DELETE FROM ${T('password_reset_codes')} WHERE email = $1`, [key]);
     if (Date.now() > saved.expires) {
         await remove();
         return { result: 'expired' };
     }
     if (saved.hash === passwordHash(String(code || '').trim(), saved.salt)) {
         await remove();
-        await createSession(req, res, 'reset', lower(email), RESET_GRANT_MINUTES);
-        return { result: 'ok' };
+        await createSession(req, res, 'reset', key, RESET_GRANT_MINUTES);
+        return { result: 'ok', username: target.username };
     }
     saved.attempts = (saved.attempts || 0) + 1;
     if (saved.attempts >= CODE_MAX_ATTEMPTS) {
         await remove();
         return { result: 'none' };
     }
-    await pool.query(`UPDATE ${T('password_reset_codes')} SET data = $1 WHERE email = $2`, [saved, lower(email)]);
+    await pool.query(`UPDATE ${T('password_reset_codes')} SET data = $1 WHERE email = $2`, [saved, key]);
     return { result: 'wrong' };
 }
 
+// The new password, for the staff member (email) or student ("student:<id>") whose code was accepted
 async function completeResetOnServer(req, res, session, { password } = {}) {
     if (session.kind !== 'reset') return { result: 'expired' };
     const salt = randomBytes(16).toString('hex');
-    const updated = await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false
-        WHERE lower(username) = $3`, [salt, passwordHash(String(password), salt), session.email]);
+    const hash = passwordHash(String(password), salt);
+    const studentId = session.email.startsWith('student:') ? session.email.slice('student:'.length) : null;
+    const updated = studentId
+        ? await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2, must_change_password = false,
+            admin_reset_required = false, password_set_at = now(), updated_at = now() WHERE id = $3`, [salt, hash, studentId])
+        : await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false
+            WHERE lower(username) = $3`, [salt, hash, session.email]);
     await endSession(req, res, session);
     forgetSessions();
-    return { result: updated.rowCount ? 'ok' : 'expired' };
+    return { result: updated.rowCount ? 'ok' : 'expired', table: studentId ? 'students' : 'staff' };
 }
 
 // What the pages may see of the staff accounts: administrators (and setup) everything; other staff the
@@ -1240,7 +1349,16 @@ async function receiveApplication(req, body) {
     }
     mirrorChanged(STORE_TABLES.applications);
     applyCounts.set(ip, seen && Date.now() - seen.first < 3600000 ? { ...seen, count: seen.count + 1 } : { count: 1, first: Date.now() });
-    return { result: 'ok', reference };
+
+    // The applicant gets their prospect number by email too (the application is kept whether or not it goes)
+    const college = options.collegeName || 'FEWA Beauty & Fashion College';
+    const emailed = await sendSystemEmail(record.email,
+        `Dear ${record.firstName} ${record.lastName}, thank you for applying to ${college}` +
+        `${record.admissionCourse ? ` for ${record.admissionCourse}` : ''}${record.enrollment ? ` (${record.enrollment} intake)` : ''}. ` +
+        `Your application has been received and your prospect number is ${reference}. Please keep this number. ` +
+        'The admissions office will check your details and documents and contact you on the phone number or email you gave. ' +
+        'Once you are admitted you will receive your admission number and your Student Portal login.');
+    return { result: 'ok', reference, emailed };
 }
 
 /* ---------- Backups (Settings > System Data Backups) ----------
@@ -1684,8 +1802,16 @@ async function handleApi(req, res, parts) {
         return send(res, 200, result);
     }
     if (area === 'password-reset' && !a && method === 'POST') {
-        const result = await completeResetOnServer(req, res, session, await readBody(req) || {});
-        mirrorChanged(['staff']);
+        const { table, ...result } = await completeResetOnServer(req, res, session, await readBody(req) || {});
+        mirrorChanged([table || 'staff']);
+        return send(res, 200, result);
+    }
+    // "Forgot your password?" (staff by email, students by AdmNo): a few requests per username per 15 minutes
+    if (area === 'password-reset' && a === 'request' && method === 'POST') {
+        const body = await readBody(req) || {};
+        if (!resetRequestAllowed(req, body.username)) return send(res, 200, { result: 'locked' });
+        const result = await requestPasswordReset(req, body);
+        mirrorChanged(['password_reset_codes']);
         return send(res, 200, result);
     }
 

@@ -88,6 +88,26 @@ function sendStudentPasswordEmail(email, { name, admNo, password, link }) {
     });
 }
 
+// A newly admitted student: their AdmNo, temporary password and the Student Portal link
+function sendStudentWelcomeEmail(email, { name, admNo, course, password, link }) {
+    return sendEmail(EMAILJS_CONFIG.templateId, {
+        to_email: email,
+        to_name: name,
+        message: `Dear ${name}, welcome to ${COLLEGE_NAME}! You have been admitted${course ? ` to ${course}` : ''}. ` +
+            `Your admission number (AdmNo) is ${admNo}. You can log in to the Student Portal at ${link} ` +
+            `with your AdmNo ${admNo} and the temporary password ${password}. ` +
+            'You will be asked to choose your own password the first time you log in. We look forward to seeing you.'
+    });
+}
+
+// The address students open the Student Portal from: the online system (a localhost link only works on the
+// office computer itself)
+function studentLoginLink() {
+    return /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+        ? 'https://fewa-system.onrender.com/login.html'
+        : new URL('login.html', location.href).href.split(/[?#]/)[0];
+}
+
 function sendOtpEmail(email, code, validMinutes) {
     return sendEmail(EMAILJS_CONFIG.otpTemplateId || EMAILJS_CONFIG.templateId, {
         to_email: email,

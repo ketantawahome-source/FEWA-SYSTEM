@@ -4164,6 +4164,24 @@
             await openStudentForm(student.id);
             showToast(`${fullName(student)}'s record ${existing ? 'updated' : 'saved'} successfully.`);
             document.getElementById('main-wrapper').scrollTop = 0;
+            if (!existing) await sendWelcomeEmail(student);
+        }
+
+        /* A newly saved student with an email address gets a welcome email: their AdmNo, and a temporary Student
+           Portal password (their AdmNo, as with Reset Password) that they change when they first log in */
+        async function sendWelcomeEmail(student) {
+            if (!student.email || student.activeStudent === 'no' || !student.admNo || !isEmailConfigured()) return;
+            try {
+                await setStudentPassword(student.id, student.admNo, true);
+                const sent = await sendStudentWelcomeEmail(student.email, {
+                    name: fullName(student), admNo: student.admNo, course: student.admissionCourse,
+                    password: student.admNo, link: studentLoginLink()
+                });
+                if (sent) showToast(`Welcome email with the Student Portal login sent to ${student.email}.`);
+                else showToast(`The welcome email to ${student.email} could not be sent. Use Reset Password > Email to Student later.`, 'warning');
+            } catch (error) {
+                showToast('The welcome email was not sent: ' + error.message, 'warning');
+            }
         }
 
         /* Reset Password: a new temporary password for the Student Portal, shown here to hand to the student and,
@@ -4186,7 +4204,7 @@
             // The Reset Password button in Student Status is no longer needed for this student
             renderStatusList();
             const canEmail = !!student.email;
-            const loginLink = new URL('login.html', location.href).href.split(/[?#]/)[0];
+            const loginLink = studentLoginLink();
             const emailSubject = 'Your FEWA Student Portal password';
             const emailBody = `Hello ${fullName(student)},\n\nYour FEWA Student Portal password has been reset.\n\n` +
                 `Login page: ${loginLink}\nUsername (your AdmNo): ${student.admNo}\n` +
