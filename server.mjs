@@ -1194,9 +1194,22 @@ async function receiveApplication(req, body) {
         record[field] = { __newFile: true, type: file.type, name: String(file.name || field).slice(0, 120), data: String(file.data) };
     }
 
+    // Each applicant is a prospect, with the next prospect number (PRP-00001, PRP-00002, ...) and in the PROSPECT group
     const id = 'app-' + Date.now().toString(36) + randomBytes(4).toString('hex');
-    const reference = `APP-${new Date().getFullYear()}-${randomBytes(4).toString('hex').toUpperCase().slice(0, 6)}`;
-    await putRecord('applications', id, { ...record, id, reference, status: 'Pending', submittedAt: new Date().toISOString() });
+    let reference;
+    for (let attempt = 0; ; attempt++) {
+        const { rows } = await pool.query(`SELECT coalesce(max(substring(reference FROM '^PRP-([0-9]+)$')::int), 0) AS last
+            FROM ${T('applications')}`);
+        reference = 'PRP-' + String(rows[0].last + 1).padStart(5, '0');
+        try {
+            await putRecord('applications', id, { ...record, id, reference, status: 'Prospect', group: 'PROSPECT',
+                submittedAt: new Date().toISOString() });
+            break;
+        } catch (err) {
+            // Two applications sent at the same moment got the same number: the second takes the next one
+            if (err.code !== '23505' || attempt >= 4) throw err;
+        }
+    }
     mirrorChanged(STORE_TABLES.applications);
     applyCounts.set(ip, seen && Date.now() - seen.first < 3600000 ? { ...seen, count: seen.count + 1 } : { count: 1, first: Date.now() });
     return { result: 'ok', reference };

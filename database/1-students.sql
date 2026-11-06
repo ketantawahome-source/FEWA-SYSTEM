@@ -123,8 +123,8 @@ CREATE INDEX IF NOT EXISTS deferrals_student_id ON students.deferrals (student_i
 -- Filled in by prospects themselves. Staff then Admit (the details go into a new student record) or Reject.
 CREATE TABLE IF NOT EXISTS students.applications (
     id                          text PRIMARY KEY,
-    reference                   text,           -- given to the applicant, e.g. APP-2026-7K3QX
-    status                      text,           -- Pending, Admitted or Rejected
+    reference                   text,           -- the prospect number given to the applicant, e.g. PRP-00001
+    status                      text,           -- Prospect, Verified, Admitted or Rejected
     submitted_at                timestamptz,
 
     school                      text,           -- from settings.schools
@@ -182,6 +182,8 @@ CREATE TABLE IF NOT EXISTS students.applications (
     extra                       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS applications_status ON students.applications (status);
+-- Each prospect number (e.g. PRP-00001) belongs to one applicant only
+CREATE UNIQUE INDEX IF NOT EXISTS applications_reference ON students.applications (reference);
 COMMENT ON TABLE students.applications IS 'Applications sent through the online application form (apply.html). Admitted ones point to their student in student_id.';
 
 

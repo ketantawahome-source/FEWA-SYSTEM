@@ -5461,3 +5461,22 @@ body:has(#main-wrapper) {
 .application-card h4 { margin: 14px 0 6px; color: #24103a; font-size: 13px; text-transform: uppercase; }
 .application-photo { float: right; width: 96px; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #d8cfe3; margin: 0 0 8px 12px; }
 .application-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge.verified { background: #e3f0ff; color: #1d5fa8; border: 1px solid #b6d4f5; }
+.verify-box { clear: both; margin-top: 14px; padding: 10px 12px; border: 1px solid #f1d38b; background: #fffaf0; border-radius: 8px; }
+.verify-box h4 { margin-top: 0; }
+.verify-box label { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 13px; cursor: pointer; }
+
+/* ---------- Dashboard: Newest Students Admitted / New Portal Applications ---------- */
+.dash-panel { margin-bottom: 18px; padding: 0; overflow: hidden; }
+.dash-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; }
+.dash-panel-head .dash-card-title { margin: 0; }
+.dash-panel-tools button { background: none; border: 0; font-size: 20px; line-height: 1; color: #9a93a6; cursor: pointer; padding: 0 6px; }
+.dash-panel-tools button:hover { color: #24103a; }
+.dash-panel-body { padding: 8px 18px 14px; }
+.dash-panel.minimised .dash-panel-body { display: none; }
+.dash-panel.minimised .dash-panel-head { border-bottom: 0; }
+.dash-panel-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-size: 13px; color: #6b5f7d; }
+.dash-report-btn { background: #24103a; color: #fff; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; }
+.dash-report-btn:hover { background: #5b2d8e; }
+.dash-click { cursor: pointer; }
+.dash-click:hover td { background: #f6f2fb; }

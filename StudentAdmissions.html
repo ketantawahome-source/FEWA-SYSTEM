@@ -210,7 +210,9 @@
                                     <input type="text" id="applicationsSearch" class="toolbar-search"
                                         placeholder="Search name, number, class, phone..." oninput="renderApplicationsList()">
                                     <select id="applicationsFilter" class="toolbar-search" onchange="renderApplicationsList()">
-                                        <option value="Pending">Pending</option>
+                                        <option value="open">Prospects to review</option>
+                                        <option value="Prospect">Prospect (not verified yet)</option>
+                                        <option value="Verified">Verified (ready to admit)</option>
                                         <option value="Admitted">Admitted</option>
                                         <option value="Rejected">Rejected</option>
                                         <option value="">All Applications</option>
@@ -226,7 +228,7 @@
                                 <table class="data-table">
                                     <thead>
                                         <tr>
-                                            <th>Application No.</th>
+                                            <th>Prospect No.</th>
                                             <th>Submitted</th>
                                             <th>Full Name</th>
                                             <th>Class Applied For</th>
@@ -3133,16 +3135,22 @@
         }
 
         /* ---------- Online Applications (sent by prospects through apply.html) ----------
-           Admit opens Add New Student filled in from the application (the AdmNo follows the course as usual);
-           when that student is saved, the application is marked Admitted and its birth certificate and ID copies
-           become the student's documents. Reject marks it Rejected (it stays in the list). */
+           1. Prospect: each applicant gets a prospect number (PRP-00001...) and is in the PROSPECT group.
+           2. Verified: an administrator ticks "Details verified" and "Documents verified" (in View).
+           3. Admitted: Admit (only once verified) opens Add New Student filled in from the application; the AdmNo
+              follows the course as usual. Saving it creates the student (who keeps the prospect number), turns the
+              birth certificate and ID copies into the student's documents and marks the application Admitted.
+           Reject marks it Rejected (it stays in the list). */
         let admittingApplication = null; // { application, photoCopy } while its student form is open
 
         const applyLinkUrl = () => new URL('apply.html', location.href).href.split(/[?#]/)[0];
-        const APPLICATION_BADGES = { Pending: 'pending', Admitted: 'active', Rejected: 'inactive' };
+        const APPLICATION_BADGES = { Prospect: 'pending', Verified: 'verified', Admitted: 'active', Rejected: 'inactive' };
+        // Applications sent before the Prospect step existed were "Pending"
+        const applicationStatus = a => !a.status || a.status === 'Pending' ? 'Prospect' : a.status;
+        const stillOpen = a => ['Prospect', 'Verified'].includes(applicationStatus(a));
 
         async function updateApplicationsCount() {
-            const pending = (await getAll('applications')).filter(a => (a.status || 'Pending') === 'Pending').length;
+            const pending = (await getAll('applications')).filter(stillOpen).length;
             const badge = document.getElementById('applicationsCount');
             badge.textContent = pending || '';
             badge.style.display = pending ? '' : 'none';
@@ -3156,7 +3164,7 @@
             const all = await getAll('applications');
             updateApplicationsCount();
             const list = all
-                .filter(a => !filter || (a.status || 'Pending') === filter)
+                .filter(a => !filter || (filter === 'open' ? stillOpen(a) : applicationStatus(a) === filter))
                 .filter(a => !term || [a.reference, fullName(a), a.classApplied, a.phone, a.email, a.intake]
                     .join(' ').toLowerCase().includes(term))
                 .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
@@ -3167,7 +3175,7 @@
                 return;
             }
             tbody.innerHTML = list.map(a => {
-                const status = a.status || 'Pending';
+                const status = applicationStatus(a);
                 return `<tr>
                     <td>${escapeHtml(a.reference)}</td>
                     <td>${escapeHtml(formatDateTime(a.submittedAt) || '')}</td>
@@ -3177,9 +3185,10 @@
                     <td>${escapeHtml(a.phone)}</td>
                     <td><span class="badge ${APPLICATION_BADGES[status] || 'pending'}">${escapeHtml(status)}</span></td>
                     <td style="white-space: nowrap;">
-                        <button type="button" class="btn-secondary" onclick="viewApplication('${escapeHtml(a.id)}')">View</button>
-                        ${status === 'Pending' ? `
-                        <button type="button" class="btn-submit" onclick="admitApplication('${escapeHtml(a.id)}')">Admit</button>
+                        <button type="button" class="btn-secondary" onclick="viewApplication('${escapeHtml(a.id)}')">${status === 'Prospect' ? 'View &amp; Verify' : 'View'}</button>
+                        ${status === 'Verified' ? `
+                        <button type="button" class="btn-submit" onclick="admitApplication('${escapeHtml(a.id)}')">Admit</button>` : ''}
+                        ${stillOpen(a) ? `
                         <button type="button" class="btn-secondary btn-delete" onclick="rejectApplication('${escapeHtml(a.id)}')">Reject</button>` : ''}
                     </td></tr>`;
             }).join('');
@@ -3210,11 +3219,12 @@
             box.className = 'reset-backdrop';
             box.innerHTML = `
                 <div class="reset-card application-card" role="dialog" aria-modal="true">
-                    <div class="reset-title">Application ${escapeHtml(a.reference)} - ${escapeHtml(a.status || 'Pending')}</div>
+                    <div class="reset-title">Prospect ${escapeHtml(a.reference)} - ${escapeHtml(applicationStatus(a))}</div>
                     ${a.photo ? '<img class="application-photo" alt="Passport photo">' : ''}
                     <h4>Admission</h4><dl class="reset-details">
                         ${row('School', a.school)}${row('Class applied for', a.classApplied)}${row('Year', a.yearAdmitted)}
-                        ${row('Term', a.term)}${row('Intake', a.intake)}${row('Submitted', formatDateTime(a.submittedAt))}</dl>
+                        ${row('Term', a.term)}${row('Intake', a.intake)}${row('Group', a.group || 'PROSPECT')}
+                        ${row('Submitted', formatDateTime(a.submittedAt))}</dl>
                     <h4>Student</h4><dl class="reset-details">
                         ${row('Name', fullName(a))}${row('Gender', a.gender)}${row('Date of birth', a.dob)}
                         ${row('ID / Birth Cert. No.', a.idBirthCert)}${row('Languages', a.languages)}${row('Nationality', a.nationality)}
@@ -3225,8 +3235,17 @@
                         `<button type="button" class="btn-secondary" data-file="${i}">${escapeHtml(label)}</button>`).join('')}</div>` : ''}
                     ${a.reviewedBy ? `<p class="hint">${escapeHtml(a.status)} by ${escapeHtml(a.reviewedBy)} on ${escapeHtml(formatDateTime(a.reviewedAt))}
                         ${a.reviewNote ? ' - ' + escapeHtml(a.reviewNote) : ''}</p>` : ''}
+                    ${stillOpen(a) ? `<div class="verify-box">
+                        <h4>Verification</h4>
+                        <label><input type="checkbox" data-verify="verifiedDetails"${a.verifiedDetails ? ' checked' : ''}>
+                            Details verified (names, date of birth, contacts and class are correct)</label>
+                        <label><input type="checkbox" data-verify="verifiedDocuments"${a.verifiedDocuments ? ' checked' : ''}>
+                            Documents verified (passport photo, birth certificate and ID copies opened and checked)</label>
+                        ${a.verifiedBy ? `<p class="hint">Last saved by ${escapeHtml(a.verifiedBy)} on ${escapeHtml(formatDateTime(a.verifiedAt))}</p>` : ''}
+                    </div>` : ''}
                     <div class="reset-buttons">
-                        ${(a.status || 'Pending') === 'Pending' ? `<button type="button" class="btn-submit" data-act="admit">Admit</button>
+                        ${stillOpen(a) ? `<button type="button" class="btn-secondary" data-act="verify">Save Verification</button>
+                            <button type="button" class="btn-submit" data-act="admit"${applicationStatus(a) === 'Verified' ? '' : ' disabled title="Tick both boxes and press Save Verification first"'}>Admit</button>
                             <button type="button" class="btn-secondary btn-delete" data-act="reject">Reject</button>` : ''}
                         <button type="button" class="btn-secondary" data-act="close">Close</button>
                     </div>
@@ -3246,6 +3265,27 @@
             if (admit) admit.onclick = () => { close(); admitApplication(id); };
             const reject = box.querySelector('[data-act=reject]');
             if (reject) reject.onclick = () => { close(); rejectApplication(id); };
+            const verify = box.querySelector('[data-act=verify]');
+            if (verify) verify.onclick = async () => {
+                const ticks = Object.fromEntries([...box.querySelectorAll('[data-verify]')].map(t => [t.dataset.verify, t.checked]));
+                close();
+                await verifyApplication(id, ticks);
+                viewApplication(id);
+            };
+        }
+
+        // Saves the two verification ticks; with both ticked the prospect is Verified and can be admitted
+        async function verifyApplication(id, ticks) {
+            if (!allowed('students', 'edit')) return;
+            const a = await getOne('applications', id);
+            if (!a || !stillOpen(a)) return;
+            const verified = ticks.verifiedDetails && ticks.verifiedDocuments;
+            await putOne('applications', { ...a, ...ticks, status: verified ? 'Verified' : 'Prospect',
+                verifiedBy: currentAccountName(), verifiedAt: new Date().toISOString() });
+            showToast(verified ? `${fullName(a)} (${a.reference}) is verified and can now be admitted.`
+                : `Verification saved. ${fullName(a)} stays a prospect until both details and documents are verified.`,
+                verified ? 'success' : 'warning');
+            renderApplicationsList();
         }
 
         async function rejectApplication(id) {
@@ -3269,7 +3309,10 @@
             if (!allowed('students', 'add')) return;
             const a = await getOne('applications', id);
             if (!a) return;
-            if ((a.status || 'Pending') !== 'Pending') return alert('This application has already been ' + a.status.toLowerCase() + '.');
+            const status = applicationStatus(a);
+            if (!stillOpen(a)) return alert('This application has already been ' + status.toLowerCase() + '.');
+            if (status !== 'Verified') return alert('Verify this prospect first: press View & Verify, tick Details verified and ' +
+                'Documents verified, then Save Verification.');
             admittingApplication = { application: a, photoCopy: fileCopy(a.photo, `${a.reference}-photo.${(a.photo && a.photo.type === 'image/png') ? 'png' : 'jpg'}`) };
             await openStudentForm(null, true);
             const form = document.getElementById('studentAdmissionsForm');
@@ -3313,7 +3356,7 @@
             if (admittingApplication.photoCopy) setPhotoPreview(admittingApplication.photoCopy);
 
             document.getElementById('studentFormTitle').innerText =
-                `Admit Application ${a.reference} - ${fullName(a)}`;
+                `Admit Prospect ${a.reference} - ${fullName(a)}`;
             showToast('Check the details, choose what is still empty (e.g. Enrollment, Student Type, Group), then press Save Student Record.', 'warning');
         }
 
@@ -3942,6 +3985,7 @@
                 createdAt: existing ? existing.createdAt : new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
+            if (!existing && admittingApplication) student.prospectNo = admittingApplication.application.reference;
             // Keep when the current status was recorded; a new student or a changed status is recorded now
             student.statusRecordedAt = currentStatusRecordedAt() || new Date().toISOString();
 
@@ -4239,6 +4283,11 @@
             searchFromTopbar(searchFromLink);
         } else if (openFromLink === 'student-add') {
             openStudentForm();
+        } else if (openFromLink === 'applications') {
+            // Dashboard > New Portal Applications > View Detailed Report (&application=<id> opens that one)
+            showStudentList();
+            showStudentListTab('studentApplicationsPane');
+            if (linkParams.get('application')) viewApplication(linkParams.get('application'));
         } else if (openFromLink === 'student-edit') {
             showStudentList();
             resetStudentOptions().then(() => {

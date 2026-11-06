@@ -162,6 +162,51 @@
                 </div>
             </div>
 
+            <!-- Newest students and new applications (prospects from the online form apply.html) -->
+            <div class="dash-card dash-panel">
+                <div class="dash-panel-head">
+                    <div class="dash-card-title">Newest Students Admitted</div>
+                    <div class="dash-panel-tools">
+                        <button type="button" title="Minimise" onclick="togglePanel(this)">&minus;</button>
+                        <button type="button" title="Close" onclick="this.closest('.dash-panel').remove()">&times;</button>
+                    </div>
+                </div>
+                <div class="dash-panel-body">
+                    <div class="table-wrap">
+                        <table class="activity-table">
+                            <thead><tr><th>Date Admitted</th><th>Student Name</th><th>Course</th></tr></thead>
+                            <tbody id="newStudentsBody"><tr class="empty-row"><td colspan="3">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="dash-panel-foot">
+                        <span>Latest 10 students</span>
+                        <a href="NewStudents.html" class="dash-report-btn">View Detailed Report</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dash-card dash-panel">
+                <div class="dash-panel-head">
+                    <div class="dash-card-title">New Portal Applications <span id="openApplications" class="tab-count"></span></div>
+                    <div class="dash-panel-tools">
+                        <button type="button" title="Minimise" onclick="togglePanel(this)">&minus;</button>
+                        <button type="button" title="Close" onclick="this.closest('.dash-panel').remove()">&times;</button>
+                    </div>
+                </div>
+                <div class="dash-panel-body">
+                    <div class="table-wrap">
+                        <table class="activity-table">
+                            <thead><tr><th>Date Applied</th><th>Student Name</th><th>Class Applied</th><th>Status</th></tr></thead>
+                            <tbody id="applicationsBody"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="dash-panel-foot">
+                        <span>Latest 10 applications</span>
+                        <a href="StudentAdmissions.html?open=applications" class="dash-report-btn">View Detailed Report</a>
+                    </div>
+                </div>
+            </div>
+
             <!-- Fees -->
             <div class="dash-grid-main">
                 <div class="dash-card">
@@ -306,6 +351,45 @@
                 : '<tr class="empty-row"><td colspan="5">No activity yet.</td></tr>';
         }
 
+        /* ---------- Newest Students Admitted / New Portal Applications ---------- */
+        function togglePanel(button) {
+            const panel = button.closest('.dash-panel');
+            const minimised = panel.classList.toggle('minimised');
+            button.innerHTML = minimised ? '+' : '&minus;';
+            button.title = minimised ? 'Show' : 'Minimise';
+        }
+
+        function renderNewStudents(students) {
+            const newest = students.filter(s => s.createdAt)
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+            document.getElementById('newStudentsBody').innerHTML = newest.length
+                ? newest.map(s => `
+                    <tr class="dash-click" onclick="location.href='StudentAdmissions.html?view=${encodeURIComponent(s.id)}'">
+                        <td>${escapeHtml(formatDate(s.createdAt))}</td>
+                        <td>${escapeHtml([s.admNo, fullName(s)].filter(Boolean).join(' - '))}</td>
+                        <td>${escapeHtml(s.admissionCourse || '—')}</td>
+                    </tr>`).join('')
+                : '<tr class="empty-row"><td colspan="3">No students admitted yet.</td></tr>';
+        }
+
+        const APPLICATION_STATUS = a => !a.status || a.status === 'Pending' ? 'Prospect' : a.status;
+        const APPLICATION_BADGE = { Prospect: 'pending', Verified: 'verified', Admitted: 'active', Rejected: 'inactive' };
+
+        function renderApplications(applications) {
+            const open = applications.filter(a => ['Prospect', 'Verified'].includes(APPLICATION_STATUS(a))).length;
+            document.getElementById('openApplications').textContent = open || '';
+            const newest = [...applications].sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || '')).slice(0, 10);
+            document.getElementById('applicationsBody').innerHTML = newest.length
+                ? newest.map(a => `
+                    <tr class="dash-click" onclick="location.href='StudentAdmissions.html?open=applications&application=${encodeURIComponent(a.id)}'">
+                        <td>${escapeHtml(formatDate(a.submittedAt))}</td>
+                        <td>${escapeHtml([a.reference, fullName(a)].filter(Boolean).join(' - '))}</td>
+                        <td>${escapeHtml(a.classApplied || '—')}</td>
+                        <td><span class="badge ${APPLICATION_BADGE[APPLICATION_STATUS(a)] || 'pending'}">${escapeHtml(APPLICATION_STATUS(a))}</span></td>
+                    </tr>`).join('')
+                : '<tr class="empty-row"><td colspan="4">No applications yet.</td></tr>';
+        }
+
         async function loadDashboard() {
             const today = new Date();
             const settings = await readAll('settings');
@@ -336,6 +420,8 @@
 
             renderFeeChart(new Array(12).fill(0), today);
             renderActivity(students, staff);
+            renderNewStudents(students);
+            renderApplications(await readAll('applications').catch(() => []));
         }
 
         function showCurrentUser() {
