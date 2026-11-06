@@ -24,6 +24,34 @@ ALTER TABLE settings.settings ADD COLUMN IF NOT EXISTS stored_in text;
 COMMENT ON TABLE settings.settings IS 'Index of the Settings lists and forms, and the table each is kept in (stored_in). Leave as it is.';
 
 
+-- ---------- Staff job titles and their rights (Settings > Access Management > Roles / Role Operations) ----------
+-- Until Nov 2026 these two were in the "staff" schema; they are moved here once, with their rows.
+DO $$ BEGIN
+    IF to_regclass('staff.staff_roles') IS NOT NULL AND to_regclass('settings.staff_roles') IS NULL THEN
+        ALTER TABLE staff.staff_roles SET SCHEMA settings;
+    END IF;
+    IF to_regclass('staff.role_operations') IS NOT NULL AND to_regclass('settings.role_operations') IS NULL THEN
+        ALTER TABLE staff.role_operations SET SCHEMA settings;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS settings.staff_roles (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. Registrar; offered as staff.staff.job_title
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+COMMENT ON TABLE settings.staff_roles IS 'Staff job titles (Settings > Access Management > Roles).';
+
+CREATE TABLE IF NOT EXISTS settings.role_operations (
+    role        text PRIMARY KEY,           -- a name from settings.staff_roles
+    rights      jsonb NOT NULL              -- {"assigned": ["students.view", ...], "limits": {...}}
+);
+COMMENT ON TABLE settings.role_operations IS 'What each staff role may do (Settings > Access Management > Role Operations).';
+ALTER TABLE settings.staff_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.role_operations ENABLE ROW LEVEL SECURITY;
+
+
 -- ---------- Program Setup ----------
 CREATE TABLE IF NOT EXISTS settings.schools (
     id          text PRIMARY KEY,

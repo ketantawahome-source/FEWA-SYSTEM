@@ -7,18 +7,19 @@
    per schema) are created if missing (and, on this computer's PostgreSQL, the database "fewa_college").
 
    Tables, grouped in schemas (see database/*.sql for every column)
-     students.students, students.documents, students.deferrals, staff.staff_accounts
+     students.students, students.documents, students.deferrals, students.applications, staff.staff
                          one column per field, so they can be read and edited in pgAdmin. A column like
                          first_name is the field firstName; fields without a column of their own are kept in
                          "extra". Columns added in pgAdmin become fields of the records (within 15 seconds).
      settings.settings   which table holds each Settings list or form (stored_in)
      settings.courses, schools, enrollment_types, study_sessions, campuses, academic_terms, departments,
-     student_types, student_groups, document_types, and staff.staff_roles
+     student_types, student_groups, document_types, staff_roles
                          one row per item of that Settings list, in the order shown (position)
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
-     staff.role_operations       the rights given to each staff role
-     staff.password_reset_codes  emailed reset codes (hashes only) until they are used or expire
+     settings.role_operations    the rights given to each staff role
+     logins.sessions, logins.password_reset_codes
+                         who is logged in, and emailed reset codes (hashes only) until used or expired
      files.stored_files  student photos and uploaded documents (bytes), referred to from the records
 
    Data API (used by db.js; every call must carry the header X-FEWA-Client: 1, so other websites open in the
@@ -161,7 +162,7 @@ async function inTransaction(work) {
    Record field  <->  column:  admNo <-> adm_no,  firstName <-> first_name,  group <-> "group".
    The columns are read from the database itself (every 15 seconds at most), so columns added, removed or
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
-const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff_accounts'];
+const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff'];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
 
@@ -176,7 +177,9 @@ const SCHEMA_OF = {
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
     fee_payment_details: 'finance',
-    staff_accounts: 'staff', staff_details: 'staff', staff_roles: 'staff', role_operations: 'staff', password_reset_codes: 'staff', sessions: 'staff',
+    staff_roles: 'settings', role_operations: 'settings',
+    staff: 'staff',
+    sessions: 'logins', password_reset_codes: 'logins',
     stored_files: 'files'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
@@ -291,7 +294,7 @@ async function setUpTables(client) {
         for (const [table, records] of Object.entries(old)) {
             for (const [position, record] of records.entries()) {
                 const values = rowFromRecord(await tableColumns(client, table), record);
-                if (table === 'staff_accounts') {
+                if (table === 'staff') {
                     values.id = String(record.id || record.username);
                     values.position = position;
                 }
@@ -568,16 +571,22 @@ async function replaceRecords(store, records, merge) {
    "fewaAccounts" (the list of accounts), "fewaRoleOperations" (rights by role) and
    "fewaPendingReset:<email>" (one reset code). Here each is kept in its own table. */
 const ACCOUNTS_KEY = 'fewaAccounts';
-// The staff details kept in staff.staff_details (Staff Management form; administrators only)
+/* The staff's personal & employment details, in the same table (staff.staff) as their account. The accounts
+   list ("fewaAccounts") goes to every logged-in staff member's browser, so these are never in it: they are
+   read and saved only through /api/staff-details (administrators only), and saving the accounts list keeps
+   them as they are in the database. */
 const STAFF_DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 'dateEmployed', 'address',
     'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone'];
+const STAFF_DETAIL_ONLY = [...STAFF_DETAIL_FIELDS, 'detailsUpdatedAt', 'detailsUpdatedBy'];
+const withoutDetails = record => Object.fromEntries(Object.entries(record).filter(([field]) => !STAFF_DETAIL_ONLY.includes(field)));
+const onlyDetails = record => Object.fromEntries(Object.entries(record).filter(([field]) => STAFF_DETAIL_ONLY.includes(field)));
 const ROLE_OPERATIONS_KEY = 'fewaRoleOperations';
 const RESET_PREFIX = 'fewaPendingReset:';
 
 async function getValues() {
     const values = {};
-    const accounts = await pool.query(`SELECT * FROM ${T('staff_accounts')} ORDER BY position, id`);
-    if (accounts.rowCount) values[ACCOUNTS_KEY] = JSON.stringify(accounts.rows.map(recordFromRow));
+    const accounts = await pool.query(`SELECT * FROM ${T('staff')} ORDER BY position, id`);
+    if (accounts.rowCount) values[ACCOUNTS_KEY] = JSON.stringify(accounts.rows.map(row => withoutDetails(recordFromRow(row))));
     const roles = await pool.query(`SELECT role, rights FROM ${T('role_operations')}`);
     if (roles.rowCount) values[ROLE_OPERATIONS_KEY] = JSON.stringify(Object.fromEntries(roles.rows.map(r => [r.role, r.rights])));
     const codes = await pool.query(`SELECT email, data FROM ${T('password_reset_codes')}`);
@@ -590,12 +599,15 @@ async function setValue(key, value) {
     if (key === ACCOUNTS_KEY) {
         if (parsed !== null && !Array.isArray(parsed)) throw Object.assign(new Error('Accounts must be a list.'), { status: 400 });
         await inTransaction(async client => {
-            await client.query(`DELETE FROM ${T('staff_accounts')}`);
-            const columns = await tableColumns(client, 'staff_accounts');
+            const saved = new Map((await client.query(`SELECT * FROM ${T('staff')}`)).rows
+                .map(row => [String(row.id), onlyDetails(recordFromRow(row))]));
+            await client.query(`DELETE FROM ${T('staff')}`);
+            const columns = await tableColumns(client, 'staff');
             for (const [position, account] of (parsed || []).entries()) {
-                const values = rowFromRecord(columns, { ...account, id: String(account.id || account.username) });
+                const id = String(account.id || account.username);
+                const values = rowFromRecord(columns, { ...withoutDetails(account), ...(saved.get(id) || {}), id });
                 values.position = position;
-                await upsertRow(client, 'staff_accounts', 'id', values);
+                await upsertRow(client, 'staff', 'id', values);
             }
         });
     } else if (key === ROLE_OPERATIONS_KEY) {
@@ -680,7 +692,7 @@ async function getSession(req) {
     if (rows.length) {
         const { kind, subject } = rows[0];
         if (kind === 'staff') {
-            const found = await pool.query(`SELECT * FROM ${T('staff_accounts')} WHERE id = $1`, [subject]);
+            const found = await pool.query(`SELECT * FROM ${T('staff')} WHERE id = $1`, [subject]);
             const account = found.rows.length ? recordFromRow(found.rows[0]) : null;
             // A deleted or deactivated account loses its sessions straight away
             if (account && account.status !== 'Inactive') session = { kind, account, admin: account.role === 'Administrator' };
@@ -706,7 +718,7 @@ async function endSession(req, res, session) {
 let accountCount = { at: 0, count: null };
 async function setupNeeded() {
     if (Date.now() - accountCount.at > 10000 || accountCount.count === null) {
-        const { rows } = await pool.query(`SELECT count(*)::int AS n FROM ${T('staff_accounts')}`);
+        const { rows } = await pool.query(`SELECT count(*)::int AS n FROM ${T('staff')}`);
         accountCount = { at: Date.now(), count: rows[0].n };
     }
     return accountCount.count === 0;
@@ -733,7 +745,7 @@ async function login(req, res, { username, password } = {}) {
     if (!username || !password) return { result: 'wrong' };
     if (loginLocked(req, username)) return { result: 'locked' };
 
-    const staff = await pool.query(`SELECT * FROM ${T('staff_accounts')} WHERE lower(username) = $1`, [lower(username)]);
+    const staff = await pool.query(`SELECT * FROM ${T('staff')} WHERE lower(username) = $1`, [lower(username)]);
     if (staff.rows.length) {
         const account = recordFromRow(staff.rows[0]);
         let result = 'ok';
@@ -774,7 +786,7 @@ async function setOwnPassword(session, password) {
     const account = session.account;
     if (account.hash && passwordHash(password, account.salt) === account.hash) return { result: 'same' };
     const salt = randomBytes(16).toString('hex');
-    await pool.query(`UPDATE ${T('staff_accounts')} SET salt = $1, hash = $2, admin_reset_required = false WHERE id = $3`,
+    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false WHERE id = $3`,
         [salt, passwordHash(password, salt), account.id]);
     forgetSessions();
     return { result: 'ok' };
@@ -810,7 +822,7 @@ async function createResetCode({ email, minutes } = {}) {
 }
 
 async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
-    const account = await pool.query(`SELECT status FROM ${T('staff_accounts')} WHERE lower(username) = $1`, [lower(email)]);
+    const account = await pool.query(`SELECT status FROM ${T('staff')} WHERE lower(username) = $1`, [lower(email)]);
     if (!account.rows.length || account.rows[0].status === 'Inactive') return { result: 'none' };
     const { rows } = await pool.query(`SELECT data FROM ${T('password_reset_codes')} WHERE email = $1`, [lower(email)]);
     if (!rows.length) return { result: 'none' };
@@ -837,7 +849,7 @@ async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
 async function completeResetOnServer(req, res, session, { password } = {}) {
     if (session.kind !== 'reset') return { result: 'expired' };
     const salt = randomBytes(16).toString('hex');
-    const updated = await pool.query(`UPDATE ${T('staff_accounts')} SET salt = $1, hash = $2, admin_reset_required = false
+    const updated = await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false
         WHERE lower(username) = $3`, [salt, passwordHash(String(password), salt), session.email]);
     await endSession(req, res, session);
     forgetSessions();
@@ -856,7 +868,7 @@ async function keepPasswords(text) {
     if (text == null) return text;
     const accounts = JSON.parse(text);
     if (!accounts.some(a => a && a.hash === true)) return text;
-    const { rows } = await pool.query(`SELECT id, salt, hash FROM ${T('staff_accounts')}`);
+    const { rows } = await pool.query(`SELECT id, salt, hash FROM ${T('staff')}`);
     const saved = new Map(rows.map(r => [r.id, r]));
     return JSON.stringify(accounts.map(a => a && a.hash === true
         ? { ...a, salt: (saved.get(a.id) || {}).salt || null, hash: (saved.get(a.id) || {}).hash || null } : a));
@@ -897,7 +909,7 @@ const STORE_TABLES = {
     applications: ['applications', 'stored_files'],
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
-const valueTables = key => key === ACCOUNTS_KEY ? ['staff_accounts']
+const valueTables = key => key === ACCOUNTS_KEY ? ['staff']
     : key === ROLE_OPERATIONS_KEY ? ['role_operations'] : ['password_reset_codes'];
 // Files first, so a record copied across already finds its photo or document on the other side
 // (Login sessions stay in the main database only)
@@ -1239,6 +1251,8 @@ async function receiveApplication(req, body) {
    first backing up the data as it is. The online server cannot reach this computer, so backups are made and
    restored at http://localhost:5600 on the office computer. */
 const BACKUP_TABLES = Object.keys(SCHEMA_OF).filter(t => t !== 'sessions' && t !== 'password_reset_codes');
+// What a table was called in older backups
+const BACKUP_OLD_NAMES = { staff: 'staff_accounts' };
 const BACKUPS_KEPT = 60;
 const AUTO_BACKUP_HOURS = 24;
 let backupPool = null;
@@ -1287,7 +1301,7 @@ async function createBackup(createdBy, note) {
         [id, createdBy || null, note || null, rows[0].data]);
     await backupPool.query(`UPDATE backups.snapshots SET size_bytes = pg_column_size(data), summary = jsonb_build_object(
             'students', jsonb_array_length(data->'students'), 'documents', jsonb_array_length(data->'documents'),
-            'staff', jsonb_array_length(data->'staff_accounts'), 'files', jsonb_array_length(data->'stored_files'))
+            'staff', jsonb_array_length(coalesce(data->'staff', data->'staff_accounts', '[]'::jsonb)), 'files', jsonb_array_length(data->'stored_files'))
         WHERE id = $1`, [id]);
     // Only the newest backups are kept
     await backupPool.query(`DELETE FROM backups.snapshots WHERE id NOT IN
@@ -1299,7 +1313,7 @@ const listBackups = async () => (await backupPool.query(`SELECT id, created_at A
     note, summary, size_bytes AS "sizeBytes" FROM backups.snapshots ORDER BY created_at DESC`)).rows;
 
 async function restoreBackupOnServer(id, by) {
-    const found = await backupPool.query(`SELECT jsonb_array_length(coalesce(data->'staff_accounts', '[]'::jsonb)) AS staff,
+    const found = await backupPool.query(`SELECT jsonb_array_length(coalesce(data->'staff', data->'staff_accounts', '[]'::jsonb)) AS staff,
         created_at FROM backups.snapshots WHERE id = $1`, [id]);
     if (!found.rows.length) return { result: 'none' };
     // A backup without any staff account would leave nobody able to log in
@@ -1309,11 +1323,28 @@ async function restoreBackupOnServer(id, by) {
     try {
         await client.query('BEGIN');
         for (const table of BACKUP_TABLES) {
-            const { rows } = await backupPool.query('SELECT data ? $2 AS has, data->$2 AS part FROM backups.snapshots WHERE id = $1', [id, table]);
-            if (!rows[0].has) continue; // a table that did not exist yet when the backup was made is left as it is
+            // Backups made before Nov 2026 have the staff as "staff_accounts"
+            const part = async name => (await backupPool.query('SELECT data ? $2 AS has, data->$2 AS part FROM backups.snapshots WHERE id = $1',
+                [id, name])).rows[0];
+            let saved = await part(table);
+            if (!saved.has && BACKUP_OLD_NAMES[table]) saved = await part(BACKUP_OLD_NAMES[table]);
+            if (!saved.has) continue; // a table that did not exist yet when the backup was made is left as it is
             await client.query(`DELETE FROM ${T(table)}`);
             await client.query(`INSERT INTO ${T(table)} SELECT * FROM jsonb_populate_recordset(NULL::${T(table)}, $1::jsonb)`,
-                [JSON.stringify(rows[0].part)]);
+                [JSON.stringify(saved.part)]);
+        }
+        // ... and the staff's personal details (for a few days in Nov 2026) as "staff_details"
+        const oldDetails = (await backupPool.query(`SELECT data->'staff_details' AS part FROM backups.snapshots
+            WHERE id = $1 AND data ? 'staff_details' AND NOT data ? 'staff'`, [id])).rows[0];
+        if (oldDetails && Array.isArray(oldDetails.part) && oldDetails.part.length) {
+            await client.query(`UPDATE ${T('staff')} s SET id_number = d.id_number, gender = d.gender, date_of_birth = d.date_of_birth,
+                    department = d.department, date_employed = d.date_employed, address = d.address, next_of_kin_name = d.next_of_kin_name,
+                    next_of_kin_relationship = d.next_of_kin_relationship, next_of_kin_phone = d.next_of_kin_phone,
+                    details_updated_at = d.updated_at, details_updated_by = d.updated_by
+                FROM jsonb_to_recordset($1::jsonb) AS d(id text, id_number text, gender text, date_of_birth date, department text,
+                    date_employed date, address text, next_of_kin_name text, next_of_kin_relationship text, next_of_kin_phone text,
+                    updated_at timestamptz, updated_by text)
+                WHERE d.id = s.id`, [JSON.stringify(oldDetails.part)]);
         }
         await client.query('COMMIT');
     } catch (err) {
@@ -1629,7 +1660,7 @@ async function handleApi(req, res, parts) {
     if (area === 'password' && method === 'POST' && !a) {
         if (!staff) throw forbidden();
         const result = await setOwnPassword(session, String((await readBody(req) || {}).password || ''));
-        mirrorChanged(['staff_accounts']);
+        mirrorChanged(['staff']);
         return send(res, 200, result);
     }
     if (area === 'student-password' && method === 'POST') {
@@ -1654,7 +1685,7 @@ async function handleApi(req, res, parts) {
     }
     if (area === 'password-reset' && !a && method === 'POST') {
         const result = await completeResetOnServer(req, res, session, await readBody(req) || {});
-        mirrorChanged(['staff_accounts']);
+        mirrorChanged(['staff']);
         return send(res, 200, result);
     }
 
@@ -1712,15 +1743,15 @@ async function handleApi(req, res, parts) {
         return res.end(rows[0].content);
     }
 
-    /* ---------- Staff personal and employment details (administrators only; staff.staff_details) ---------- */
+    /* ---------- Staff personal and employment details (administrators only; columns of staff.staff) ---------- */
     if (area === 'staff-details') {
         if (!(setup || admin)) throw forbidden();
         if (method === 'GET' && !a) {
-            const { rows } = await pool.query(`SELECT * FROM ${T('staff_details')} ORDER BY id`);
-            return send(res, 200, rows.map(recordFromRow));
+            const { rows } = await pool.query(`SELECT * FROM ${T('staff')} ORDER BY id`);
+            return send(res, 200, rows.map(row => ({ id: row.id, ...onlyDetails(recordFromRow(row)) })));
         }
         if (method === 'PUT' && a) {
-            const known = await pool.query(`SELECT 1 FROM ${T('staff_accounts')} WHERE id = $1`, [a]);
+            const known = await pool.query(`SELECT 1 FROM ${T('staff')} WHERE id = $1`, [a]);
             if (!known.rowCount) return send(res, 404, { error: 'There is no staff member with this id.' });
             const body = await readBody(req) || {};
             const details = {};
@@ -1734,18 +1765,18 @@ async function handleApi(req, res, parts) {
                     throw Object.assign(new Error('A date is not valid.'), { status: 400 });
                 }
             }
-            const values = rowFromRecord(await tableColumns(pool, 'staff_details'), {
-                ...details, id: a, updatedAt: new Date().toISOString(), updatedBy: staff ? session.account.username : ''
-            });
-            await upsertRow(pool, 'staff_details', 'id', values);
-            mirrorChanged(['staff_details']);
+            // Only the detail columns of this staff member's row change
+            const columns = (await tableColumns(pool, 'staff')).map(c => c.name);
+            const values = { ...Object.fromEntries(STAFF_DETAIL_FIELDS.map(f => [f, details[f] || null])),
+                detailsUpdatedAt: new Date().toISOString(), detailsUpdatedBy: staff ? session.account.username : '' };
+            const sets = Object.keys(values).map(f => f.replace(/[A-Z]/g, ch => '_' + ch.toLowerCase())).filter(c => columns.includes(c));
+            await pool.query(`UPDATE ${T('staff')} SET ${sets.map((c, i) => `${sqlName(c)} = $${i + 2}`).join(', ')} WHERE id = $1`,
+                [a, ...sets.map(c => values[snakeToCamel(c)])]);
+            mirrorChanged(['staff']);
             return send(res, 200, { ok: true });
         }
-        if (method === 'DELETE' && a) {
-            await pool.query(`DELETE FROM ${T('staff_details')} WHERE id = $1`, [a]);
-            mirrorChanged(['staff_details']);
-            return send(res, 200, { ok: true });
-        }
+        // (Deleting a staff member removes their row, details and all, through the accounts list)
+        if (method === 'DELETE' && a) return send(res, 200, { ok: true });
     }
 
     /* ---------- Staff accounts and role rights ---------- */

@@ -186,7 +186,7 @@
                             </div>
                         </div>
 
-                        <!-- Kept in staff.staff_details (only administrators can see them); all optional -->
+                        <!-- Kept in the staff table (staff.staff); only administrators can see them; all optional -->
                         <div class="section-title" style="margin-top: 18px;">Personal &amp; Employment Details</div>
                         <div class="grid-3">
                             <div class="form-group">
@@ -317,7 +317,8 @@
 
         const activeAdmins = accounts => accounts.filter(a => a.role === ROLE_ADMIN && a.status !== 'Inactive');
 
-        /* Personal & employment details, kept in their own table (staff.staff_details, administrators only):
+        /* Personal & employment details, in the staff table (staff.staff) but read and saved apart from the
+           accounts list, which every staff member's browser gets (/api/staff-details, administrators only):
            { staff id: { idNumber, gender, dateOfBirth, department, dateEmployed, address, nextOfKin... } } */
         const DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 'dateEmployed', 'address',
             'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone'];
@@ -532,11 +533,8 @@
             }
             if (!confirm(`Delete ${accountName(account)} (${account.username})? They will no longer be able to log in, ` +
                 'and their personal & employment details are deleted too.')) return;
-            deleteStaffAccount(id);
-            if (staffDetails[id]) {
-                await api('DELETE', '/staff-details/' + encodeURIComponent(id)).catch(() => { });
-                delete staffDetails[id];
-            }
+            deleteStaffAccount(id); // removes their row in the staff table, details and all
+            delete staffDetails[id];
             showToast(`${accountName(account)} deleted successfully.`);
             renderStaffList();
         }
