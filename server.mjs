@@ -176,7 +176,7 @@ const SCHEMA_OF = {
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
     fee_payment_details: 'finance',
-    staff_accounts: 'staff', staff_roles: 'staff', role_operations: 'staff', password_reset_codes: 'staff', sessions: 'staff',
+    staff_accounts: 'staff', staff_details: 'staff', staff_roles: 'staff', role_operations: 'staff', password_reset_codes: 'staff', sessions: 'staff',
     stored_files: 'files'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
@@ -568,6 +568,9 @@ async function replaceRecords(store, records, merge) {
    "fewaAccounts" (the list of accounts), "fewaRoleOperations" (rights by role) and
    "fewaPendingReset:<email>" (one reset code). Here each is kept in its own table. */
 const ACCOUNTS_KEY = 'fewaAccounts';
+// The staff details kept in staff.staff_details (Staff Management form; administrators only)
+const STAFF_DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 'dateEmployed', 'address',
+    'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone'];
 const ROLE_OPERATIONS_KEY = 'fewaRoleOperations';
 const RESET_PREFIX = 'fewaPendingReset:';
 
@@ -1707,6 +1710,42 @@ async function handleApi(req, res, parts) {
         res.writeHead(200, { 'Content-Type': rows[0].type || 'application/octet-stream',
             'Cache-Control': 'private, max-age=31536000, immutable' });
         return res.end(rows[0].content);
+    }
+
+    /* ---------- Staff personal and employment details (administrators only; staff.staff_details) ---------- */
+    if (area === 'staff-details') {
+        if (!(setup || admin)) throw forbidden();
+        if (method === 'GET' && !a) {
+            const { rows } = await pool.query(`SELECT * FROM ${T('staff_details')} ORDER BY id`);
+            return send(res, 200, rows.map(recordFromRow));
+        }
+        if (method === 'PUT' && a) {
+            const known = await pool.query(`SELECT 1 FROM ${T('staff_accounts')} WHERE id = $1`, [a]);
+            if (!known.rowCount) return send(res, 404, { error: 'There is no staff member with this id.' });
+            const body = await readBody(req) || {};
+            const details = {};
+            for (const field of STAFF_DETAIL_FIELDS) {
+                const value = String(body[field] ?? '').trim();
+                if (value.length > 300) throw Object.assign(new Error('One of the details is too long.'), { status: 400 });
+                if (value) details[field] = value;
+            }
+            for (const field of ['dateOfBirth', 'dateEmployed']) {
+                if (details[field] && (!/^\d{4}-\d{2}-\d{2}$/.test(details[field]) || isNaN(new Date(details[field])))) {
+                    throw Object.assign(new Error('A date is not valid.'), { status: 400 });
+                }
+            }
+            const values = rowFromRecord(await tableColumns(pool, 'staff_details'), {
+                ...details, id: a, updatedAt: new Date().toISOString(), updatedBy: staff ? session.account.username : ''
+            });
+            await upsertRow(pool, 'staff_details', 'id', values);
+            mirrorChanged(['staff_details']);
+            return send(res, 200, { ok: true });
+        }
+        if (method === 'DELETE' && a) {
+            await pool.query(`DELETE FROM ${T('staff_details')} WHERE id = $1`, [a]);
+            mirrorChanged(['staff_details']);
+            return send(res, 200, { ok: true });
+        }
     }
 
     /* ---------- Staff accounts and role rights ---------- */

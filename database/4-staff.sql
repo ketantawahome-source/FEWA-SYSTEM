@@ -30,6 +30,28 @@ COMMENT ON COLUMN staff.staff_accounts.role IS 'Administrator or Staff';
 COMMENT ON COLUMN staff.staff_accounts.status IS 'Active or Inactive';
 
 
+-- ---------- Staff personal and employment details (Staff Management form) ----------
+-- One row per staff member, with the same id as their row in staff.staff_accounts. Kept apart from the
+-- accounts because every logged-in staff member's browser receives the accounts list; these details are only
+-- ever sent to administrators.
+CREATE TABLE IF NOT EXISTS staff.staff_details (
+    id                        text PRIMARY KEY,   -- staff.staff_accounts.id
+    id_number                 text,               -- National ID or passport number
+    gender                    text,               -- FEMALE or MALE
+    date_of_birth             date,
+    department                text,               -- from settings.departments
+    date_employed             date,
+    address                   text,               -- physical / postal address
+    next_of_kin_name          text,
+    next_of_kin_relationship  text,
+    next_of_kin_phone         text,
+    updated_at                timestamptz,
+    updated_by                text,               -- the administrator who last saved them
+    extra                     jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+COMMENT ON TABLE staff.staff_details IS 'Personal and employment details of each staff member (administrators only). id = staff_accounts.id.';
+
+
 -- ---------- Staff job titles (Settings > Access Management > Roles) ----------
 CREATE TABLE IF NOT EXISTS staff.staff_roles (
     id          text PRIMARY KEY,
@@ -68,6 +90,7 @@ CREATE INDEX IF NOT EXISTS sessions_expires_at ON staff.sessions (expires_at);
 -- Row level security with no policies: only the owner can read or change the rows
 ALTER TABLE staff.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.staff_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff.staff_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.staff_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.role_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff.password_reset_codes ENABLE ROW LEVEL SECURITY;

@@ -211,9 +211,11 @@ function saveStaffAccount(staff) {
         saveAccounts(accounts.map(a => a.id !== staff.id ? a
             : deactivated ? { ...a, ...staff, salt: null, hash: null, adminResetRequired: true }
             : { ...a, ...staff }));
-    } else {
-        saveAccounts([...accounts, { ...staff, id: newAccountId(), createdAt: new Date().toISOString(), salt: null, hash: null }]);
+        return staff.id;
     }
+    const id = newAccountId();
+    saveAccounts([...accounts, { ...staff, id, createdAt: new Date().toISOString(), salt: null, hash: null }]);
+    return id;
 }
 
 function deleteStaffAccount(id) {
