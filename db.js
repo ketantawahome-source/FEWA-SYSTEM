@@ -201,99 +201,20 @@ const fewaDB = {
     }
 };
 
-/* ---------- Data this browser kept itself, before PostgreSQL ---------- */
-const LEGACY_LOCAL_KEYS = ['fewaAccounts', 'fewaRoleOperations'];
-const MOVED_TO_SERVER_KEY = 'fewaMovedToServer';
-
-// Every record this browser's own database (IndexedDB) holds, by store; {} when it has none
-function readLegacyStores() {
-    return new Promise(resolve => {
-        let request;
-        try {
-            request = indexedDB.open('fewaCollegeDB');
-        } catch {
-            return resolve({});
-        }
-        request.onerror = () => resolve({});
-        request.onsuccess = async () => {
-            const db = request.result;
-            const stores = {};
-            for (const name of Object.keys(STORE_KEYS)) {
-                if (!db.objectStoreNames.contains(name)) continue;
-                stores[name] = await new Promise(done => {
-                    const get = db.transaction(name).objectStore(name).getAll();
-                    get.onsuccess = () => done(get.result || []);
-                    get.onerror = () => done([]);
-                });
-            }
-            db.close();
-            resolve(stores);
-        };
-    });
-}
-
-const legacyLocal = key => {
+/* ---------- Nothing is kept in the browser ----------
+   All data lives in the database (Supabase, through the server). Copies that older versions of the system kept
+   in this browser (staff accounts, students, documents, settings, backup-file details) are deleted, so nothing
+   of the college's data stays on this computer. */
+function clearOldBrowserData() {
     try {
-        return localStorage.getItem(key);
-    } catch {
-        return null;
-    }
-};
-
-// The database is empty and this browser has the system's data from before: move it in (accounts first, so
-// logging in works straight away; the records follow, and pages wait for them before reading any)
-// (Only while the system is being set up on the office computer: no staff account in the database yet)
-if (fewaServer.online && fewaSession.setupNeeded && legacyLocal('fewaAccounts') && !legacyLocal(MOVED_TO_SERVER_KEY)) {
+        ['fewaAccounts', 'fewaRoleOperations', 'fewaMovedToServer', 'fewaLastBackup', 'fewaDataChanged']
+            .forEach(key => localStorage.removeItem(key));
+    } catch { }
     try {
-        LEGACY_LOCAL_KEYS.forEach(key => {
-            const value = legacyLocal(key);
-            if (value) setServerValue(key, value);
-        });
-        dataReady = (async () => {
-            const stores = await readLegacyStores();
-            for (const [name, records] of Object.entries(stores)) {
-                if (records.length) await replaceStore(name, records, true);
-            }
-            localStorage.setItem(MOVED_TO_SERVER_KEY, new Date().toISOString());
-            console.log('FEWA: this browser\'s data was moved into the PostgreSQL database.');
-            if (typeof announceDataChange === 'function') announceDataChange('all');
-        })().catch(err => {
-            console.error('FEWA: moving this browser\'s data into the database failed', err);
-            alert('Some of the data kept in this browser could not be moved into the database: ' + err.message +
-                '\n\nIt is still in this browser. Restart the server, then open the system again to retry.');
-        });
-    } catch (err) {
-        console.error('FEWA: moving this browser\'s data into the database failed', err);
-    }
+        if (window.indexedDB) ['fewaCollegeDB', 'fewaBackupFile'].forEach(name => indexedDB.deleteDatabase(name));
+    } catch { }
 }
-
-// Saves the data this browser kept itself into a backup file (for "Restore from backup" on the login page)
-async function exportLegacyData() {
-    const toBackupValue = async value => {
-        if (value instanceof Blob) return { __backupBlob: true, type: value.type, name: value.name || null, data: await blobToDataUrl(value) };
-        if (Array.isArray(value)) return Promise.all(value.map(toBackupValue));
-        if (value && typeof value === 'object') {
-            const out = {};
-            for (const [key, inner] of Object.entries(value)) out[key] = await toBackupValue(inner);
-            return out;
-        }
-        return value;
-    };
-    const stores = {};
-    for (const [name, records] of Object.entries(await readLegacyStores())) stores[name] = await toBackupValue(records);
-    const local = Object.fromEntries(LEGACY_LOCAL_KEYS.map(key => [key, legacyLocal(key)]));
-    const backup = { app: 'FEWA College System', version: 1, savedAt: new Date().toISOString(), local, stores };
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: 'application/json' }));
-    link.download = `FEWA-data-from-this-browser-${backup.savedAt.slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    const students = (stores.students || []).length;
-    let staff = 0;
-    try { staff = JSON.parse(local.fewaAccounts || '[]').length; } catch { }
-    return `${staff} staff account(s) and ${students} student(s)`;
-}
+if (fewaServer.online) clearOldBrowserData();
 
 /* ---------- Opened as a file, or the server/database is not available ---------- */
 function showServerProblem() {
@@ -314,31 +235,11 @@ function showServerProblem() {
                 <li>Double-click <b>start-server.bat</b> in the FEWA SYSTEM folder and keep its window open.</li>
                 <li>Open <a href="${FEWA_ADDRESS}" style="color:#5b2d8e;font-weight:bold">${FEWA_ADDRESS}</a></li>
             </ol>
-            <div class="legacy-export" style="display:none;border-top:1px solid #e6def0;padding-top:14px">
-                <p style="margin:0 0 10px">This browser still has data saved by the old version of the system.
-                    Save it to a file, then on the login page at ${FEWA_ADDRESS} press <b>Restore from backup</b> and choose that file.</p>
-                <button type="button" style="background:#24103a;color:#fff;border:0;border-radius:8px;padding:10px 16px;
-                        font-weight:bold;cursor:pointer">Save this browser's data to a file</button>
-                <span class="legacy-result" style="margin-left:10px"></span>
-            </div>
         </div>`;
     box.querySelector('.problem-text').textContent = asFile
         ? 'The system now keeps all its data in the PostgreSQL database, so it must be opened at its web address, not as a file.'
         : fewaServer.error;
     document.body.appendChild(box);
-
-    if (asFile && legacyLocal('fewaAccounts')) {
-        const area = box.querySelector('.legacy-export');
-        area.style.display = '';
-        area.querySelector('button').onclick = async () => {
-            try {
-                const summary = await exportLegacyData();
-                area.querySelector('.legacy-result').textContent = `Saved (${summary}) to your Downloads folder.`;
-            } catch (err) {
-                area.querySelector('.legacy-result').textContent = 'Could not save: ' + err.message;
-            }
-        };
-    }
 }
 
 if (!fewaServer.online) {
