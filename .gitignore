@@ -5,6 +5,10 @@ db-config.json
 FEWA-backup*.json
 FEWA-data-from-this-browser*.json
 
+# Notes for Claude Code about this computer's setup (database addresses, where passwords are kept):
+# kept on this computer only, as the repository is public
+CLAUDE.md
+
 # Installed by "npm install" (start-server.bat does it by itself)
 node_modules/
 
