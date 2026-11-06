@@ -5,7 +5,6 @@
     "password": "YOUR-SUPABASE-DATABASE-PASSWORD",
     "database": "postgres",
     "ssl": { "rejectUnauthorized": false },
-    "supabaseServiceKey": "OPTIONAL: Supabase > Project Settings > API keys > secret / service_role key (backups also go to Storage)",
 
     "mirror": {
         "host": "localhost",
@@ -13,5 +12,13 @@
         "user": "postgres",
         "password": "YOUR-LOCAL-POSTGRESQL-PASSWORD",
         "database": "fewa_college"
+    },
+
+    "backups": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "YOUR-LOCAL-POSTGRESQL-PASSWORD",
+        "database": "fewa_backups"
     }
 }

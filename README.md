@@ -18,10 +18,12 @@ Create the first administrator account on the office computer first (setting up 
 
 ## Backups
 
-Nothing is kept in the browser or on the computer. **Settings > System Data Backups > Back Up Now** (administrators)
-saves a full copy of all data in Supabase: the table `backups.snapshots` (newest 30 kept), and, when the
-Supabase secret / service_role key is set as `SUPABASE_SERVICE_KEY` on Render (or `supabaseServiceKey` in
-`db-config.json`), also as a file in Supabase **Storage > backups**. Restoring first backs up the current data.
+Nothing is kept in the browser or in OneDrive. Backups are kept in their own PostgreSQL database on the office
+computer (`"backups"` in `db-config.json`; database `fewa_backups`, table `backups.snapshots`, defined in
+`database/backups/backups.sql`), never in Supabase. The office computer's server makes one every day by itself;
+administrators can also press **Settings > System Data Backups > Back Up Now**, and **Restore** or **Delete** a
+backup there, at http://localhost:5600/ (the online server cannot reach this computer). The newest 60 are kept;
+restoring first backs up the current data.
 
 ## Later: Microsoft Azure instead
 
@@ -66,7 +68,8 @@ from the Actions tab until `push` is added back to it). One-time setup:
 | Path | What it is |
 |---|---|
 | `server.mjs` | Web server, logins and data API; creates the tables, syncs the local copy |
-| `database/*.sql` | Table definitions, one file per schema (students, settings, finance, staff, files, backups) |
+| `database/*.sql` | Table definitions, one file per schema (students, settings, finance, staff, files) |
+| `database/backups/backups.sql` | The backups database's table (local PostgreSQL, `fewa_backups`) |
 | `db.js` | Data access used by every page (talks to the server) |
 | `auth.js` | Logins, staff rights, shared page parts |
 | `StudentAdmissions.html` | Student Hub, documents, queries, finance, reports, settings |

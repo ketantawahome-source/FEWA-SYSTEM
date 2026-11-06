@@ -1,28 +1,26 @@
 -- =====================================================================================================
--- FEWA system - schema "backups": full copies of the system's data, made with "Back Up Now"
--- (Settings > System Data Backups). Kept in Supabase; each one is also saved as a file in Supabase
--- Storage (bucket "backups") when the Supabase service key is set.
+-- FEWA system - the BACKUPS database (PostgreSQL on the office computer, database "fewa_backups")
 -- =====================================================================================================
--- Run by server.mjs each time it starts (see 1-students.sql). Safe to run more than once.
+-- This is NOT run on the main database (Supabase): server.mjs runs it on the backups database set in
+-- db-config.json under "backups", creating that database the first time. Safe to run more than once.
+-- One row per backup: "Back Up Now" in Settings > System Data Backups, or the daily automatic backup.
 -- "data" holds every table's rows: {"students": [...], "courses": [...], "stored_files": [...], ...}.
--- Restoring a backup (from the system) puts those rows back, after first making a backup of the data as it is.
+-- Restoring (from the system) puts those rows back into the main database, after first backing it up.
+-- To look at a backup in pgAdmin: fewa_backups > Schemas > backups > Tables > snapshots, e.g.
+--   SELECT jsonb_pretty(data->'students') FROM backups.snapshots ORDER BY created_at DESC LIMIT 1;
 -- =====================================================================================================
 CREATE SCHEMA IF NOT EXISTS backups;
-COMMENT ON SCHEMA backups IS 'FEWA system: full backups of the data, made from the system (Back Up Now)';
+COMMENT ON SCHEMA backups IS 'FEWA system: full backups of the data';
 
 
 CREATE TABLE IF NOT EXISTS backups.snapshots (
     id            text PRIMARY KEY,                    -- e.g. 2026-11-06T09-30-00-000Z-a1b2c3
     created_at    timestamptz NOT NULL DEFAULT now(),
-    created_by    text,                                -- the staff member who made it
+    created_by    text,                                -- the staff member who made it, or "automatic"
     note          text,                                -- e.g. "Before the January intake"
     summary       jsonb,                               -- how many students, documents, staff, files
     size_bytes    bigint,
-    storage_path  text,                                -- the file in Supabase Storage, when saved there
     data          jsonb NOT NULL
 );
 COMMENT ON TABLE backups.snapshots IS 'Full backups of the FEWA data. Made and restored from Settings > System Data Backups.';
-
-
--- Row level security with no policies: only the owner can read or change the rows
-ALTER TABLE backups.snapshots ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS snapshots_created_at ON backups.snapshots (created_at DESC);
