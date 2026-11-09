@@ -1081,6 +1081,8 @@
             { name: 'email', label: 'Admin Contact Email', type: 'email' },
             { name: 'phone', label: 'Accounts Office Phone No.' },
             { name: 'website', label: 'Website', placeholder: 'e.g. www.fewacollege.ac.ke' },
+            // Shown with a Copy button; it is the system's own address, so it is not saved or typed in
+            { name: 'applicationLink', label: 'Application Link (for prospects)', type: 'link' },
             { name: 'address', label: 'Physical Address' },
             { name: 'postalAddress', label: 'Postal Address', placeholder: 'e.g. P.O. Box 123-00100, Nairobi' },
             { name: 'county', label: 'County' },
@@ -1471,7 +1473,12 @@
             return fields.map(f => `
                 <div class="form-group${f.type === 'image' ? ' image-field' : ''}">
                     <label>${f.label}${f.required ? ' <span class="req">*</span>' : ''}</label>
-                    ${f.type === 'image'
+                    ${f.type === 'link'
+                        ? `<div style="display: flex; gap: 8px;">
+                            <input type="text" value="${escapeHtml(applyLinkUrl())}" readonly onclick="this.select()" style="flex: 1; min-width: 0;">
+                            <button type="button" class="btn-secondary" onclick="copyApplyLink()">Copy</button>
+                          </div>`
+                        : f.type === 'image'
                         // A picture: the current one (if any), a file picker, and a way to remove it
                         ? `<div class="image-upload">
                             <div class="image-preview">${values[f.name]
@@ -1893,12 +1900,7 @@
                     <div class="action-bar" style="margin-bottom: 0;">
                         <button type="submit" class="btn-submit">Save Settings</button>
                     </div>
-                </form>
-                ${key === 'organization' ? `<div class="apply-link-box" style="margin-top: 16px;">
-                    <span>Application link for prospects:</span>
-                    <a href="${escapeHtml(applyLinkUrl())}" target="_blank" rel="noopener">${escapeHtml(applyLinkUrl())}</a>
-                    <button type="button" class="btn-secondary" onclick="copyApplyLink()">Copy Link</button>
-                </div>` : ''}`;
+                </form>`;
         }
 
         async function saveSettingsForm(event, key) {
@@ -1910,6 +1912,7 @@
             const record = { key };
             const old = await getSettingsRecord(key);
             for (const f of settings.fields) {
+                if (f.type === 'link') continue;
                 if (f.type !== 'image') {
                     record[f.name] = form.elements[f.name].value.trim();
                     continue;
