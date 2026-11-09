@@ -5688,3 +5688,5 @@ body:has(#main-wrapper) {
 .backup-passwords input:not([type=checkbox]), .backup-dates input { display: block; width: 100%; max-width: 420px; padding: 9px; border: 1px solid #d8cfe3; border-radius: 8px; margin-top: 4px; box-sizing: border-box; }
 .backup-show { font-weight: normal !important; }
 .backup-download button[type=submit] { margin-top: 12px; }
+.upload-problems { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: #fdecea; color: #c0392b; border: 1px solid #f5c6c0; }
+#uploadResult { margin-top: 12px; }
