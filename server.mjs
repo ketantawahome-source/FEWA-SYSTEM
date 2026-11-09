@@ -875,9 +875,9 @@ async function setStudentPasswordOnServer(session, { studentId, password, mustCh
    A page can only ask for one of the emails below; it never chooses the words or (except for the administrator's
    password link, to a known staff member) who gets it, so nobody can use the system to send emails of their own.
    EmailJS must allow this: Account > Security > "Allow EmailJS API for non-browser applications", and with "Use
-   Private Key" on, nobody without that key can send through the account. The private key goes in the
-   EMAILJS_PRIVATE_KEY setting on Render (Environment) and as "emailjsPrivateKey" in this computer's db-config.json;
-   it is never put in the code. */
+   Private Key" on, nobody without that key can send through the account. The private key is kept in the database
+   table private_settings.server_keys (read first), the EMAILJS_PRIVATE_KEY setting on Render (Environment), and
+   as "emailjsPrivateKey" in this computer's db-config.json; it is never put in the code. */
 const PUBLIC_SITE = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://fewa-system.onrender.com').replace(/\/+$/, '');
 const looksLikeEmail = text => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(text || '').trim());
 const maskEmail = email => { const [name, domain] = String(email).split('@'); return name.slice(0, 2) + '•••@' + domain; };
@@ -890,6 +890,10 @@ async function emailSettings() {
 
 // true when EmailJS accepted the email
 async function emailPrivateKey() {
+    // First the database's private table (database/7-private-settings.sql), then Render's setting, then db-config.json
+    const saved = await pool.query(`SELECT value FROM private_settings.server_keys WHERE name = 'emailjs_private_key'`)
+        .then(result => result.rows[0]?.value || '', () => '');
+    if (saved) return saved;
     if (process.env.EMAILJS_PRIVATE_KEY) return process.env.EMAILJS_PRIVATE_KEY;
     return (await loadConfig().catch(() => ({}))).emailjsPrivateKey || '';
 }
