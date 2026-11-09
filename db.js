@@ -220,10 +220,15 @@ if (fewaServer.online) clearOldBrowserData();
 function showServerProblem() {
     const asFile = location.protocol === 'file:';
     const online = !asFile && !['localhost', '127.0.0.1'].includes(location.hostname);
-    // The server is up but its database connection isn't ready (it has just started, or the internet is back soon):
-    // the page waits and opens by itself instead of staying on an error
-    const starting = !asFile && fewaServer.error === 'The database is not connected yet.';
-    const databaseDown = starting || /could not connect to the database/.test(fewaServer.error);
+    // The server has just started and is still connecting to its database: straight to the login page, which waits
+    if (!asFile && fewaServer.error === 'The database is not connected yet.') {
+        if (!/(^\/|\/login\.html)$/.test(location.pathname)) return location.replace('login.html');
+        const note = document.getElementById('loginSubtitle');
+        note.innerText = 'The system is starting. You can log in in a moment.';
+        note.style.display = 'block';
+        document.getElementById('loginButton').disabled = true;
+        return waitForDatabase();
+    }
     const box = document.createElement('div');
     box.className = 'fewa-server-problem';
     box.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#f6f2fb;display:flex;align-items:center;' +
@@ -231,20 +236,20 @@ function showServerProblem() {
     box.innerHTML = `
         <div style="max-width:620px;background:#fff;border-radius:12px;padding:28px;box-shadow:0 8px 30px rgba(36,16,58,.18);
                     border-top:5px solid #d4a843;line-height:1.55">
-            <h2 style="margin:0 0 12px">${asFile ? 'Open the FEWA system through its server' : starting ? 'The FEWA system is starting' : 'The FEWA system cannot reach its database'}</h2>
+            <h2 style="margin:0 0 12px">${asFile ? 'Open the FEWA system through its server' : 'The FEWA system cannot reach its database'}</h2>
             <p style="margin:0 0 12px" class="problem-text"></p>
-            <p style="margin:0 0 16px;${online && !starting ? '' : 'display:none'}">The online system is not available right now.
+            <p style="margin:0 0 16px;${online ? '' : 'display:none'}">The online system is not available right now.
                 Please try again in a few minutes, or tell the college office.</p>
-            <ol style="margin:0 0 16px;padding-left:20px;${online || starting ? 'display:none' : ''}">
+            <ol style="margin:0 0 16px;padding-left:20px;${online ? 'display:none' : ''}">
                 <li>Double-click <b>start-server.bat</b> in the FEWA SYSTEM folder and keep its window open.</li>
                 <li>Open <a href="${FEWA_ADDRESS}" style="color:#5b2d8e;font-weight:bold">${FEWA_ADDRESS}</a></li>
             </ol>
         </div>`;
     box.querySelector('.problem-text').textContent = asFile
         ? 'The system now keeps all its data in the PostgreSQL database, so it must be opened at its web address, not as a file.'
-        : starting ? 'Please wait a moment. This page will open by itself.' : fewaServer.error;
+        : fewaServer.error;
     document.body.appendChild(box);
-    if (databaseDown) waitForDatabase();
+    if (/could not connect to the database/.test(fewaServer.error)) waitForDatabase();
 }
 
 // Opens the page as soon as the database is connected

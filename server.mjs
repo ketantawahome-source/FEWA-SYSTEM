@@ -146,6 +146,10 @@ async function ensureDatabase(config) {
 
 let pool = null;
 let databaseError = null;
+// On the office computer a restart means logging in again: logins from before it no longer count here. (They stay in
+// the database, so people using the online system are not affected. Online, Render restarts whenever it has slept,
+// so this is off there.)
+let sessionsValidFrom = null;
 
 async function inTransaction(work) {
     const client = await pool.connect();
@@ -339,6 +343,7 @@ async function startDatabase() {
         throw err;
     }
     const firstConnection = !pool;
+    if (firstConnection && !process.env.PORT) sessionsValidFrom = (await newPool.query('SELECT now() AS at')).rows[0].at;
     pool = newPool;
     databaseError = null;
     console.log(`Connected to PostgreSQL: database "${config.database}" on ${config.host}:${config.port}.`);
@@ -720,7 +725,8 @@ async function getSession(req) {
     const cached = sessionCache.get(tokenHash);
     if (cached && Date.now() - cached.at < SESSION_CACHE_MS) return cached.session;
     let session = { kind: null };
-    const { rows } = await pool.query(`SELECT kind, subject FROM ${T('sessions')} WHERE token_hash = $1 AND expires_at > now()`, [tokenHash]);
+    const { rows } = await pool.query(`SELECT kind, subject FROM ${T('sessions')} WHERE token_hash = $1 AND expires_at > now()
+        AND ($2::timestamptz IS NULL OR created_at >= $2)`, [tokenHash, sessionsValidFrom]);
     if (rows.length) {
         const { kind, subject } = rows[0];
         if (kind === 'staff') {
