@@ -529,7 +529,8 @@
             showError('The system has been updated. Please log in again.');
         }
 
-        // Every successful login: confirm on screen and email the username that logged in.
+        // Every successful login: confirm on screen. Only a brand new administrator account gets an email; the college
+        // chose not to have an email for ordinary logins.
         // The first login waits for "Continue"; later logins carry on to the system by themselves.
         const AUTO_CONTINUE_SECONDS = 3;
 
@@ -542,15 +543,15 @@
                 : 'You are now logged in.';
 
             const status = document.getElementById('emailStatus');
-            status.innerText = `Sending a login notification to ${email}...`;
-            const sent = await sendLoginEmail(firstTime);
-            status.className = 'email-status ' + (sent ? 'sent' : 'failed');
-            status.innerText = sent
-                ? `A login notification has been sent to ${email}.`
-                : `The login notification could not be sent to ${email}. Email sending is not set up yet or there is no internet connection.`;
-
-            if (!firstTime) {
-                status.innerText += `\nOpening the system in ${AUTO_CONTINUE_SECONDS} seconds...`;
+            if (firstTime) {
+                status.innerText = `Sending a welcome email to ${email}...`;
+                const sent = await sendNewAdminEmail();
+                status.className = 'email-status ' + (sent ? 'sent' : 'failed');
+                status.innerText = sent
+                    ? `A welcome email has been sent to ${email}.`
+                    : `The welcome email could not be sent to ${email}. Email sending is not set up yet or there is no internet connection.`;
+            } else {
+                status.innerText = `Opening the system in ${AUTO_CONTINUE_SECONDS} seconds...`;
                 setTimeout(() => location.replace('Dashboard.html'), AUTO_CONTINUE_SECONDS * 1000);
             }
         }

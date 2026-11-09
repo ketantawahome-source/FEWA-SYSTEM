@@ -15,10 +15,10 @@ function isEmailConfigured() {
     return !!(serviceId && templateId && publicKey);
 }
 
-// Sent after a staff member logs in, to the email they logged in with; resolves to true when it was accepted
-async function sendLoginEmail(firstTime) {
+// Sent once, when the first administrator account has just been created; resolves to true when it was accepted
+async function sendNewAdminEmail() {
     try {
-        return (await api('POST', '/login-notice', { firstTime })).sent;
+        return (await api('POST', '/new-admin-email', {})).sent;
     } catch {
         return false;
     }

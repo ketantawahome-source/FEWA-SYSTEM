@@ -1040,12 +1040,10 @@ async function sendStudentLoginEmail({ studentId, kind, password } = {}) {
     return { result: sent ? 'sent' : 'failed' };
 }
 
-// The note to a staff member that they have just logged in
-async function sendLoginNotice(account, firstTime) {
+// The note to the first administrator that their account was created (ordinary logins send no email)
+async function sendNewAdminEmail(account) {
     const when = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' });
-    return sendSystemEmail(account.username, firstTime
-        ? `Your FEWA system administrator account was created and you logged in successfully on ${when}.`
-        : `You logged in to the FEWA system successfully on ${when} using your password. If this was not you, change your password immediately.`);
+    return sendSystemEmail(account.username, `Your FEWA system administrator account was created and you logged in successfully on ${when}.`);
 }
 
 async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
@@ -1894,9 +1892,9 @@ async function handleApi(req, res, parts) {
         if (!staff || !await staffCan(session, 'students.edit', 'students.add')) throw forbidden();
         return send(res, 200, await sendStudentLoginEmail(await readBody(req, SMALL_BODY_BYTES) || {}));
     }
-    if (area === 'login-notice' && method === 'POST') {
+    if (area === 'new-admin-email' && method === 'POST') {
         if (!staff) throw forbidden();
-        return send(res, 200, { sent: await sendLoginNotice(session.account, !!(await readBody(req, SMALL_BODY_BYTES) || {}).firstTime) });
+        return send(res, 200, { sent: await sendNewAdminEmail(session.account) });
     }
     if (area === 'password-reset' && a === 'verify' && method === 'POST') {
         const body = await readBody(req, SMALL_BODY_BYTES) || {};
