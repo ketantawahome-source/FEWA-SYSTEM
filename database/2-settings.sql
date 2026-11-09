@@ -15,9 +15,9 @@ COMMENT ON SCHEMA settings IS 'FEWA system: Settings lists and forms';
 
 CREATE TABLE IF NOT EXISTS settings.settings (
     key         text PRIMARY KEY,           -- the system's name for the list or form, e.g. courses
-    stored_in   text,                       -- the table that holds it
     data        jsonb,                      -- only for settings that have no table of their own
-    updated_at  timestamptz NOT NULL DEFAULT now()
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    stored_in   text                        -- the table that holds it
 );
 ALTER TABLE settings.settings ALTER COLUMN data DROP NOT NULL;
 ALTER TABLE settings.settings ADD COLUMN IF NOT EXISTS stored_in text;
