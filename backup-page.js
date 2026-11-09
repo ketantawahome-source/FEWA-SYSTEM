@@ -71,7 +71,8 @@ const BACKUP_DOWNLOAD_PARTS = [
     ['deferrals', 'Deferrals and suspensions', 'Deferral and suspension records. A date range keeps only those starting in it.'],
     ['files', 'Photos and uploaded files', 'The photos and documents themselves. A date range keeps only those uploaded in it.'],
     ['staff', 'Staff', 'Staff details (never their passwords). Always everything, whatever the period.'],
-    ['settings', 'Settings', 'School Setup, courses, campuses, terms and other setup lists. Always everything, whatever the period.']
+    ['settings', 'Settings', 'School Setup, courses, campuses, terms and other setup lists. Always everything, whatever the period.'],
+    ['code', 'System code', "The system's own program files, in a folder called code (never any passwords). Always the current version, whatever the period."]
 ];
 
 function backupDownloadForm() {

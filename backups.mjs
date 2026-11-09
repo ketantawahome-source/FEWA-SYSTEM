@@ -4,7 +4,7 @@
      - the password-protected zip download
      - uploading corrected students from a downloaded file
    The page for them is backup-page.js. server.mjs calls initBackups once with what these need from it. */
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { randomBytes, createHash } from 'node:crypto';
 import { Writable } from 'node:stream';
 import path from 'node:path';
@@ -232,11 +232,31 @@ function csvOf(rows, columns) {
 
 const zippedFileName = (id, name) => 'files/' + id + (/^\.[a-z0-9]{1,8}$/i.test(path.extname(String(name || ''))) ? path.extname(String(name)).toLowerCase() : '');
 
+/* The system's own program files, for the zip. Only the kinds of file listed here are taken, so nothing else that
+   is in the folder can slip in; the passwords (db-config.json) and this computer's notes are refused by name too. */
+const CODE_KINDS = new Set(['.html', '.js', '.mjs', '.css', '.sql', '.bat', '.yml', '.yaml', '.md']);
+const CODE_NAMES = new Set(['package.json', 'package-lock.json', 'db-config.example.json', '.gitignore', 'fewa-logo.jpg', 'logo.jpeg']);
+const CODE_NEVER = new Set(['db-config.json', 'claude.md']);
+const CODE_SKIP_FOLDERS = new Set(['node_modules', '.git', '.claude', '.vscode']);
+
+export async function codeFiles(folder = root, prefix = '') {
+    const found = [];
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+        const name = entry.name, lower = name.toLowerCase();
+        if (entry.isDirectory()) {
+            if (!CODE_SKIP_FOLDERS.has(lower)) found.push(...await codeFiles(path.join(folder, name), prefix + name + '/'));
+        } else if (entry.isFile() && !CODE_NEVER.has(lower) && !lower.startsWith('fewa-backup') && (CODE_NAMES.has(lower) || CODE_KINDS.has(path.extname(lower)))) {
+            found.push(prefix + name);
+        }
+    }
+    return found.sort();
+}
+
 async function sendBackupZip(res, body, by) {
     const problem = message => Object.assign(new Error(message), { status: 400 });
     const password = body.password;
     if (!passwordAcceptable(password)) throw problem('The password must have at least 8 characters.');
-    const parts = (Array.isArray(body.include) ? body.include : []).filter(p => p === 'files' || EXPORT_PARTS[p]);
+    const parts = (Array.isArray(body.include) ? body.include : []).filter(p => p === 'files' || p === 'code' || EXPORT_PARTS[p]);
     if (!parts.length) throw problem('Choose at least one thing to include.');
     const day = text => /^\d{4}-\d{2}-\d{2}$/.test(String(text || '')) && !isNaN(new Date(text));
     const ranged = !!(body.from || body.to);
@@ -250,7 +270,7 @@ async function sendBackupZip(res, body, by) {
         const zip = new ZipWriter(Writable.toWeb(res), { password, encryptionStrength: 3, zipCrypto: false, useWebWorkers: false });
         const period = column => column && ranged ? { where: ` WHERE ${sqlName(column)} >= $1::date AND ${sqlName(column)} < ($2::date + 1)`, values: [body.from, body.to] } : { where: '', values: [] };
         const added = [];
-        for (const part of parts.filter(p => p !== 'files')) {
+        for (const part of parts.filter(p => p !== 'files' && p !== 'code')) {
             for (const [table, file, dateColumn] of EXPORT_PARTS[part]) {
                 const { where, values } = period(dateColumn);
                 const result = await getPool().query(`SELECT * FROM ${T(table)}${where}`, values);
@@ -271,6 +291,11 @@ async function sendBackupZip(res, body, by) {
             }
             await zip.add('files-list.csv', new TextReader(csvOf(index, ['file_in_zip', 'original_name', 'type', 'size', 'uploaded'])));
             added.push(`files: ${index.length} file(s)`);
+        }
+        if (parts.includes('code')) {
+            const names = await codeFiles();
+            for (const name of names) await zip.add('code/' + name, new Uint8ArrayReader(new Uint8Array(await readFile(path.join(root, name)))));
+            added.push(`code: ${names.length} program file(s)`);
         }
         await zip.add('READ-ME.txt', new TextReader(`FEWA system backup, made ${new Date().toISOString()} by ${by}.\r\n` +
             `Period: ${ranged ? `${body.from} to ${body.to}` : 'all records'}.\r\n\r\n${added.join('\r\n')}\r\n`));
