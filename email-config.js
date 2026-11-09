@@ -7,7 +7,7 @@
 const EMAILJS_CONFIG = {
     serviceId: 'service_7fjcvqo',
     templateId: 'template_l4go4uc',
-    publicKey: 'tyVpXI39InZKyqudl'
+    publicKey: '4uA_tpsprqsyQN8nU'
 };
 
 function isEmailConfigured() {
