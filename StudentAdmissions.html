@@ -1319,13 +1319,15 @@
                         into the main database (<b>Supabase</b>) every time you press Save. Backups are kept separately in
                         <b>PostgreSQL on the office computer</b>: database <b>fewa_backups</b>, schema <b>backups</b>, table
                         <b>snapshots</b> (in pgAdmin). One is made by itself every day, and any time with <b>Back Up Now</b>.
-                        Nothing is saved in the browser or in OneDrive.</p>
+                        You can also download your own password-protected copy below.</p>
                     <div class="backup-status">
                         <div><span>Online system:</span> <b>fewa-system.onrender.com</b></div>
                         <div><span>Main database:</span> <b>Supabase</b> (online)</div>
                         <div><span>Copy:</span> <b>PostgreSQL</b> on the office computer, database fewa_college (kept in step both ways)</div>
                         <div><span>Backups:</span> <b>PostgreSQL</b> on the office computer, database fewa_backups</div>
                     </div>
+                    ${backupDownloadForm()}
+                    <h3 class="backup-heading">Database backups</h3>
                     ${list.available ? '' : `<div class="empty-state" style="margin-top:16px">${escapeHtml(list.reason || '')}</div>`}
                     ${list.problem ? `<div class="empty-state" style="margin-top:16px;color:#c0392b"><b>The last daily backup failed:</b> ${escapeHtml(list.problem)}</div>` : ''}
                     <div class="backup-actions" style="${list.available ? '' : 'display:none'}">
@@ -1340,6 +1342,106 @@
                     <p class="backup-note">The newest 60 backups are kept. Restoring first makes a backup of the data as it is now,
                         so a restore can always be undone.</p>
                 </div>`;
+            updateBackupCount();
+        }
+
+        /* A password-protected zip file to keep (server.mjs: sendBackupZip) */
+        const BACKUP_DOWNLOAD_PARTS = [
+            ['students', 'Students', "Every student's admission details, course and contacts. A date range keeps only students admitted in it."],
+            ['applications', 'Online applications', 'Applications sent through the online form. A date range keeps only those sent in it.'],
+            ['documents', 'Student documents (list)', 'The list of documents uploaded for students. A date range keeps only those uploaded in it.'],
+            ['deferrals', 'Deferrals and suspensions', 'Deferral and suspension records. A date range keeps only those starting in it.'],
+            ['files', 'Photos and uploaded files', 'The photos and documents themselves. A date range keeps only those uploaded in it.'],
+            ['staff', 'Staff', 'Staff details (never their passwords). Always everything, whatever the period.'],
+            ['settings', 'Settings', 'School Setup, courses, campuses, terms and other setup lists. Always everything, whatever the period.']
+        ];
+
+        function backupDownloadForm() {
+            return `<form class="backup-download" onsubmit="downloadBackup(event)">
+                <h3 class="backup-heading">Download a password-protected copy</h3>
+                <p class="backup-note">Makes a protected zip file of the records you choose, so the college keeps its own copy.
+                    It downloads straight to this computer: <b>keep the file somewhere safe</b>.</p>
+                <h4><span class="backup-step">1</span> Choose what to include</h4>
+                <label class="backup-check backup-all"><input type="checkbox" id="backupAll" checked onchange="toggleBackupParts(this.checked)">
+                    <b>Select all</b> <span id="backupCount"></span></label>
+                ${BACKUP_DOWNLOAD_PARTS.map(([value, name, about]) => `<label class="backup-check">
+                    <input type="checkbox" name="part" value="${value}" checked onchange="updateBackupCount()">
+                    <span><b>${escapeHtml(name)}</b><small>${escapeHtml(about)}</small></span></label>`).join('')}
+                <h4><span class="backup-step">2</span> Choose the period</h4>
+                <div class="backup-period">
+                    <label><input type="radio" name="period" value="all" checked onchange="updateBackupPeriod()"> All records (recommended for a backup)</label>
+                    <label><input type="radio" name="period" value="range" onchange="updateBackupPeriod()"> Only a date range</label>
+                </div>
+                <div class="backup-dates" id="backupDates" hidden>
+                    <label>From <input type="date" name="from"></label>
+                    <label>To <input type="date" name="to"></label>
+                </div>
+                <h4><span class="backup-step">3</span> Protect the file with a password</h4>
+                <div class="backup-passwords">
+                    <label>Password <input type="password" name="password" placeholder="At least 8 characters" autocomplete="new-password" required minlength="8" maxlength="128"></label>
+                    <label>Type the password again <input type="password" name="again" autocomplete="new-password" required maxlength="128"></label>
+                    <label class="backup-show"><input type="checkbox" onchange="showBackupPasswords(this)"> Show password</label>
+                </div>
+                <p class="backup-note">Keep this password safe: the system does not store it and cannot recover it. To open the backup, use
+                    <b>7-Zip</b> (free, www.7-zip.org) or WinZip and enter this password. The zip tool built into Windows cannot open protected files of this kind.</p>
+                <button type="submit" class="btn-submit" id="backupDownloadButton">Create Backup</button>
+            </form>`;
+        }
+
+        function updateBackupCount() {
+            const boxes = [...document.querySelectorAll('.backup-download [name=part]')];
+            const ticked = boxes.filter(b => b.checked).length;
+            document.getElementById('backupCount').textContent = `(${ticked} of ${boxes.length} selected)`;
+            document.getElementById('backupAll').checked = ticked === boxes.length;
+        }
+
+        function toggleBackupParts(on) {
+            document.querySelectorAll('.backup-download [name=part]').forEach(b => b.checked = on);
+            updateBackupCount();
+        }
+
+        function updateBackupPeriod() {
+            document.getElementById('backupDates').hidden = document.querySelector('.backup-download [name=period]:checked').value !== 'range';
+        }
+
+        function showBackupPasswords(box) {
+            document.querySelectorAll('.backup-passwords input:not([type=checkbox])').forEach(i => i.type = box.checked ? 'text' : 'password');
+        }
+
+        async function downloadBackup(event) {
+            event.preventDefault();
+            const form = event.target;
+            const include = [...form.querySelectorAll('[name=part]:checked')].map(b => b.value);
+            if (!include.length) return alert('Tick at least one thing to include.');
+            const password = form.elements['password'].value;
+            if (password !== form.elements['again'].value) return alert('The two passwords are not the same.');
+            const ranged = form.querySelector('[name=period]:checked').value === 'range';
+            const from = ranged ? form.elements['from'].value : '';
+            const to = ranged ? form.elements['to'].value : '';
+            if (ranged && (!from || !to)) return alert('Choose both dates of the period.');
+            const button = document.getElementById('backupDownloadButton');
+            button.disabled = true;
+            button.textContent = 'Preparing the backup...';
+            try {
+                const response = await fetch(FEWA_API + '/backups/download', {
+                    method: 'POST',
+                    headers: { 'X-FEWA-Client': '1', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ include, from, to, password })
+                });
+                if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'The server could not make the backup.');
+                const url = URL.createObjectURL(await response.blob());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `FEWA-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                form.elements['password'].value = form.elements['again'].value = '';
+                showToast('Backup downloaded. Keep the file and its password safe.');
+            } catch (error) {
+                alert('The backup could not be made: ' + error.message);
+            }
+            button.disabled = false;
+            button.textContent = 'Create Backup';
         }
 
         async function makeOnlineBackup() {
@@ -1371,7 +1473,7 @@
         }
 
         async function deleteOnlineBackup(id) {
-            if (!confirm('Delete this backup from Supabase? This cannot be undone.')) return;
+            if (!confirm('Delete this backup from the office computer? This cannot be undone.')) return;
             try {
                 await api('DELETE', `/backups/${encodeURIComponent(id)}`);
                 showToast('Backup deleted.');

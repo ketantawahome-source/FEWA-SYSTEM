@@ -41,9 +41,11 @@ import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { randomBytes, createHash, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { Writable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { ZipWriter, TextReader, Uint8ArrayReader, configure as configureZip } from '@zip.js/zip.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || process.argv[2] || 5600);
@@ -1588,7 +1590,7 @@ const BACKUP_DATA_TABLES = BACKUP_TABLES.filter(t => t !== 'stored_files');
 let backupProblem = ''; // why the last daily backup failed, shown in Settings > System Data Backups
 const AUTO_BACKUP_HOURS = 24;
 let backupPool = null;
-let backupError = 'Backups are made and restored on the office computer: open http://localhost:5600/ there.';
+let backupError = 'The daily database backups are made and restored on the office computer: open http://localhost:5600/ there.';
 
 async function connectBackups() {
     const config = await loadConfig().catch(() => ({}));
@@ -1741,6 +1743,100 @@ async function deleteBackup(id) {
     const { rowCount } = await backupPool.query('DELETE FROM backups.snapshots WHERE id = $1', [id]);
     await dropUnusedBackupFiles();
     return { result: rowCount ? 'ok' : 'none' };
+}
+
+/* ---------- Downloaded backups (Settings > System Data Backups): a password-protected zip file ----------
+   For the college's own copy, away from this computer. The administrator chooses what to include and the period; the
+   zip is made as it is sent (nothing is kept on the server, in Supabase or in the browser). It is AES-256 encrypted,
+   so it opens with 7-Zip or WinZip (Windows' own zip tool cannot open it) and only with the password, which is
+   not stored anywhere. Each kind of record is a .csv file that opens in Excel; uploaded files are in the "files"
+   folder, named by their id so that even the list of names inside the zip tells nobody anything.
+   Password details are never included. */
+configureZip({ useWebWorkers: false });
+const EXPORT_NEVER = new Set(['salt', 'hash', 'login_salt', 'login_hash']);
+const EXPORT_SETTINGS = ['schools', 'courses', 'enrollment_types', 'study_sessions', 'school_setup', 'campuses', 'academic_terms',
+    'departments', 'student_types', 'student_groups', 'document_types', 'staff_roles', 'role_operations', 'fee_payment_details'];
+// part -> [table, file in the zip, the date the period looks at]
+const EXPORT_PARTS = {
+    students: [['students', 'students.csv', 'created_at']],
+    applications: [['applications', 'applications.csv', 'submitted_at']],
+    documents: [['documents', 'documents.csv', 'uploaded_at']],
+    deferrals: [['deferrals', 'deferrals.csv', 'start_date']],
+    staff: [['staff', 'staff.csv', null]],
+    settings: EXPORT_SETTINGS.map(table => [table, `settings/${table}.csv`, null])
+};
+let downloadRunning = false;
+
+function csvCell(value) {
+    let text;
+    if (value === null || value === undefined) return '';
+    if (value instanceof Date) text = value.toISOString();
+    else if (typeof value === 'object') text = value.__file ? value.__file : JSON.stringify(value);
+    else text = String(value);
+    // Text from the public form must not act as a formula when opened in Excel (phone numbers like +2547... are fine)
+    if (/^[=+\-@\t\r]/.test(text) && !/^[+-]?\d[\d\s.-]*$/.test(text)) text = "'" + text;
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
+
+function csvOf(rows, columns) {
+    const names = columns.filter(c => !EXPORT_NEVER.has(c));
+    return '\uFEFF' + [names.map(csvCell).join(','), ...rows.map(row => names.map(n => csvCell(row[n])).join(','))].join('\r\n') + '\r\n';
+}
+
+const zippedFileName = (id, name) => 'files/' + id + (/^\.[a-z0-9]{1,8}$/i.test(path.extname(String(name || ''))) ? path.extname(String(name)).toLowerCase() : '');
+
+async function sendBackupZip(res, body, by) {
+    const problem = message => Object.assign(new Error(message), { status: 400 });
+    const password = body.password;
+    if (!passwordAcceptable(password)) throw problem('The password must have at least 8 characters.');
+    const parts = (Array.isArray(body.include) ? body.include : []).filter(p => p === 'files' || EXPORT_PARTS[p]);
+    if (!parts.length) throw problem('Choose at least one thing to include.');
+    const day = text => /^\d{4}-\d{2}-\d{2}$/.test(String(text || '')) && !isNaN(new Date(text));
+    const ranged = !!(body.from || body.to);
+    if (ranged && (!day(body.from) || !day(body.to))) throw problem('Choose both dates of the period.');
+    if (ranged && body.from > body.to) throw problem('The first date of the period is after the last one.');
+    if (downloadRunning) throw Object.assign(new Error('Another backup is being prepared. Please try again in a minute.'), { status: 429 });
+    downloadRunning = true;
+    try {
+        const stamp = new Date().toISOString().slice(0, 10);
+        res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="FEWA-backup-${stamp}.zip"`, 'Cache-Control': 'no-store' });
+        const zip = new ZipWriter(Writable.toWeb(res), { password, encryptionStrength: 3, zipCrypto: false, useWebWorkers: false });
+        const period = column => column && ranged ? { where: ` WHERE ${sqlName(column)} >= $1::date AND ${sqlName(column)} < ($2::date + 1)`, values: [body.from, body.to] } : { where: '', values: [] };
+        const added = [];
+        for (const part of parts.filter(p => p !== 'files')) {
+            for (const [table, file, dateColumn] of EXPORT_PARTS[part]) {
+                const { where, values } = period(dateColumn);
+                const result = await pool.query(`SELECT * FROM ${T(table)}${where}`, values);
+                await zip.add(file, new TextReader(csvOf(result.rows, result.fields.map(f => f.name))));
+                added.push(`${file}: ${result.rows.length} row(s)`);
+            }
+        }
+        if (parts.includes('files')) {
+            const { where, values } = period('created_at');
+            const list = (await pool.query(`SELECT id, name, type, size, created_at FROM ${T('stored_files')}${where} ORDER BY id`, values)).rows;
+            const index = [];
+            for (const entry of list) {
+                const found = await pool.query(`SELECT content FROM ${T('stored_files')} WHERE id = $1`, [entry.id]); // one at a time, however many there are
+                if (!found.rows.length) continue;
+                const inZip = zippedFileName(entry.id, entry.name);
+                await zip.add(inZip, new Uint8ArrayReader(new Uint8Array(found.rows[0].content)));
+                index.push({ file_in_zip: inZip, original_name: entry.name, type: entry.type, size: entry.size, uploaded: entry.created_at });
+            }
+            await zip.add('files-list.csv', new TextReader(csvOf(index, ['file_in_zip', 'original_name', 'type', 'size', 'uploaded'])));
+            added.push(`files: ${index.length} file(s)`);
+        }
+        await zip.add('READ-ME.txt', new TextReader(`FEWA system backup, made ${new Date().toISOString()} by ${by}.\r\n` +
+            `Period: ${ranged ? `${body.from} to ${body.to}` : 'all records'}.\r\n\r\n${added.join('\r\n')}\r\n`));
+        await zip.close();
+        if (!res.writableEnded) res.end();
+        console.log(new Date().toLocaleString(), `A password-protected backup was downloaded by ${by}.`);
+    } catch (err) {
+        console.log(new Date().toLocaleString(), 'The backup download failed:', err.message);
+        // Part of the file has gone out already: stop, so the page reports a failure instead of saving a damaged zip
+        res.destroy();
+    } finally {
+        downloadRunning = false;
+    }
 }
 
 /* ---------- System Update (Settings > System Update): "running the rocket" ----------
@@ -2216,6 +2312,7 @@ async function handleApi(req, res, parts) {
     if (area === 'backups') {
         if (!admin) throw forbidden();
         const by = session.account.username;
+        if (method === 'POST' && a === 'download') return sendBackupZip(res, await readBody(req, SMALL_BODY_BYTES) || {}, by);
         if (method === 'GET' && !a) return send(res, 200, backupPool ? { available: true, backups: await listBackups(), problem: backupProblem }
             : { available: false, reason: backupError, backups: [] });
         if (!backupPool) return send(res, 503, { error: backupError });
