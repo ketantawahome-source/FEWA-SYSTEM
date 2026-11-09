@@ -26,9 +26,9 @@ async function sendLoginEmail(firstTime) {
 
 // A student's login details: kind 'welcome' (newly admitted) or 'reset' (Reset Password). Goes to the email on their
 // record; resolves to true when it was accepted
-async function sendStudentLoginEmail(studentId, kind) {
+async function sendStudentLoginEmail(studentId, kind, password) {
     try {
-        return (await api('POST', '/student-email', { studentId, kind })).result === 'sent';
+        return (await api('POST', '/student-email', { studentId, kind, password })).result === 'sent';
     } catch {
         return false;
     }

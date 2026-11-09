@@ -4169,12 +4169,12 @@
         }
 
         /* A newly saved student with an email address gets a welcome email: their AdmNo, and a temporary Student
-           Portal password (their AdmNo, as with Reset Password) that they change when they first log in */
+           Portal password (made by the server) that they change when they first log in */
         async function sendWelcomeEmail(student) {
             if (!student.email || student.activeStudent === 'no' || !student.admNo || !isEmailConfigured()) return;
             try {
-                await setStudentPassword(student.id, student.admNo, true);
-                const sent = await sendStudentLoginEmail(student.id, 'welcome');
+                const password = await issueTemporaryPassword(student.id);
+                const sent = await sendStudentLoginEmail(student.id, 'welcome', password);
                 if (sent) showToast(`Welcome email with the Student Portal login sent to ${student.email}.`);
                 else showToast(`The welcome email to ${student.email} could not be sent. Use Reset Password > Email to Student later.`, 'warning');
             } catch (error) {
@@ -4194,11 +4194,15 @@
                     'Activate them first (Student Hub > Student Status, or set Active Student to Yes and Save), then reset the password.');
             }
             if (!confirm(`Reset the Student Portal password of ${fullName(student)} (${student.admNo})?\n\n` +
-                `Their temporary password will be their Registration Number (${student.admNo}). Any old password stops working.`)) return;
+                'They will get a new temporary password. Any old password stops working.')) return;
 
-            // The temporary password is the student's Registration Number (AdmNo); they must change it when they log in
-            const password = student.admNo;
-            await setStudentPassword(student.id, password, true);
+            // Made by the server, and shown only here; they must change it when they log in
+            let password;
+            try {
+                password = await issueTemporaryPassword(student.id);
+            } catch (error) {
+                return alert('The password could not be reset: ' + error.message);
+            }
             // The Reset Password button in Student Status is no longer needed for this student
             renderStatusList();
             const canEmail = !!student.email;
@@ -4206,7 +4210,7 @@
             const emailSubject = 'Your FEWA Student Portal password';
             const emailBody = `Hello ${fullName(student)},\n\nYour FEWA Student Portal password has been reset.\n\n` +
                 `Login page: ${loginLink}\nUsername (your AdmNo): ${student.admNo}\n` +
-                `Temporary password: ${password} (your Registration Number)\n\n` +
+                `Temporary password: ${password}\n\n` +
                 'You will be asked to choose your own password when you log in.\n\nFEWA Beauty & Fashion College';
 
             const box = document.createElement('div');
@@ -4249,7 +4253,7 @@
             box.querySelector('[data-action="email"]').onclick = async event => {
                 if (!isEmailConfigured()) return openEmailProgram();
                 event.target.disabled = true;
-                const sent = await sendStudentLoginEmail(student.id, 'reset');
+                const sent = await sendStudentLoginEmail(student.id, 'reset', password);
                 if (sent) return showToast(`Temporary password emailed to ${student.email}.`);
                 event.target.disabled = false;
                 if (confirm(`The email to ${student.email} could not be sent automatically.\n\nOpen it in your email program instead?`)) openEmailProgram();

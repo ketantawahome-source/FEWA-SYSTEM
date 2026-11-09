@@ -795,7 +795,16 @@ function deactivatedStudent(student, before = {}) {
     return { ...student, loginHash: null, loginSalt: null, mustChangePassword: true, adminResetRequired: true };
 }
 
-// Sets a student's password (on the server); mustChange makes them choose their own at the next login.
+// Staff: the server makes a new temporary password for the student (who must change it when they log in) and
+// answers with it, to hand over or email. Throws when the student is not found.
+async function issueTemporaryPassword(studentId) {
+    const { result, password } = await api('POST', '/student-password', { studentId });
+    if (result !== 'ok') throw new Error('This student could not be found.');
+    announceDataChange('students');
+    return password;
+}
+
+// A student setting their own password (on the server).
 // Returns 'ok', 'none' (no such student) or, when a student sets their own, 'same' (it is the current one).
 async function setStudentPassword(studentId, password, mustChange) {
     const { result } = await api('POST', '/student-password', { studentId, password, mustChange });

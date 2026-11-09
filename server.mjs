@@ -634,7 +634,8 @@ async function setValue(key, value) {
    A correct login gets a session: a random token in an HttpOnly cookie, kept (as a hash) in staff.sessions
    for 12 hours. Every data request is checked against it:
      administrators     everything
-     other staff        all student data and settings; not staff accounts, role rights or reset codes
+     other staff        the settings, and the student data their role (Role Operations) allows; not changing staff
+                        accounts, role rights or reset codes
      students           only their own record, documents and deferrals (read), and their own password
      not logged in      only the School Setup (college name and logo, for the login page)
    First-time setup (no staff account yet: creating the first administrator, or restoring a backup) is only
@@ -839,12 +840,22 @@ async function setOwnPassword(session, password) {
     return { result: 'ok' };
 }
 
-// A student's Student Portal password: set by staff (Reset Password), or by the student themselves
+// A temporary password nobody can guess, made here (no letters or numbers that look alike, e.g. O and 0)
+function temporaryPassword() {
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return [...randomBytes(10)].map(byte => characters[byte % characters.length]).join('');
+}
+
+// A student's Student Portal password: staff (Reset Password, or admitting them) get a new temporary one made here,
+// which they must change at their next login; the student themselves chooses their own
 async function setStudentPasswordOnServer(session, { studentId, password, mustChange } = {}) {
     if (session.kind === 'student') {
         if (studentId !== session.studentId) throw Object.assign(new Error('Not allowed.'), { status: 403 });
         mustChange = false;
         if (!passwordAcceptable(password)) return { result: 'weak' };
+    } else {
+        password = temporaryPassword();
+        mustChange = true;
     }
     const { rows } = await pool.query(`SELECT login_salt, login_hash FROM ${T('students')} WHERE id = $1`, [String(studentId)]);
     if (!rows.length) return { result: 'none' };
@@ -856,7 +867,7 @@ async function setStudentPasswordOnServer(session, { studentId, password, mustCh
         admin_reset_required = false, password_set_at = now(), updated_at = now() WHERE id = $4`,
         [salt, hash, !!mustChange, String(studentId)]);
     await endOtherSessions('student', studentId, session.kind === 'student' ? session.tokenHash : '');
-    return { result: 'ok' };
+    return session.kind === 'student' ? { result: 'ok' } : { result: 'ok', password };
 }
 
 /* ---------- Emails: every email of the system is written and sent here, by the server (through EmailJS) ----------
@@ -1002,13 +1013,13 @@ async function sendStaffPasswordLink({ email, newStaff } = {}) {
 }
 
 // A student's login details: the welcome email, or a Reset Password. Only goes to the email on their record, and
-// only while their temporary password (their AdmNo) is the one set.
-async function sendStudentLoginEmail({ studentId, kind } = {}) {
+// only with the temporary password that is really set (so a page can't put anything else in the email).
+async function sendStudentLoginEmail({ studentId, kind, password } = {}) {
     const { rows } = await pool.query(`SELECT * FROM ${T('students')} WHERE id = $1`, [String(studentId)]);
     if (!rows.length) return { result: 'none' };
     const student = recordFromRow(rows[0]);
     if (!looksLikeEmail(student.email)) return { result: 'no-email' };
-    if (!student.loginHash || !student.mustChangePassword || !await passwordMatches(student.admNo, student.loginSalt, student.loginHash)) {
+    if (typeof password !== 'string' || !student.loginHash || !student.mustChangePassword || !await passwordMatches(password, student.loginSalt, student.loginHash)) {
         return { result: 'not-reset' };
     }
     const name = [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ');
@@ -1017,10 +1028,10 @@ async function sendStudentLoginEmail({ studentId, kind } = {}) {
     const sent = await sendSystemEmail(student.email, kind === 'welcome'
         ? `Dear ${name}, welcome to ${college}! You have been admitted${student.admissionCourse ? ` to ${student.admissionCourse}` : ''}. ` +
           `Your admission number (AdmNo) is ${student.admNo}. You can log in to the Student Portal at ${link} ` +
-          `with your AdmNo ${student.admNo} and the temporary password ${student.admNo}. ` +
+          `with your AdmNo ${student.admNo} and the temporary password ${password}. ` +
           'You will be asked to choose your own password the first time you log in. We look forward to seeing you.'
         : `Hello ${name}, your FEWA student portal password has been reset. Log in at ${link} with your AdmNo ${student.admNo} ` +
-          `and the temporary password ${student.admNo}. You will be asked to choose your own password when you log in.`);
+          `and the temporary password ${password}. You will be asked to choose your own password when you log in.`);
     return { result: sent ? 'sent' : 'failed' };
 }
 
@@ -1130,6 +1141,26 @@ async function staffCan(session, ...rights) {
     const assigned = Array.isArray(saved.assigned) ? saved.assigned
         : Object.entries(saved).flatMap(([part, ops]) => Array.isArray(ops) ? ops.map(op => `${part}.${op}`) : []);
     return rights.some(right => assigned.includes(right));
+}
+
+/* The rights that allow reading a kind of record (any one of them is enough). They include the work that needs the
+   records behind the scenes: adding a student checks for duplicates, deleting one removes their documents, and
+   renaming a course in Settings renames it on the students who have it. Settings can be read by all staff. */
+const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
+    'finance.view', 'finance.add', 'reports.view', 'settings.edit', 'settings.delete'];
+const RIGHTS_TO_READ = {
+    students: STUDENT_READERS,
+    deferrals: STUDENT_READERS,
+    documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'settings.edit', 'settings.delete'],
+    applications: ['students.view', 'students.add', 'students.edit']
+};
+
+// A stored file: someone who may read documents may open any; someone who may only read student records, not an
+// uploaded document (a student's photo is fine)
+async function staffMayOpenFile(session, fileId) {
+    if (await staffCan(session, ...RIGHTS_TO_READ.documents)) return true;
+    if (!await staffCan(session, ...STUDENT_READERS)) return false;
+    return !fileIdsIn(await selectRecords(pool, 'documents')).has(fileId);
 }
 
 // The rights that allow saving or deleting one record (any one of them is enough)
@@ -2068,6 +2099,8 @@ async function handleApi(req, res, parts) {
     /* ---------- Records ---------- */
     if (area === 'stores' && STORES[a]) {
         if (method === 'GET') {
+            // A role without the right simply gets nothing, so its screens open empty instead of showing an error
+            if (staff && RIGHTS_TO_READ[a] && !await staffCan(session, ...RIGHTS_TO_READ[a])) return send(res, 200, b ? null : []);
             if (fullAccess) return send(res, 200, hidePasswords(a, b ? await getRecord(a, b) : await getAllRecords(a)));
             if (session.kind === 'student') {
                 if (a === 'applications') throw forbidden();
@@ -2110,6 +2143,7 @@ async function handleApi(req, res, parts) {
 
     if (area === 'files' && a && method === 'GET') {
         if (!fullAccess && !(session.kind === 'student' && (await studentFileIds(session.studentId)).has(a))) throw forbidden();
+        if (staff && !await staffMayOpenFile(session, a)) throw forbidden();
         const { rows } = await pool.query(`SELECT type, content FROM ${T('stored_files')} WHERE id = $1`, [a]);
         if (!rows.length) return send(res, 404, { error: 'File not found' });
         // A stored file never changes (a new upload gets a new id), so the browser may keep it
