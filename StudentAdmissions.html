@@ -1893,7 +1893,12 @@
                     <div class="action-bar" style="margin-bottom: 0;">
                         <button type="submit" class="btn-submit">Save Settings</button>
                     </div>
-                </form>`;
+                </form>
+                ${key === 'organization' ? `<div class="apply-link-box" style="margin-top: 16px;">
+                    <span>Application link for prospects:</span>
+                    <a href="${escapeHtml(applyLinkUrl())}" target="_blank" rel="noopener">${escapeHtml(applyLinkUrl())}</a>
+                    <button type="button" class="btn-secondary" onclick="copyApplyLink()">Copy Link</button>
+                </div>` : ''}`;
         }
 
         async function saveSettingsForm(event, key) {
@@ -3303,7 +3308,8 @@
            Reject marks it Rejected (it stays in the list). */
         let admittingApplication = null; // { application, photoCopy } while its student form is open
 
-        const applyLinkUrl = () => new URL('apply.html', location.href).href.split(/[?#]/)[0];
+        // Always the online address: a localhost link only works on the office computer itself
+        const applyLinkUrl = () => studentLoginLink().replace(/login\.html$/, 'apply.html');
         const APPLICATION_BADGES = { Prospect: 'pending', Verified: 'verified', Admitted: 'active', Rejected: 'inactive' };
         // Applications sent before the Prospect step existed were "Pending"
         const applicationStatus = a => !a.status || a.status === 'Pending' ? 'Prospect' : a.status;
