@@ -383,16 +383,32 @@
             const digits = value.replace(/[^\d+]/g, '');
             if (/^0[17]\d{8}$/.test(digits)) return '+254' + digits.slice(1);
             if (/^254[17]\d{8}$/.test(digits)) return '+' + digits;
-            if (/^\+?\d{9,15}$/.test(digits)) return digits.startsWith('+') ? digits : '+' + digits;
+            if (/^[17]\d{8}$/.test(digits)) return '+254' + digits; // typed without the 0
+            if (/^\+\d{9,15}$/.test(digits)) return digits; // other countries, with their code
             return null;
         }
 
+        // One sending at a time: a second press while the files are being read does nothing
+        let sending = false;
         form.addEventListener('submit', async event => {
             event.preventDefault();
+            if (sending) return;
+            sending = true;
+            try {
+                await sendApplication();
+            } catch (err) {
+                showError('A file could not be read. Please choose it again and try again.');
+            } finally {
+                sending = false;
+            }
+        });
+
+        async function sendApplication() {
             document.getElementById('formMessage').className = 'message';
 
             // The second contact is only checked once something is filled in there
-            const secondUsed = [...form.querySelectorAll('[data-contact=mother] input:not([type=file]), [data-contact=mother] select')]
+            const secondUsed = !!form.elements.motherIdCopy.files.length ||
+                [...form.querySelectorAll('[data-contact=mother] input:not([type=file]), [data-contact=mother] select')]
                 .some(f => f.value.trim() && !['motherIdType', 'motherNationality'].includes(f.name));
             ['motherFirstName', 'motherLastName', 'motherPhone', 'motherRelationship'].forEach(name => form.elements[name].required = secondUsed);
 
@@ -421,7 +437,7 @@
             for (const name of ['phone', 'fatherPhone', 'fatherPhone2', 'motherPhone', 'motherPhone2']) {
                 if (!data[name]) continue;
                 const phone = cleanPhone(data[name]);
-                if (!phone) { form.elements[name].focus(); return showError('Please enter a valid phone number, e.g. 0722 123 456.'); }
+                if (!phone) { form.elements[name].focus(); return showError('Please enter a valid phone number, e.g. 0722 123 456. For another country, start with + and its code.'); }
                 data[name] = phone;
             }
             for (const name of ['photo', 'birthCertificate', 'fatherIdCopy', 'motherIdCopy']) {
@@ -454,7 +470,7 @@
                 button.disabled = false;
                 button.textContent = 'Submit Application';
             }
-        });
+        }
 
         loadOptions();
     </script>

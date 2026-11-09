@@ -1,6 +1,6 @@
 /* ---------- Login / Logout ----------
    User accounts (the administrator and staff) live in the PostgreSQL database, through db.js (loaded before this
-   file): passwords are stored as salted SHA-256 hashes, never as plain text. The signed-in user lives in this
+   file); the server keeps the passwords (never as plain text) and checks them. The signed-in user lives in this
    tab's sessionStorage, which is cleared when the browser is closed. */
 const AUTH_ACCOUNTS_KEY = 'fewaAccounts';
 const AUTH_OLD_ACCOUNT_KEY = 'fewaAdminAccount';
@@ -289,52 +289,7 @@ function logOutAfterUpdate() {
     location.replace('login.html?updated=1');
 }
 
-/* ---------- Emailed 6-digit codes (OTP login and password reset) ----------
-   Only a code's hash is kept; it expires after a few minutes and is cancelled after CODE_MAX_ATTEMPTS wrong tries.
-   Each code belongs to one account, so staff can't use each other's codes. */
-const CODE_MAX_ATTEMPTS = 5;
-
 const codeKey = (prefix, email) => prefix + ':' + email.trim().toLowerCase();
-
-async function createCode(storage, key, validMinutes) {
-    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
-    const salt = String(Date.now());
-    storage.setItem(key, JSON.stringify({
-        salt, hash: await hashPassword(code, salt),
-        expires: Date.now() + validMinutes * 60 * 1000, attempts: 0
-    }));
-    return code;
-}
-
-// Returns 'ok', 'wrong', 'expired' or 'none' (no code requested, or too many wrong tries)
-async function checkCode(storage, key, code) {
-    let saved;
-    try {
-        saved = JSON.parse(storage.getItem(key));
-    } catch {
-        saved = null;
-    }
-    if (!saved) return 'none';
-    if (Date.now() > saved.expires) {
-        storage.removeItem(key);
-        return 'expired';
-    }
-    if (saved.hash === await hashPassword(code.trim(), saved.salt)) {
-        storage.removeItem(key);
-        return 'ok';
-    }
-    saved.attempts++;
-    if (saved.attempts >= CODE_MAX_ATTEMPTS) storage.removeItem(key);
-    else storage.setItem(key, JSON.stringify(saved));
-    return saved.attempts >= CODE_MAX_ATTEMPTS ? 'none' : 'wrong';
-}
-
-// OTP login: the code lives in this tab's sessionStorage
-const AUTH_OTP_KEY = 'fewaPendingOtp';
-const OTP_VALID_MINUTES = 5;
-
-const createOtp = email => createCode(sessionStorage, codeKey(AUTH_OTP_KEY, email), OTP_VALID_MINUTES);
-const verifyOtp = (email, code) => checkCode(sessionStorage, codeKey(AUTH_OTP_KEY, email), code);
 
 /* ---------- Forgot password / new staff password ----------
    The reset code is made and checked by the server (only a hash of it is kept), so the link in the email
@@ -342,8 +297,6 @@ const verifyOtp = (email, code) => checkCode(sessionStorage, codeKey(AUTH_OTP_KE
    page emails it: a person who forgot their password asks an administrator (Staff Management > Send Reset
    Link). A right code lets that person choose a new password within 10 minutes. */
 const AUTH_RESET_KEY = 'fewaPendingReset';
-const RESET_VALID_MINUTES = 15;
-const NEW_STAFF_VALID_MINUTES = 24 * 60;
 
 // Resetting is two steps: a right code (step 1) unlocks the new password form (step 2) for
 // RESET_GRANT_MINUTES in this tab only. The code is used up as soon as it is accepted.
@@ -378,20 +331,15 @@ async function completePasswordReset(newPassword) {
     return result === 'ok';
 }
 
-// Emails a link and code for setting a password. New staff get a day to use it; a forgotten
-// password reset lasts RESET_VALID_MINUTES. Returns 'sent', 'failed', 'not-configured', 'unknown'
+// Has the server email a link and code for setting a password. New staff get a day to use it; a forgotten
+// password reset lasts 15 minutes. Returns 'sent', 'failed', 'not-configured', 'unknown'
 // or 'admin-only' (only an administrator can send reset links; byAdmin is set from Staff Management).
 async function sendPasswordLink(email, { newStaff = false, byAdmin = false } = {}) {
     if (!isEmailConfigured()) return 'not-configured';
     if (!isAdmin()) return 'admin-only';
     if (!isRegisteredEmail(email)) return 'unknown';
 
-    const minutes = newStaff ? NEW_STAFF_VALID_MINUTES : RESET_VALID_MINUTES;
-    const { code } = await api('POST', '/reset-code', { email, minutes });
-    const link = new URL('login.html', location.href).href.split(/[?#]/)[0] +
-        '?reset=' + code + '&user=' + encodeURIComponent(email.trim());
-    const sent = await sendResetEmail(email.trim(), code, link, minutes, { newStaff, name: accountName(findAccount(email)) });
-    return sent ? 'sent' : 'failed';
+    return (await api('POST', '/password-link', { email: email.trim(), newStaff })).result;
 }
 
 /* ---------- "⌂ Home › page name" at the top right of every page ----------

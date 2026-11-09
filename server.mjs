@@ -39,7 +39,8 @@ import http from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -48,7 +49,9 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || process.argv[2] || 5600);
 // On a hosting service (PORT is set) the server must accept connections from outside; on this computer only from itself
 const listenAddress = process.env.PORT ? '0.0.0.0' : '127.0.0.1';
-const MAX_BODY_BYTES = 60 * 1024 * 1024; // a record with a large document, sent as base64
+const MAX_BODY_BYTES = 60 * 1024 * 1024; // a record with a large document, sent as base64 (logged-in staff only)
+const SMALL_BODY_BYTES = 64 * 1024; // logging in and password resets: only a few words
+const APPLY_BODY_BYTES = 30 * 1024 * 1024; // the online form: four files of up to 5MB each, sent as base64
 
 /* ---------- Static files: only the system's pages, scripts, styles and images ---------- */
 const types = {
@@ -636,7 +639,10 @@ async function setValue(key, value) {
      not logged in      only the School Setup (college name and logo, for the login page)
    First-time setup (no staff account yet: creating the first administrator, or restoring a backup) is only
    allowed from this computer itself, never over the internet.
-   Passwords are stored as SHA-256 of "salt:password", the same as auth.js has always made them. */
+   Passwords are stored with scrypt, which is slow on purpose so that a stolen list cannot be guessed quickly.
+   Passwords set before Nov 2026 (and the very first administrator's, made by the login page) are SHA-256 of
+   "salt:password"; they still work and are changed to scrypt the next time that person logs in.
+   The password details (hash and salt) never leave the server, except in first-time setup. */
 const SESSION_COOKIE = 'fewa_session';
 const SESSION_HOURS = 12;
 const RESET_GRANT_MINUTES = 10;
@@ -645,7 +651,31 @@ const LOGIN_LOCK_MINUTES = 15;
 const CODE_MAX_ATTEMPTS = 5;
 
 const sha256 = text => createHash('sha256').update(text).digest('hex');
-const passwordHash = (password, salt) => sha256(`${salt}:${password}`);
+// Emailed reset codes (and passwords from before scrypt): short-lived, and given only a few tries
+const codeHash = (code, salt) => sha256(`${salt}:${code}`);
+const scryptAsync = promisify(scrypt);
+const SCRYPT_PREFIX = 'scrypt1$';
+const scryptHash = async (password, salt) => SCRYPT_PREFIX + (await scryptAsync(String(password), salt, 32, { N: 16384, r: 8, p: 1 })).toString('hex');
+async function newPasswordDetails(password) {
+    const salt = randomBytes(16).toString('hex');
+    return { salt, hash: await scryptHash(password, salt) };
+}
+function sameText(a, b) {
+    const x = Buffer.from(String(a));
+    const y = Buffer.from(String(b));
+    return x.length === y.length && timingSafeEqual(x, y);
+}
+const passwordIsOldKind = hash => !String(hash).startsWith(SCRYPT_PREFIX);
+const passwordMatches = async (password, salt, hash) =>
+    sameText(hash, passwordIsOldKind(hash) ? codeHash(password, salt) : await scryptHash(password, salt));
+// The pages ask for more (capital letters and so on); this also stops an empty password sent by other means
+const passwordAcceptable = password => typeof password === 'string' && password.length >= 8 && password.length <= 128;
+
+// Someone's other logins end when their password changes (a stolen login must not outlive the new password)
+async function endOtherSessions(kind, subject, keepTokenHash = '') {
+    await pool.query(`DELETE FROM ${T('sessions')} WHERE kind = $1 AND subject = $2 AND token_hash <> $3`, [kind, String(subject), keepTokenHash]);
+    forgetSessions();
+}
 const lower = text => String(text || '').trim().toLowerCase();
 
 function parseCookies(req) {
@@ -725,17 +755,24 @@ async function setupNeeded() {
 }
 const forgetAccountCount = () => accountCount = { at: 0, count: null };
 
-/* Too many wrong passwords for one username from one place: locked for a while */
+/* Too many wrong passwords for one username: locked for a while. Counted from one place, and also from everywhere
+   together, because the address a request says it comes from can be faked. */
 const loginFailures = new Map();
+const LOGIN_MAX_FAILURES_EVERYWHERE = 50;
 function loginLocked(req, username) {
-    const entry = loginFailures.get(clientIp(req) + '|' + lower(username));
-    return !!entry && entry.count >= LOGIN_MAX_FAILURES && Date.now() - entry.first < LOGIN_LOCK_MINUTES * 60000;
+    const over = (key, limit) => {
+        const entry = loginFailures.get(key);
+        return !!entry && entry.count >= limit && Date.now() - entry.first < LOGIN_LOCK_MINUTES * 60000;
+    };
+    return over(clientIp(req) + '|' + lower(username), LOGIN_MAX_FAILURES) || over('everywhere|' + lower(username), LOGIN_MAX_FAILURES_EVERYWHERE);
 }
 function loginFailed(req, username) {
-    const key = clientIp(req) + '|' + lower(username);
-    const entry = loginFailures.get(key);
-    if (!entry || Date.now() - entry.first > LOGIN_LOCK_MINUTES * 60000) loginFailures.set(key, { count: 1, first: Date.now() });
-    else entry.count++;
+    if (loginFailures.size > 20000) loginFailures.clear();
+    for (const key of [clientIp(req) + '|' + lower(username), 'everywhere|' + lower(username)]) {
+        const entry = loginFailures.get(key);
+        if (!entry || Date.now() - entry.first > LOGIN_LOCK_MINUTES * 60000) loginFailures.set(key, { count: 1, first: Date.now() });
+        else entry.count++;
+    }
 }
 
 // Staff log in with their email; students with their AdmNo (capital and small letters must match)
@@ -751,12 +788,17 @@ async function login(req, res, { username, password } = {}) {
         let result = 'ok';
         if (account.status === 'Inactive') result = 'inactive';
         else if (!account.hash) result = account.adminResetRequired ? 'reset-required' : 'no-password';
-        else if (passwordHash(password, account.salt) !== account.hash) result = 'wrong';
+        else if (!await passwordMatches(password, account.salt, account.hash)) result = 'wrong';
         if (result !== 'ok') {
             if (result === 'wrong') loginFailed(req, username);
             return { result };
         }
         loginFailures.delete(clientIp(req) + '|' + lower(username));
+        if (passwordIsOldKind(account.hash)) {
+            const { salt, hash } = await newPasswordDetails(password);
+            await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2 WHERE id = $3`, [salt, hash, account.id]);
+            mirrorChanged(['staff']);
+        }
         await createSession(req, res, 'staff', account.id, SESSION_HOURS * 60);
         return { result, kind: 'staff', username: account.username };
     }
@@ -771,12 +813,17 @@ async function login(req, res, { username, password } = {}) {
     let result = 'ok';
     if (student.activeStudent === 'no') result = 'inactive';
     else if (!student.loginHash) result = student.adminResetRequired ? 'reset-required' : 'no-password';
-    else if (passwordHash(password, student.loginSalt) !== student.loginHash) result = 'wrong-password';
+    else if (!await passwordMatches(password, student.loginSalt, student.loginHash)) result = 'wrong-password';
     if (result !== 'ok') {
         if (result === 'wrong-password') loginFailed(req, username);
         return { result };
     }
     loginFailures.delete(clientIp(req) + '|' + lower(username));
+    if (passwordIsOldKind(student.loginHash)) {
+        const { salt, hash } = await newPasswordDetails(password);
+        await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2 WHERE id = $3`, [salt, hash, student.id]);
+        mirrorChanged(['students']);
+    }
     await createSession(req, res, 'student', student.id, SESSION_HOURS * 60);
     return { result, kind: 'student', studentId: student.id, admNo: student.admNo };
 }
@@ -784,11 +831,11 @@ async function login(req, res, { username, password } = {}) {
 // A staff member's own new password ('same': it is the current one)
 async function setOwnPassword(session, password) {
     const account = session.account;
-    if (account.hash && passwordHash(password, account.salt) === account.hash) return { result: 'same' };
-    const salt = randomBytes(16).toString('hex');
-    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false WHERE id = $3`,
-        [salt, passwordHash(password, salt), account.id]);
-    forgetSessions();
+    if (!passwordAcceptable(password)) return { result: 'weak' };
+    if (account.hash && await passwordMatches(password, account.salt, account.hash)) return { result: 'same' };
+    const { salt, hash } = await newPasswordDetails(password);
+    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false WHERE id = $3`, [salt, hash, account.id]);
+    await endOtherSessions('staff', account.id, session.tokenHash);
     return { result: 'ok' };
 }
 
@@ -797,25 +844,28 @@ async function setStudentPasswordOnServer(session, { studentId, password, mustCh
     if (session.kind === 'student') {
         if (studentId !== session.studentId) throw Object.assign(new Error('Not allowed.'), { status: 403 });
         mustChange = false;
+        if (!passwordAcceptable(password)) return { result: 'weak' };
     }
     const { rows } = await pool.query(`SELECT login_salt, login_hash FROM ${T('students')} WHERE id = $1`, [String(studentId)]);
     if (!rows.length) return { result: 'none' };
-    if (session.kind === 'student' && rows[0].login_hash && passwordHash(password, rows[0].login_salt) === rows[0].login_hash) {
+    if (session.kind === 'student' && rows[0].login_hash && await passwordMatches(password, rows[0].login_salt, rows[0].login_hash)) {
         return { result: 'same' };
     }
-    const salt = randomBytes(16).toString('hex');
+    const { salt, hash } = await newPasswordDetails(String(password));
     await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2, must_change_password = $3,
         admin_reset_required = false, password_set_at = now(), updated_at = now() WHERE id = $4`,
-        [salt, passwordHash(String(password), salt), !!mustChange, String(studentId)]);
+        [salt, hash, !!mustChange, String(studentId)]);
+    await endOtherSessions('student', studentId, session.kind === 'student' ? session.tokenHash : '');
     return { result: 'ok' };
 }
 
-/* ---------- Emails sent by the server itself (EmailJS, the same account and template as the pages) ----------
-   Used where the page asking must not see what is emailed: a password reset code asked for on the login page
-   (by a staff member or a student), and the "application received" email to an applicant.
-   EmailJS must allow this: Account > Security > "Allow EmailJS API for non-browser applications". If its
-   "Use Private Key" option is on too, the private key goes in the EMAILJS_PRIVATE_KEY setting (Render >
-   Environment, and the same name in this computer's environment); it is never put in the code. */
+/* ---------- Emails: every email of the system is written and sent here, by the server (through EmailJS) ----------
+   A page can only ask for one of the emails below; it never chooses the words or (except for the administrator's
+   password link, to a known staff member) who gets it, so nobody can use the system to send emails of their own.
+   EmailJS must allow this: Account > Security > "Allow EmailJS API for non-browser applications", and with "Use
+   Private Key" on, nobody without that key can send through the account. The private key goes in the
+   EMAILJS_PRIVATE_KEY setting on Render (Environment) and as "emailjsPrivateKey" in this computer's db-config.json;
+   it is never put in the code. */
 const PUBLIC_SITE = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || 'https://fewa-system.onrender.com').replace(/\/+$/, '');
 const looksLikeEmail = text => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(text || '').trim());
 const maskEmail = email => { const [name, domain] = String(email).split('@'); return name.slice(0, 2) + '•••@' + domain; };
@@ -827,8 +877,14 @@ async function emailSettings() {
 }
 
 // true when EmailJS accepted the email
+async function emailPrivateKey() {
+    if (process.env.EMAILJS_PRIVATE_KEY) return process.env.EMAILJS_PRIVATE_KEY;
+    return (await loadConfig().catch(() => ({}))).emailjsPrivateKey || '';
+}
+
 async function sendSystemEmail(to, message) {
     const settings = await emailSettings();
+    const privateKey = await emailPrivateKey();
     if (!settings.serviceId || !settings.templateId || !settings.publicKey || !looksLikeEmail(to)) return false;
     const organization = (await getRecord('settings', 'organization').catch(() => null)) || {};
     try {
@@ -837,7 +893,7 @@ async function sendSystemEmail(to, message) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 service_id: settings.serviceId, template_id: settings.templateId, user_id: settings.publicKey,
-                ...(process.env.EMAILJS_PRIVATE_KEY ? { accessToken: process.env.EMAILJS_PRIVATE_KEY } : {}),
+                ...(privateKey ? { accessToken: privateKey } : {}),
                 template_params: {
                     college_name: organization.collegeName || 'FEWA Beauty & Fashion College',
                     login_time: new Date().toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' }),
@@ -878,7 +934,7 @@ function resetRequestAllowed(req, username) {
 async function createResetCode({ email, minutes } = {}) {
     const code = String(randomBytes(4).readUInt32BE(0) % 1000000).padStart(6, '0');
     const salt = String(Date.now());
-    const data = { salt, hash: passwordHash(code, salt), expires: Date.now() + Number(minutes || 15) * 60000, attempts: 0 };
+    const data = { salt, hash: codeHash(code, salt), expires: Date.now() + Number(minutes || 15) * 60000, attempts: 0 };
     await pool.query(`INSERT INTO ${T('password_reset_codes')} (email, data) VALUES ($1, $2)
         ON CONFLICT (email) DO UPDATE SET data = EXCLUDED.data`, [lower(email), data]);
     return { code };
@@ -923,6 +979,59 @@ async function requestPasswordReset(req, { username } = {}) {
     return { result: 'sent', to: maskEmail(target.email), minutes: RESET_REQUEST_MINUTES };
 }
 
+// An administrator's "Send Reset Link", and the first email to a new staff member
+async function sendStaffPasswordLink({ email, newStaff } = {}) {
+    const target = await resetTarget(email);
+    if (!target || target.kind !== 'staff') return { result: 'unknown' };
+    const minutes = newStaff ? 24 * 60 : RESET_REQUEST_MINUTES;
+    const { code } = await createResetCode({ email: target.key, minutes });
+    const link = `${PUBLIC_SITE}/login.html?reset=${code}&user=${encodeURIComponent(target.username)}`;
+    const expiry = minutes >= 60 ? `${Math.round(minutes / 60)} hours` : `${minutes} minutes`;
+    const sent = await sendSystemEmail(target.email, newStaff
+        ? `Hello ${target.name}, a FEWA system staff account has been created for you. Your username is ${target.username}. ` +
+          `To set your password, open this link: ${link} or enter the code ${code} on the login page ` +
+          `under "Forgot password?". The link and code expire in ${expiry}.`
+        : `A password reset was requested for your FEWA system account. Your reset code is ${code}. ` +
+          `Open this link to set a new password: ${link} The code and link expire in ${expiry}. ` +
+          'If you did not ask for this, ignore this email.');
+    if (!sent) {
+        await pool.query(`DELETE FROM ${T('password_reset_codes')} WHERE email = $1`, [target.key]);
+        return { result: 'failed' };
+    }
+    return { result: 'sent' };
+}
+
+// A student's login details: the welcome email, or a Reset Password. Only goes to the email on their record, and
+// only while their temporary password (their AdmNo) is the one set.
+async function sendStudentLoginEmail({ studentId, kind } = {}) {
+    const { rows } = await pool.query(`SELECT * FROM ${T('students')} WHERE id = $1`, [String(studentId)]);
+    if (!rows.length) return { result: 'none' };
+    const student = recordFromRow(rows[0]);
+    if (!looksLikeEmail(student.email)) return { result: 'no-email' };
+    if (!student.loginHash || !student.mustChangePassword || !await passwordMatches(student.admNo, student.loginSalt, student.loginHash)) {
+        return { result: 'not-reset' };
+    }
+    const name = [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ');
+    const college = ((await getRecord('settings', 'organization').catch(() => null)) || {}).collegeName || 'FEWA Beauty & Fashion College';
+    const link = PUBLIC_SITE + '/login.html';
+    const sent = await sendSystemEmail(student.email, kind === 'welcome'
+        ? `Dear ${name}, welcome to ${college}! You have been admitted${student.admissionCourse ? ` to ${student.admissionCourse}` : ''}. ` +
+          `Your admission number (AdmNo) is ${student.admNo}. You can log in to the Student Portal at ${link} ` +
+          `with your AdmNo ${student.admNo} and the temporary password ${student.admNo}. ` +
+          'You will be asked to choose your own password the first time you log in. We look forward to seeing you.'
+        : `Hello ${name}, your FEWA student portal password has been reset. Log in at ${link} with your AdmNo ${student.admNo} ` +
+          `and the temporary password ${student.admNo}. You will be asked to choose your own password when you log in.`);
+    return { result: sent ? 'sent' : 'failed' };
+}
+
+// The note to a staff member that they have just logged in
+async function sendLoginNotice(account, firstTime) {
+    const when = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' });
+    return sendSystemEmail(account.username, firstTime
+        ? `Your FEWA system administrator account was created and you logged in successfully on ${when}.`
+        : `You logged in to the FEWA system successfully on ${when} using your password. If this was not you, change your password immediately.`);
+}
+
 async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
     const target = await resetTarget(email);
     if (!target) return { result: 'none' };
@@ -935,7 +1044,7 @@ async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
         await remove();
         return { result: 'expired' };
     }
-    if (saved.hash === passwordHash(String(code || '').trim(), saved.salt)) {
+    if (sameText(saved.hash, codeHash(String(code || '').trim(), saved.salt))) {
         await remove();
         await createSession(req, res, 'reset', key, RESET_GRANT_MINUTES);
         return { result: 'ok', username: target.username };
@@ -952,35 +1061,89 @@ async function verifyResetCodeOnServer(req, res, { email, code } = {}) {
 // The new password, for the staff member (email) or student ("student:<id>") whose code was accepted
 async function completeResetOnServer(req, res, session, { password } = {}) {
     if (session.kind !== 'reset') return { result: 'expired' };
-    const salt = randomBytes(16).toString('hex');
-    const hash = passwordHash(String(password), salt);
+    if (!passwordAcceptable(password)) return { result: 'weak' };
+    const { salt, hash } = await newPasswordDetails(password);
     const studentId = session.email.startsWith('student:') ? session.email.slice('student:'.length) : null;
     const updated = studentId
         ? await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2, must_change_password = false,
             admin_reset_required = false, password_set_at = now(), updated_at = now() WHERE id = $3`, [salt, hash, studentId])
         : await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false
-            WHERE lower(username) = $3`, [salt, hash, session.email]);
+            WHERE lower(username) = $3 RETURNING id`, [salt, hash, session.email]);
     await endSession(req, res, session);
+    if (studentId) await endOtherSessions('student', studentId);
+    else if (updated.rows.length) await endOtherSessions('staff', updated.rows[0].id);
     forgetSessions();
     return { result: updated.rowCount ? 'ok' : 'expired', table: studentId ? 'students' : 'staff' };
 }
 
-// What the pages may see of the staff accounts: administrators (and setup) everything; other staff the
-// accounts without password details (hash: true when a password is set)
+// What the pages may see of the staff accounts: without password details (hash: true when a password is set),
+// except in first-time setup
 function accountsForSession(text, full) {
     if (full || !text) return text;
     return JSON.stringify(JSON.parse(text).map(({ salt, hash, ...account }) => ({ ...account, hash: hash ? true : null })));
 }
 
-// Saving the accounts list: an account sent back with hash: true keeps its password as it is
-async function keepPasswords(text) {
-    if (text == null) return text;
+// Saving the accounts list: the password details are always the database's, so a page that was open for a while
+// can't bring an old password back. Only deactivating an account (hash null, adminResetRequired) cancels one, and
+// only first-time setup may bring its own.
+async function keepPasswords(text, setup) {
+    if (text == null || setup) return text;
     const accounts = JSON.parse(text);
-    if (!accounts.some(a => a && a.hash === true)) return text;
-    const { rows } = await pool.query(`SELECT id, salt, hash FROM ${T('staff')}`);
+    const { rows } = await pool.query(`SELECT id, salt, hash, admin_reset_required FROM ${T('staff')}`);
     const saved = new Map(rows.map(r => [r.id, r]));
-    return JSON.stringify(accounts.map(a => a && a.hash === true
-        ? { ...a, salt: (saved.get(a.id) || {}).salt || null, hash: (saved.get(a.id) || {}).hash || null } : a));
+    return JSON.stringify(accounts.map(a => {
+        if (!a) return a;
+        if (a.hash === null && a.adminResetRequired === true && a.status === 'Inactive') return { ...a, salt: null };
+        const row = saved.get(String(a.id));
+        return { ...a, salt: row ? row.salt : null, hash: row ? row.hash : null, adminResetRequired: row ? row.admin_reset_required : a.adminResetRequired ?? null };
+    }));
+}
+
+// Student records going out: never the password details (loginHash: true when a password is set)
+function hidePasswords(store, record) {
+    if (store !== 'students' || !record || typeof record !== 'object') return record;
+    if (Array.isArray(record)) return record.map(r => hidePasswords(store, r));
+    const { loginHash, loginSalt, ...rest } = record;
+    return loginHash ? { ...rest, loginHash: true } : rest;
+}
+
+// A student record coming in: the login details stay the database's (a page open for a while can't bring an old
+// password back). Only making a student inactive (loginHash null, adminResetRequired) cancels their password.
+async function keepStudentLogin(record) {
+    if (!record || typeof record !== 'object') return record;
+    if (record.loginHash === null && record.adminResetRequired === true) return { ...record, loginSalt: null };
+    const { rows } = await pool.query(`SELECT login_hash, login_salt, must_change_password, admin_reset_required, password_set_at
+        FROM ${T('students')} WHERE id = $1`, [String(record.id)]);
+    if (!rows.length) return { ...record, loginHash: null, loginSalt: null };
+    const before = recordFromRow(rows[0]);
+    return { ...record, loginHash: before.loginHash ?? null, loginSalt: before.loginSalt ?? null, mustChangePassword: before.mustChangePassword ?? null,
+        adminResetRequired: before.adminResetRequired ?? null, passwordSetAt: before.passwordSetAt ?? null };
+}
+
+/* What a staff member may change is checked here too, the same as can() in auth.js shows it on the screen:
+   administrators everything; a role never set up in Role Operations everything; otherwise the rights it was given. */
+async function staffCan(session, ...rights) {
+    if (session.admin) return true;
+    const { rows } = await pool.query(`SELECT rights FROM ${T('role_operations')} WHERE role = $1`, [session.account.jobTitle || '']);
+    if (!rows.length || !rows[0].rights) return true;
+    const saved = rows[0].rights;
+    const assigned = Array.isArray(saved.assigned) ? saved.assigned
+        : Object.entries(saved).flatMap(([part, ops]) => Array.isArray(ops) ? ops.map(op => `${part}.${op}`) : []);
+    return rights.some(right => assigned.includes(right));
+}
+
+// The rights that allow saving or deleting one record (any one of them is enough)
+async function rightsToWrite(store, id, method) {
+    if (method === 'DELETE') return store === 'settings' ? ['settings.delete'] : ['students.delete'];
+    if (store === 'students') {
+        const { rowCount } = await pool.query(`SELECT 1 FROM ${T('students')} WHERE id = $1`, [id]);
+        // (renaming a course in Settings also renames it on the students who have it)
+        return rowCount ? ['students.edit', 'settings.edit'] : ['students.add'];
+    }
+    if (store === 'documents') return ['documents.add', 'students.add', 'settings.edit']; // (admitting an applicant files their documents)
+    if (store === 'deferrals') return ['students.edit'];
+    if (store === 'applications') return ['students.edit', 'students.add'];
+    return id === 'paymentDetails' ? ['finance.edit', 'settings.edit'] : ['settings.add', 'settings.edit', 'settings.delete'];
 }
 
 // File ids a student may open: those in their own record and their own documents
@@ -1253,7 +1416,30 @@ const APPLY_FILES = {
 };
 const APPLY_MAX_FILE_BYTES = 5 * 1024 * 1024;
 const APPLY_PER_HOUR = 5;
-const applyCounts = new Map(); // IP -> { count, first }
+const APPLY_PER_HOUR_EVERYWHERE = 100; // the address a request says it comes from can be faked, so this counts them all
+const APPLY_AT_ONCE = 5;
+const applyCounts = new Map(); // IP (and 'everywhere') -> { count, first }
+let applicationsBeingSent = 0;
+
+// Asked before reading what was sent, so a flood of large requests is turned away cheaply
+function checkApplyLimits(req) {
+    const tooMany = message => Object.assign(new Error(message), { status: 429 });
+    const over = (key, limit) => {
+        const seen = applyCounts.get(key);
+        return !!seen && Date.now() - seen.first < 3600000 && seen.count >= limit;
+    };
+    if (over(clientIp(req), APPLY_PER_HOUR)) throw tooMany('Too many applications were sent from this connection. Please try again in an hour.');
+    if (over('everywhere', APPLY_PER_HOUR_EVERYWHERE)) throw tooMany('Too many applications are being sent right now. Please try again in an hour.');
+    if (applicationsBeingSent >= APPLY_AT_ONCE) throw tooMany('The system is busy. Please try again in a minute.');
+}
+
+function countApplication(req) {
+    if (applyCounts.size > 20000) applyCounts.clear();
+    for (const key of [clientIp(req), 'everywhere']) {
+        const seen = applyCounts.get(key);
+        applyCounts.set(key, seen && Date.now() - seen.first < 3600000 ? { ...seen, count: seen.count + 1 } : { count: 1, first: Date.now() });
+    }
+}
 
 // The choices, as the admission form has them (a list never saved in Settings has the same defaults as there)
 async function applicationOptions() {
@@ -1278,13 +1464,6 @@ async function receiveApplication(req, body) {
     body = body && typeof body === 'object' ? body : {};
     if (body.website) return { result: 'ok', reference: 'APP-' + randomBytes(3).toString('hex').toUpperCase() }; // a robot
 
-    // A few applications per hour from one place, so the form cannot be used to flood the database
-    const ip = clientIp(req);
-    const seen = applyCounts.get(ip);
-    if (seen && Date.now() - seen.first < 3600000 && seen.count >= APPLY_PER_HOUR) {
-        throw Object.assign(new Error('Too many applications were sent from this connection. Please try again in an hour.'), { status: 429 });
-    }
-
     const record = {};
     for (const field of APPLY_TEXT) {
         const value = String(body[field] ?? '').trim();
@@ -1296,7 +1475,7 @@ async function receiveApplication(req, body) {
     // Campus and Enrollment are asked for once the college has set them up in Settings
     if (options.campuses.length && !record.campus) missing.push('campus');
     if (options.enrollments.length && !record.enrollment) missing.push('enrollment');
-    const secondGiven = Object.keys(record).some(f => f.startsWith('mother'));
+    const secondGiven = Object.keys(record).some(f => f.startsWith('mother')) || !!body.motherIdCopy;
     if (secondGiven) missing.push(...APPLY_SECOND_REQUIRED.filter(f => !record[f]));
     if (missing.length) throw problem('Please fill in every field marked *.');
 
@@ -1348,7 +1527,7 @@ async function receiveApplication(req, body) {
         }
     }
     mirrorChanged(STORE_TABLES.applications);
-    applyCounts.set(ip, seen && Date.now() - seen.first < 3600000 ? { ...seen, count: seen.count + 1 } : { count: 1, first: Date.now() });
+    countApplication(req);
 
     // The applicant gets their prospect number by email too (the application is kept whether or not it goes)
     const college = options.collegeName || 'FEWA Beauty & Fashion College';
@@ -1372,6 +1551,10 @@ const BACKUP_TABLES = Object.keys(SCHEMA_OF).filter(t => t !== 'sessions' && t !
 // What a table was called in older backups
 const BACKUP_OLD_NAMES = { staff: 'staff_accounts' };
 const BACKUPS_KEPT = 60;
+// Uploaded files are kept in their own table of the backups database (one copy of each, however many backups have
+// it), so backups keep working however many documents the college has. Backups before Nov 2026 have them in "data".
+const BACKUP_DATA_TABLES = BACKUP_TABLES.filter(t => t !== 'stored_files');
+let backupProblem = ''; // why the last daily backup failed, shown in Settings > System Data Backups
 const AUTO_BACKUP_HOURS = 24;
 let backupPool = null;
 let backupError = 'Backups are made and restored on the office computer: open http://localhost:5600/ there.';
@@ -1405,27 +1588,62 @@ async function autoBackup() {
         const { rows } = await backupPool.query(`SELECT max(created_at) AS last FROM backups.snapshots`);
         if (rows[0].last && Date.now() - rows[0].last.getTime() < AUTO_BACKUP_HOURS * 3600000) return;
         await createBackup('automatic', 'Daily automatic backup');
+        backupProblem = '';
         console.log(new Date().toLocaleString(), 'Daily automatic backup made.');
     } catch (err) {
+        backupProblem = err.message;
         console.log(new Date().toLocaleString(), 'The daily automatic backup could not be made:', err.message);
     }
 }
 
 async function createBackup(createdBy, note) {
     const id = new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomBytes(3).toString('hex');
-    const tables = BACKUP_TABLES.map(t => `'${t}', (SELECT coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) FROM ${T(t)} x)`);
+    const tables = BACKUP_DATA_TABLES.map(t => `'${t}', (SELECT coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) FROM ${T(t)} x)`);
     const { rows } = await pool.query(`SELECT jsonb_build_object(${tables.join(', ')})::text AS data`);
-    await backupPool.query(`INSERT INTO backups.snapshots (id, created_by, note, data) VALUES ($1, $2, $3, $4::jsonb)`,
-        [id, createdBy || null, note || null, rows[0].data]);
-    await backupPool.query(`UPDATE backups.snapshots SET size_bytes = pg_column_size(data), summary = jsonb_build_object(
-            'students', jsonb_array_length(data->'students'), 'documents', jsonb_array_length(data->'documents'),
-            'staff', jsonb_array_length(coalesce(data->'staff', data->'staff_accounts', '[]'::jsonb)), 'files', jsonb_array_length(data->'stored_files'))
-        WHERE id = $1`, [id]);
+
+    // The files, listed after the records so every file they mention is there; only new ones are copied, one at a time
+    const list = (await pool.query(`SELECT id, size FROM ${T('stored_files')}`)).rows;
+    const known = new Set((await backupPool.query('SELECT id FROM backups.files WHERE id = ANY($1)', [list.map(f => f.id)])).rows.map(r => r.id));
+    const included = [];
+    let fileBytes = 0;
+    for (const entry of list) {
+        if (!known.has(entry.id)) {
+            const found = await pool.query(`SELECT id, name, type, size, content, created_at FROM ${T('stored_files')} WHERE id = $1`, [entry.id]);
+            if (!found.rows.length) continue; // deleted just now
+            const f = found.rows[0];
+            await backupPool.query(`INSERT INTO backups.files (id, name, type, size, content, created_at) VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (id) DO NOTHING`, [f.id, f.name, f.type, f.size, f.content, f.created_at]);
+        }
+        included.push(entry.id);
+        fileBytes += Number(entry.size) || 0;
+    }
+
+    const client = await backupPool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(`INSERT INTO backups.snapshots (id, created_by, note, data) VALUES ($1, $2, $3, $4::jsonb)`,
+            [id, createdBy || null, note || null, rows[0].data]);
+        await client.query(`INSERT INTO backups.snapshot_files (snapshot_id, file_id) SELECT $1, unnest($2::text[])`, [id, included]);
+        await client.query(`UPDATE backups.snapshots SET size_bytes = pg_column_size(data) + $2::bigint, summary = jsonb_build_object(
+                'students', jsonb_array_length(data->'students'), 'documents', jsonb_array_length(data->'documents'),
+                'staff', jsonb_array_length(coalesce(data->'staff', data->'staff_accounts', '[]'::jsonb)), 'files', $3::int)
+            WHERE id = $1`, [id, fileBytes, included.length]);
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => { });
+        throw err;
+    } finally {
+        client.release();
+    }
     // Only the newest backups are kept
     await backupPool.query(`DELETE FROM backups.snapshots WHERE id NOT IN
         (SELECT id FROM backups.snapshots ORDER BY created_at DESC LIMIT ${BACKUPS_KEPT})`);
+    await dropUnusedBackupFiles();
     return { id };
 }
+
+const dropUnusedBackupFiles = () => backupPool.query(`DELETE FROM backups.files f
+    WHERE NOT EXISTS (SELECT 1 FROM backups.snapshot_files l WHERE l.file_id = f.id)`);
 
 const listBackups = async () => (await backupPool.query(`SELECT id, created_at AS "createdAt", created_by AS "createdBy",
     note, summary, size_bytes AS "sizeBytes" FROM backups.snapshots ORDER BY created_at DESC`)).rows;
@@ -1446,6 +1664,16 @@ async function restoreBackupOnServer(id, by) {
                 [id, name])).rows[0];
             let saved = await part(table);
             if (!saved.has && BACKUP_OLD_NAMES[table]) saved = await part(BACKUP_OLD_NAMES[table]);
+            if (!saved.has && table === 'stored_files') {
+                await client.query(`DELETE FROM ${T('stored_files')}`);
+                const links = await backupPool.query('SELECT file_id FROM backups.snapshot_files WHERE snapshot_id = $1', [id]);
+                for (const { file_id } of links.rows) {
+                    const { rows: [f] } = await backupPool.query('SELECT id, name, type, size, content, created_at FROM backups.files WHERE id = $1', [file_id]);
+                    await client.query(`INSERT INTO ${T('stored_files')} (id, name, type, size, content, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [f.id, f.name, f.type, f.size, f.content, f.created_at]);
+                }
+                continue;
+            }
             if (!saved.has) continue; // a table that did not exist yet when the backup was made is left as it is
             await client.query(`DELETE FROM ${T(table)}`);
             await client.query(`INSERT INTO ${T(table)} SELECT * FROM jsonb_populate_recordset(NULL::${T(table)}, $1::jsonb)`,
@@ -1480,6 +1708,7 @@ async function restoreBackupOnServer(id, by) {
 
 async function deleteBackup(id) {
     const { rowCount } = await backupPool.query('DELETE FROM backups.snapshots WHERE id = $1', [id]);
+    await dropUnusedBackupFiles();
     return { result: rowCount ? 'ok' : 'none' };
 }
 
@@ -1720,13 +1949,13 @@ async function runSystemUpdate(by, timeZone) {
 }
 
 /* ---------- The API ---------- */
-function readBody(req) {
+function readBody(req, limit = MAX_BODY_BYTES) {
     return new Promise((resolve, reject) => {
         const chunks = [];
         let size = 0;
         req.on('data', chunk => {
             size += chunk.length;
-            if (size > MAX_BODY_BYTES) {
+            if (size > limit) {
                 reject(Object.assign(new Error('The file is too large to save.'), { status: 413 }));
                 req.destroy();
             } else chunks.push(chunk);
@@ -1770,7 +1999,7 @@ async function handleApi(req, res, parts) {
             resetEmail: session.kind === 'reset' ? session.email : null
         });
     }
-    if (area === 'session' && a === 'login' && method === 'POST') return send(res, 200, await login(req, res, await readBody(req)));
+    if (area === 'session' && a === 'login' && method === 'POST') return send(res, 200, await login(req, res, await readBody(req, SMALL_BODY_BYTES)));
     if (area === 'session' && a === 'logout' && method === 'POST') {
         await endSession(req, res, session);
         return send(res, 200, { ok: true });
@@ -1783,18 +2012,27 @@ async function handleApi(req, res, parts) {
     }
     if (area === 'student-password' && method === 'POST') {
         if (!staff && session.kind !== 'student') throw forbidden();
-        const result = await setStudentPasswordOnServer(session, await readBody(req) || {});
+        if (staff && !await staffCan(session, 'students.edit', 'students.add')) throw forbidden();
+        const result = await setStudentPasswordOnServer(session, await readBody(req, SMALL_BODY_BYTES) || {});
         mirrorChanged(['students']);
         return send(res, 200, result);
     }
-    if (area === 'reset-code' && method === 'POST') {
-        if (!admin) throw forbidden(); // the code is made here and emailed by the administrator's page
-        const result = await createResetCode(await readBody(req) || {});
+    if (area === 'password-link' && method === 'POST') {
+        if (!admin) throw forbidden();
+        const result = await sendStaffPasswordLink(await readBody(req, SMALL_BODY_BYTES) || {});
         mirrorChanged(['password_reset_codes']);
         return send(res, 200, result);
     }
+    if (area === 'student-email' && method === 'POST') {
+        if (!staff || !await staffCan(session, 'students.edit', 'students.add')) throw forbidden();
+        return send(res, 200, await sendStudentLoginEmail(await readBody(req, SMALL_BODY_BYTES) || {}));
+    }
+    if (area === 'login-notice' && method === 'POST') {
+        if (!staff) throw forbidden();
+        return send(res, 200, { sent: await sendLoginNotice(session.account, !!(await readBody(req, SMALL_BODY_BYTES) || {}).firstTime) });
+    }
     if (area === 'password-reset' && a === 'verify' && method === 'POST') {
-        const body = await readBody(req) || {};
+        const body = await readBody(req, SMALL_BODY_BYTES) || {};
         if (loginLocked(req, 'reset:' + body.email)) return send(res, 200, { result: 'none' });
         const result = await verifyResetCodeOnServer(req, res, body);
         if (result.result !== 'ok') loginFailed(req, 'reset:' + body.email);
@@ -1802,13 +2040,13 @@ async function handleApi(req, res, parts) {
         return send(res, 200, result);
     }
     if (area === 'password-reset' && !a && method === 'POST') {
-        const { table, ...result } = await completeResetOnServer(req, res, session, await readBody(req) || {});
+        const { table, ...result } = await completeResetOnServer(req, res, session, await readBody(req, SMALL_BODY_BYTES) || {});
         mirrorChanged([table || 'staff']);
         return send(res, 200, result);
     }
     // "Forgot your password?" (staff by email, students by AdmNo): a few requests per username per 15 minutes
     if (area === 'password-reset' && a === 'request' && method === 'POST') {
-        const body = await readBody(req) || {};
+        const body = await readBody(req, SMALL_BODY_BYTES) || {};
         if (!resetRequestAllowed(req, body.username)) return send(res, 200, { result: 'locked' });
         const result = await requestPasswordReset(req, body);
         mirrorChanged(['password_reset_codes']);
@@ -1817,22 +2055,30 @@ async function handleApi(req, res, parts) {
 
     /* ---------- Online applications: open to everyone ---------- */
     if (area === 'apply' && a === 'options' && method === 'GET') return send(res, 200, await applicationOptions());
-    if (area === 'apply' && !a && method === 'POST') return send(res, 200, await receiveApplication(req, await readBody(req)));
+    if (area === 'apply' && !a && method === 'POST') {
+        checkApplyLimits(req);
+        applicationsBeingSent++;
+        try {
+            return send(res, 200, await receiveApplication(req, await readBody(req, APPLY_BODY_BYTES)));
+        } finally {
+            applicationsBeingSent--;
+        }
+    }
 
     /* ---------- Records ---------- */
     if (area === 'stores' && STORES[a]) {
         if (method === 'GET') {
-            if (fullAccess) return send(res, 200, b ? await getRecord(a, b) : await getAllRecords(a));
+            if (fullAccess) return send(res, 200, hidePasswords(a, b ? await getRecord(a, b) : await getAllRecords(a)));
             if (session.kind === 'student') {
                 if (a === 'applications') throw forbidden();
                 const mine = record => a === 'students' ? record.id === session.studentId
                     : a === 'settings' ? true : record.studentId === session.studentId;
                 if (b) {
                     const record = await getRecord(a, b);
-                    return send(res, 200, record && mine(record) ? record : null);
+                    return send(res, 200, record && mine(record) ? hidePasswords(a, record) : null);
                 }
                 return send(res, 200, a === 'students'
-                    ? await selectRecords(pool, 'students', session.studentId)
+                    ? hidePasswords(a, await selectRecords(pool, 'students', session.studentId))
                     : (await getAllRecords(a)).filter(mine));
             }
             // Not logged in: the college name and logo for the login page only
@@ -1841,10 +2087,12 @@ async function handleApi(req, res, parts) {
             throw forbidden();
         }
         if (!fullAccess) throw forbidden();
+        if ((method === 'PUT' || method === 'DELETE') && b && staff && !await staffCan(session, ...await rightsToWrite(a, b, method))) throw forbidden();
         if (method === 'PUT' && b) {
-            const saved = await putRecord(a, b, await readBody(req));
+            const body = await readBody(req);
+            const saved = await putRecord(a, b, a === 'students' ? await keepStudentLogin(body) : body);
             mirrorChanged(STORE_TABLES[a]);
-            return send(res, 200, saved);
+            return send(res, 200, hidePasswords(a, saved));
         }
         if (method === 'DELETE' && b) {
             await deleteRecord(a, b);
@@ -1852,6 +2100,7 @@ async function handleApi(req, res, parts) {
             return send(res, 200, { ok: true });
         }
         if (method === 'POST' && b === 'replace') {
+            if (!(setup || admin)) throw forbidden();
             const body = await readBody(req) || {};
             await replaceRecords(a, Array.isArray(body.records) ? body.records : [], !!body.merge);
             mirrorChanged(STORE_TABLES[a]);
@@ -1910,16 +2159,17 @@ async function handleApi(req, res, parts) {
         if (!fullAccess) return send(res, 200, {});
         const values = await getValues();
         const visible = {};
-        if (values[ACCOUNTS_KEY]) visible[ACCOUNTS_KEY] = accountsForSession(values[ACCOUNTS_KEY], setup || admin);
+        if (values[ACCOUNTS_KEY]) visible[ACCOUNTS_KEY] = accountsForSession(values[ACCOUNTS_KEY], setup);
         if (values[ROLE_OPERATIONS_KEY]) visible[ROLE_OPERATIONS_KEY] = values[ROLE_OPERATIONS_KEY];
         return send(res, 200, visible); // reset codes never leave the server
     }
     if (area === 'values' && method === 'PUT' && a) {
+        if (!(setup || admin)) throw forbidden();
         const body = await readBody(req) || {};
         const value = body.value == null ? null : String(body.value);
         const resetCodeRemoved = a.startsWith(RESET_PREFIX) && value === null;
-        if (!(setup || admin) || (a.startsWith(RESET_PREFIX) && !resetCodeRemoved)) throw forbidden();
-        await setValue(a, a === ACCOUNTS_KEY ? await keepPasswords(value) : value);
+        if (a.startsWith(RESET_PREFIX) && !resetCodeRemoved) throw forbidden();
+        await setValue(a, a === ACCOUNTS_KEY ? await keepPasswords(value, setup) : value);
         if (a === ACCOUNTS_KEY) {
             forgetAccountCount();
             forgetSessions();
@@ -1932,7 +2182,7 @@ async function handleApi(req, res, parts) {
     if (area === 'backups') {
         if (!admin) throw forbidden();
         const by = session.account.username;
-        if (method === 'GET' && !a) return send(res, 200, backupPool ? { available: true, backups: await listBackups() }
+        if (method === 'GET' && !a) return send(res, 200, backupPool ? { available: true, backups: await listBackups(), problem: backupProblem }
             : { available: false, reason: backupError, backups: [] });
         if (!backupPool) return send(res, 503, { error: backupError });
         if (method === 'POST' && !a) return send(res, 200, await createBackup(by, String((await readBody(req) || {}).note || '').slice(0, 200)));
@@ -1960,6 +2210,13 @@ async function handleApi(req, res, parts) {
 
 /* ---------- Start ---------- */
 http.createServer(async (req, res) => {
+    // Protections every browser understands: no showing the system inside another website, no guessing file types,
+    // and the address of a page (a reset link has a code in it) is never told to other websites
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self'; base-uri 'self'");
+    res.setHeader('Referrer-Policy', 'same-origin');
+    if (isHttps(req)) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
     // A strange address (e.g. "//" or a broken %-code) gets "Bad request" instead of stopping the server
     let file;
     try {

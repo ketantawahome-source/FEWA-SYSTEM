@@ -71,37 +71,12 @@
                 <button type="button" id="forgotButton" class="link-button" onclick="showResetRequest()" disabled
                     title="Enter your username (email) first">Forgot your password?</button>
             </div>
-            <div id="otpSwitch">
-                <div class="divider"><span>or</span></div>
-                <button type="button" class="btn-login btn-outline" onclick="showOtpLogin()">Login with OTP</button>
-            </div>
             <!-- Only shown the first time: bring back all the data from a backup file (backup.js) -->
             <div id="restoreSwitch" style="display: none;">
                 <div class="divider"><span>or</span></div>
                 <label class="btn-login btn-outline restore-button">Restore from Backup File
                     <input type="file" accept=".json,application/json" hidden onchange="restoreFromLogin(this)"></label>
                 <div class="restore-hint">Had the system before? Choose the FEWA backup file to bring back all staff and student data.</div>
-            </div>
-        </form>
-
-        <!-- Login with a one-time passcode sent by email -->
-        <form id="otpForm" style="display: none;" onsubmit="submitOtpForm(event)">
-            <div id="otpError" class="login-error"></div>
-            <div id="otpInfo" class="otp-info"></div>
-            <div class="field">
-                <label for="otpEmail">Username</label>
-                <input type="email" id="otpEmail" autocomplete="username" required>
-            </div>
-            <div id="otpCodeField" class="field" style="display: none;">
-                <label for="otpCode">6-digit Code</label>
-                <input type="text" id="otpCode" class="otp-code" inputmode="numeric" maxlength="6"
-                    autocomplete="one-time-code" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;">
-            </div>
-            <button type="submit" id="otpButton" class="btn-login">Send OTP</button>
-            <div class="otp-links">
-                <button type="button" id="resendButton" class="link-button" style="display: none;"
-                    onclick="sendOtp()">Resend code</button>
-                <button type="button" class="link-button" onclick="showPasswordLogin()">Back to password login</button>
             </div>
         </form>
 
@@ -209,8 +184,7 @@
             document.getElementById('phone').required = true;
             document.getElementById('password').autocomplete = 'new-password';
             document.getElementById('loginButton').innerText = 'Create Account & Login';
-            // OTP and password reset need an account to send the code to
-            document.getElementById('otpSwitch').style.display = 'none';
+            // Password reset needs an account to send the code to
             document.getElementById('forgotButton').style.display = 'none';
             document.getElementById('restoreSwitch').style.display = 'block';
         }
@@ -315,7 +289,7 @@
             openSystem();
         }
 
-        // LOADING please wait..., then Login successful; used by password and OTP logins once the details are right
+        // LOADING please wait..., then Login successful; used once the details are right
         async function showLoginLoading() {
             showLoading();
             await pause(LOADING_MIN_MS);
@@ -375,121 +349,20 @@
             return () => {
                 if (!settingUp) rememberUser(username);
                 startSession(username);
-                showWelcome(username, { firstTime: settingUp, method: 'your password' });
+                showWelcome(username, { firstTime: settingUp });
             };
         }
 
-        /* ---------- Login with OTP ---------- */
-        const RESEND_WAIT_SECONDS = 60;
-        let otpSentTo = null;
-        let resendTimer = null;
-
         // Shows one of the login page's forms and hides the others
         function showForm(formId, title, subtitle = '') {
-            ['loginForm', 'otpForm', 'resetRequestForm', 'resetCodeForm', 'resetForm'].forEach(id =>
+            ['loginForm', 'resetRequestForm', 'resetCodeForm', 'resetForm'].forEach(id =>
                 document.getElementById(id).style.display = id === formId ? 'block' : 'none');
             document.getElementById('loginTitle').innerText = title;
             showSubtitle(subtitle);
         }
 
-        function showOtpLogin() {
-            showForm('otpForm', 'Sign In', 'We will email you a 6-digit code to log in');
-            document.getElementById('otpEmail').value = document.getElementById('username').value.trim();
-            document.getElementById('otpEmail').focus();
-        }
-
         function showPasswordLogin() {
             showForm('loginForm', 'Sign In');
-        }
-
-        function showOtpError(message) {
-            const box = document.getElementById('otpError');
-            box.innerText = message;
-            box.style.display = message ? 'block' : 'none';
-        }
-
-        // First press sends the code; once a code is sent, the same button verifies it
-        function submitOtpForm(event) {
-            event.preventDefault();
-            if (otpSentTo) verifyOtpCode();
-            else sendOtp();
-        }
-
-        async function sendOtp() {
-            showOtpError('');
-            const email = document.getElementById('otpEmail').value.trim();
-            if (!window.crypto || !crypto.subtle) {
-                return showOtpError('This browser cannot log in securely here. Open the system from http://localhost or as a local file.');
-            }
-            // (OTP codes would be emailed by this page; logins are now checked by the server, so this stays off)
-            return showOtpError('OTP login is not available. Log in with your password instead.');
-
-            const button = document.getElementById('otpButton');
-            button.disabled = true;
-            button.innerText = 'Sending...';
-            const sent = await sendOtpEmail(email, await createOtp(email), OTP_VALID_MINUTES);
-            button.disabled = false;
-
-            if (!sent) {
-                button.innerText = 'Send OTP';
-                return showOtpError('The code could not be sent. Check the internet connection and try again.');
-            }
-
-            otpSentTo = email;
-            const phone = findAccount(email).phone;
-            document.getElementById('otpEmail').readOnly = true;
-            document.getElementById('otpCodeField').style.display = 'flex';
-            document.getElementById('otpCode').value = '';
-            document.getElementById('otpCode').required = true;
-            document.getElementById('otpCode').focus();
-            button.innerText = 'Verify & Login';
-
-            const info = document.getElementById('otpInfo');
-            // The code only ever goes to the registered contacts; SMS to the phone is not set up yet
-            info.innerText = `A 6-digit code was sent to your registered email ${maskEmail(email)}. ` +
-                `It expires in ${OTP_VALID_MINUTES} minutes.` +
-                (phone ? `\nRegistered phone: ${maskPhone(phone)} (SMS codes not set up yet).` : '');
-            info.style.display = 'block';
-            startResendCountdown();
-        }
-
-        // "Resend code" is available again after a short wait
-        function startResendCountdown() {
-            const resend = document.getElementById('resendButton');
-            let left = RESEND_WAIT_SECONDS;
-            resend.style.display = 'inline';
-            resend.disabled = true;
-            clearInterval(resendTimer);
-            const tick = () => {
-                resend.innerText = left > 0 ? `Resend code (${left}s)` : 'Resend code';
-                if (left-- <= 0) {
-                    resend.disabled = false;
-                    clearInterval(resendTimer);
-                }
-            };
-            tick();
-            resendTimer = setInterval(tick, 1000);
-        }
-
-        async function verifyOtpCode() {
-            const code = document.getElementById('otpCode').value;
-            if (!/^\d{6}$/.test(code.trim())) return showOtpError('Enter the 6-digit code from the email.');
-
-            const result = await verifyOtp(otpSentTo, code);
-            if (result === 'ok') {
-                // The right code: the same loading screen as a password login, then the system opens
-                await showLoginLoading();
-                startSession(otpSentTo);
-                showWelcome(otpSentTo, { firstTime: false, method: 'a one-time passcode (OTP)' });
-                return;
-            }
-            document.getElementById('otpCode').value = '';
-            showOtpError({
-                wrong: 'Wrong code. Check the email and try again.',
-                expired: 'This code has expired. Press "Resend code" to get a new one.',
-                none: 'Too many wrong tries. Press "Resend code" to get a new one.'
-            }[result]);
-            if (result !== 'wrong') document.getElementById('resendButton').disabled = false;
         }
 
         /* ---------- Forgot password ---------- */
@@ -660,8 +533,8 @@
         // The first login waits for "Continue"; later logins carry on to the system by themselves.
         const AUTO_CONTINUE_SECONDS = 3;
 
-        async function showWelcome(email, { firstTime, method }) {
-            ['loginForm', 'otpForm', 'loginTitle', 'loginSubtitle'].forEach(id =>
+        async function showWelcome(email, { firstTime }) {
+            ['loginForm', 'loginTitle', 'loginSubtitle'].forEach(id =>
                 document.getElementById(id).style.display = 'none');
             document.getElementById('welcomePanel').style.display = 'block';
             document.getElementById('welcomeText').innerText = firstTime
@@ -670,7 +543,7 @@
 
             const status = document.getElementById('emailStatus');
             status.innerText = `Sending a login notification to ${email}...`;
-            const sent = await sendLoginEmail(email, { firstTime, method });
+            const sent = await sendLoginEmail(firstTime);
             status.className = 'email-status ' + (sent ? 'sent' : 'failed');
             status.innerText = sent
                 ? `A login notification has been sent to ${email}.`

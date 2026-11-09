@@ -1325,6 +1325,7 @@
                         <div><span>Backups:</span> <b>PostgreSQL</b> on the office computer, database fewa_backups</div>
                     </div>
                     ${list.available ? '' : `<div class="empty-state" style="margin-top:16px">${escapeHtml(list.reason || '')}</div>`}
+                    ${list.problem ? `<div class="empty-state" style="margin-top:16px;color:#c0392b"><b>The last daily backup failed:</b> ${escapeHtml(list.problem)}</div>` : ''}
                     <div class="backup-actions" style="${list.available ? '' : 'display:none'}">
                         <input type="text" id="backupNote" maxlength="200" placeholder="Note (optional), e.g. Before the January intake"
                             style="flex:1;min-width:220px;padding:10px;border:1px solid #d8cfe3;border-radius:8px">
@@ -4173,10 +4174,7 @@
             if (!student.email || student.activeStudent === 'no' || !student.admNo || !isEmailConfigured()) return;
             try {
                 await setStudentPassword(student.id, student.admNo, true);
-                const sent = await sendStudentWelcomeEmail(student.email, {
-                    name: fullName(student), admNo: student.admNo, course: student.admissionCourse,
-                    password: student.admNo, link: studentLoginLink()
-                });
+                const sent = await sendStudentLoginEmail(student.id, 'welcome');
                 if (sent) showToast(`Welcome email with the Student Portal login sent to ${student.email}.`);
                 else showToast(`The welcome email to ${student.email} could not be sent. Use Reset Password > Email to Student later.`, 'warning');
             } catch (error) {
@@ -4251,8 +4249,7 @@
             box.querySelector('[data-action="email"]').onclick = async event => {
                 if (!isEmailConfigured()) return openEmailProgram();
                 event.target.disabled = true;
-                const sent = await sendStudentPasswordEmail(student.email,
-                    { name: fullName(student), admNo: student.admNo, password, link: loginLink });
+                const sent = await sendStudentLoginEmail(student.id, 'reset');
                 if (sent) return showToast(`Temporary password emailed to ${student.email}.`);
                 event.target.disabled = false;
                 if (confirm(`The email to ${student.email} could not be sent automatically.\n\nOpen it in your email program instead?`)) openEmailProgram();
