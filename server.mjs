@@ -291,7 +291,22 @@ async function tableDefinitions() {
     return Promise.all(files.map(f => readFile(path.join(folder, f), 'utf8')));
 }
 
+// Changing the tables can collide with something else using them at that moment (the online server, or a page
+// saving): PostgreSQL then cancels one side with "deadlock detected". Nothing was changed, so it simply tries again.
+const TABLE_UPDATE_TRIES = 5;
 async function setUpTables(client) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await setUpTablesOnce(client);
+        } catch (err) {
+            if (attempt >= TABLE_UPDATE_TRIES || !['40P01', '40001'].includes(err.code)) throw err;
+            console.log(new Date().toLocaleString(), `Updating the tables collided with other work (${err.message}): trying again.`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+        }
+    }
+}
+
+async function setUpTablesOnce(client) {
     const definitions = await tableDefinitions();
     await client.query('BEGIN');
     try {
@@ -1779,17 +1794,22 @@ async function runSystemUpdate(by, timeZone) {
             }
 
             say(62, 'Updating the database tables (database/*.sql)...');
-            const client = await pool.connect();
-            try { await setUpTables(client); } finally { client.release(); }
-            databases++;
-            say(72, 'Main database (Supabase) updated.');
-            if (mirrorPool) {
-                const mirrorClient = await mirrorPool.connect();
-                try { await setUpTables(mirrorClient); } finally { mirrorClient.release(); columnCache.clear(); }
+            // In the sync's queue, so the sync waits and cannot collide with these table changes
+            const tablesUpdated = mirrorQueue.then(async () => {
+                const client = await pool.connect();
+                try { await setUpTables(client); } finally { client.release(); }
                 databases++;
-                say(80, 'Local PostgreSQL copy (fewa_college) updated.');
-                mirrorChanged(SYNC_ORDER);
-            }
+                say(72, 'Main database (Supabase) updated.');
+                if (mirrorPool) {
+                    const mirrorClient = await mirrorPool.connect();
+                    try { await setUpTables(mirrorClient); } finally { mirrorClient.release(); columnCache.clear(); }
+                    databases++;
+                    say(80, 'Local PostgreSQL copy (fewa_college) updated.');
+                    mirrorChanged(SYNC_ORDER);
+                }
+            });
+            mirrorQueue = tablesUpdated.catch(() => { });
+            await tablesUpdated;
             if (await updateBackupTables()) {
                 databases++;
                 say(86, 'Backups database (fewa_backups) updated.');
