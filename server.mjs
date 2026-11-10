@@ -1997,6 +1997,8 @@ async function handleApi(req, res, parts) {
             return send(res, 200, hidePasswords(a, saved));
         }
         if (method === 'DELETE' && b) {
+            // Students are never deleted through the system: only by the administrator, in the databases themselves
+            if (a === 'students') throw forbidden();
             await deleteRecord(a, b);
             mirrorChanged(STORE_TABLES[a]);
             return send(res, 200, { ok: true });

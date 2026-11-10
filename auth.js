@@ -97,7 +97,7 @@ const ROLE_OPERATIONS = [
     ['settings.view', 'Access Settings', 'Ability to access the Settings screens.'],
     ['students.add', 'Add Students', 'Ability to admit (add) new students.'],
     ['settings.add', 'Add Settings Items', 'Ability to add courses, campuses, terms, roles and other setup items.'],
-    ['students.delete', 'Delete Students', 'Ability to delete students and their deferral/suspension records.'],
+    ['students.delete', 'Delete Student Records', 'Ability to delete student documents and deferral/suspension records. Students themselves are only deleted in the databases.'],
     ['settings.delete', 'Delete Settings Items', 'Ability to delete courses, campuses, terms, roles and other setup items.'],
     ['finance.edit', 'Edit Fee Payment Details', 'Ability to change the M-Pesa and bank details fees are paid to.'],
     ['settings.edit', 'Edit Settings', 'Ability to change setup items and the School Setup details.'],

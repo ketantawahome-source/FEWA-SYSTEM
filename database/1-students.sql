@@ -201,3 +201,45 @@ ALTER TABLE students.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students.deferrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students.applications ENABLE ROW LEVEL SECURITY;
+
+
+-- ---------- Deleting a student (only done here, in the databases; the system's pages have no Delete button) ----------
+-- In Supabase (SQL Editor) or pgAdmin (Query Tool on fewa_college), run:
+--     SELECT students.delete_student('THE-ADMNO');
+-- It deletes the student with their documents, deferrals/suspensions and logins, and says what it did. The other
+-- database follows within 30 seconds (the system's two-way sync), and unused files are cleared by the system.
+CREATE OR REPLACE FUNCTION students.delete_student(admission_number text) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE
+    found_id text;
+    found_name text;
+    how_many integer;
+    doc_count integer;
+    deferral_count integer;
+BEGIN
+    SELECT count(*) INTO how_many FROM students.students WHERE lower(adm_no) = lower(trim(admission_number));
+    IF how_many = 0 THEN
+        RETURN 'No student has AdmNo ' || admission_number || '. Nothing was deleted.';
+    ELSIF how_many > 1 THEN
+        RETURN 'More than one student has AdmNo ' || admission_number || '. Nothing was deleted; delete by id instead.';
+    END IF;
+    SELECT id, concat_ws(' ', first_name, middle_name, last_name) INTO found_id, found_name
+        FROM students.students WHERE lower(adm_no) = lower(trim(admission_number));
+
+    DELETE FROM students.documents WHERE student_id = found_id;
+    GET DIAGNOSTICS doc_count = ROW_COUNT;
+    DELETE FROM students.deferrals WHERE student_id = found_id;
+    GET DIAGNOSTICS deferral_count = ROW_COUNT;
+    DELETE FROM logins.sessions WHERE kind = 'student' AND subject = found_id;
+    DELETE FROM logins.password_reset_codes WHERE email = 'student:' || found_id;
+    UPDATE students.applications SET student_id = NULL WHERE student_id = found_id;
+    DELETE FROM students.students WHERE id = found_id;
+
+    RETURN 'Deleted ' || found_name || ' (' || admission_number || '), ' || doc_count || ' document(s) and '
+        || deferral_count || ' deferral/suspension record(s).';
+END;
+$$;
+COMMENT ON FUNCTION students.delete_student(text) IS
+    'FEWA system: deletes a student by AdmNo, with their documents, deferrals and logins. Use: SELECT students.delete_student(''AdmNo'');';
+-- Only the database owner (you, in Supabase or pgAdmin) may run it, not website visitors
+REVOKE ALL ON FUNCTION students.delete_student(text) FROM PUBLIC;

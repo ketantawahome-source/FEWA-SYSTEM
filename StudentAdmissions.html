@@ -643,10 +643,8 @@
                     <p class="record-stamp">Date Recorded: <b id="statusRecordedDate"></b></p>
 
                     <div class="action-bar" style="gap: 10px;">
-                        <button type="button" id="deleteStudentBtn" class="btn-secondary btn-delete"
-                            style="display: none;"
-                            onclick="deleteStudent(document.getElementById('studentAdmissionsForm').elements['id'].value)">Delete
-                            Student</button>
+                        <!-- No Delete Student button: a student is only deleted by the administrator in the databases
+                             (Supabase and PostgreSQL), never from the system's pages -->
                         <!-- Sets a temporary password for the Student Portal (login with AdmNo or email) -->
                         <button type="button" id="resetStudentPasswordBtn" class="btn-secondary btn-reset-password"
                             style="display: none; margin-right: auto;"
@@ -3926,8 +3924,6 @@
             }
             savedAdmission = student ? { course: student.admissionCourse, admNo: student.admNo } : null;
             lockAdmissionNumber(!form.elements['admissionCourse'].value);
-            // Delete only makes sense for a student that is already saved
-            document.getElementById('deleteStudentBtn').style.display = student ? 'inline-block' : 'none';
             document.getElementById('resetStudentPasswordBtn').style.display = student ? 'inline-block' : 'none';
             // Records saved before Date Recorded existed: fall back to the exit date stamp or when the student was added
             savedStatus = student ? (student.activeStudent === 'no' ? 'no' : 'yes') : null;
@@ -4172,21 +4168,6 @@
             };
             box.querySelector('[data-action="done"]').onclick = () => box.remove();
             showToast(`Password reset for ${fullName(student)}.`);
-        }
-
-        async function deleteStudent(id) {
-            if (!allowed('students', 'delete')) return;
-            const student = await getOne('students', id);
-            if (!student) return;
-            const docs = (await getAll('documents')).filter(d => d.studentId === id);
-            const warning = docs.length ? `\n\nThis will also delete ${docs.length} uploaded document(s).` : '';
-            if (!confirm(`Delete ${fullName(student)} (${student.admNo})?${warning}`)) return;
-
-            for (const doc of docs) await deleteOne('documents', doc.id);
-            for (const d of (await getAll('deferrals')).filter(d => d.studentId === id)) await deleteOne('deferrals', d.id);
-            await deleteOne('students', id);
-            showToast(`${fullName(student)} (${student.admNo}) deleted successfully.`);
-            goBack(showStudentList);
         }
 
         // The top bar search looks students up on the Student Status tab
