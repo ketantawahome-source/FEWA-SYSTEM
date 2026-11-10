@@ -5690,3 +5690,399 @@ body:has(#main-wrapper) {
 .backup-download button[type=submit] { margin-top: 12px; }
 .upload-problems { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: #fdecea; color: #c0392b; border: 1px solid #f5c6c0; }
 #uploadResult { margin-top: 12px; }
+
+/* ==========================================================================
+   FEWA design (November 2026): one consistent look for every staff page and the login page.
+   The college's purple and gold, with larger, easier-to-read text, the same rounded corners, spacing and
+   shadows everywhere, clear keyboard focus, and phone-friendly tabs and footer. Written last, so these
+   rules are the ones that count; the colours and sizes are set once here as variables.
+   ========================================================================== */
+:root {
+    --fewa-ink: #24103a;          /* deep purple: headings, main buttons */
+    --fewa-purple: #31184d;       /* top bar */
+    --fewa-gold: #dfb15b;
+    --fewa-gold-light: #f3d08f;
+    --fewa-gold-tint: #fbf3e2;    /* soft gold background (hover, picked rows) */
+    --fewa-text: #2a1a3d;
+    --fewa-muted: #6b5a80;        /* secondary text (readable on white) */
+    --fewa-line: #e7def0;         /* borders and dividers */
+    --fewa-page: #f5f2f9;         /* page background */
+    --fewa-field: #d6c9e4;        /* box borders */
+    --fewa-radius: 12px;
+    --fewa-radius-small: 8px;
+    --fewa-shadow: 0 1px 2px rgba(36, 16, 58, 0.06), 0 6px 18px rgba(36, 16, 58, 0.06);
+    --fewa-focus: 0 0 0 3px rgba(223, 177, 91, 0.45);
+}
+
+/* Text: a size people can read comfortably */
+body {
+    background-color: var(--fewa-page);
+    color: var(--fewa-text);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: rgba(223, 177, 91, 0.35); }
+
+/* Keyboard users always see where they are */
+:where(a, button, summary, [tabindex], .nav-item, .submenu-item, .settings-tab, .page-tab):focus-visible {
+    outline: 3px solid rgba(223, 177, 91, 0.75);
+    outline-offset: 2px;
+}
+
+/* ---------- Top bar ---------- */
+#topbar {
+    height: 60px;
+    background: linear-gradient(90deg, #2b1245 0%, var(--fewa-purple) 100%);
+    box-shadow: 0 2px 10px rgba(23, 8, 38, 0.18);
+}
+
+.search-box input {
+    width: 290px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(223, 177, 91, 0.65);
+    background-color: rgba(255, 255, 255, 0.08);
+    font-size: 13.5px;
+    transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-box input:focus {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--fewa-gold);
+    box-shadow: var(--fewa-focus);
+}
+
+/* ---------- Sidebar ---------- */
+#sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(223, 177, 91, 0.4) transparent;
+}
+
+/* The open page in a sub-menu: gold, like the rest of the menu (it was grey) */
+.submenu-item.active {
+    color: var(--fewa-gold-light);
+    background-color: rgba(223, 177, 91, 0.16);
+    box-shadow: inset 3px 0 0 var(--fewa-gold);
+}
+
+.submenu-item.active .icon-circle {
+    border-color: var(--fewa-gold);
+    background-color: var(--fewa-gold);
+}
+
+.submenu-item:hover {
+    color: #ffffff;
+    background-color: rgba(223, 177, 91, 0.12);
+}
+
+/* ---------- Page area ---------- */
+#content-area {
+    padding: 24px;
+    max-width: 1200px;
+}
+
+/* Page heading on the left, Home on the right */
+.sp-crumbs {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+}
+
+.sp-crumbs > span:not(.sp-crumb-sep) {
+    grid-column: 1;
+    text-align: left;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--fewa-ink);
+    letter-spacing: -0.2px;
+}
+
+.sp-crumbs .sp-home {
+    grid-column: 2;
+}
+
+.page-crumbs {
+    margin-bottom: 18px;
+}
+
+.sp-home {
+    padding: 8px 16px;
+    border-radius: var(--fewa-radius-small);
+    min-height: 38px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* ---------- Cards (form sections, Dashboard cards) ---------- */
+.form-section,
+.dash-card {
+    border-radius: var(--fewa-radius);
+    border: 1px solid var(--fewa-line);
+    box-shadow: var(--fewa-shadow);
+}
+
+.form-section {
+    padding: 22px;
+    margin-bottom: 20px;
+    border-top: 3px solid var(--fewa-gold);
+}
+
+.dash-stat {
+    border-top: 3px solid var(--fewa-gold);
+}
+
+.section-title {
+    font-size: 13px;
+    letter-spacing: 0.7px;
+    color: var(--fewa-ink);
+    border-bottom: 1px solid var(--fewa-line);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+
+.dash-stat-label { font-size: 14px; color: var(--fewa-muted); }
+.dash-stat-value { font-size: 34px; letter-spacing: -0.5px; }
+.dash-stat-note, .dash-card-sub { font-size: 13px; color: var(--fewa-muted); }
+.dash-card-title { font-size: 17px; }
+.dash-panel-head { border-bottom-color: var(--fewa-line); }
+
+.empty-state {
+    color: var(--fewa-muted);
+    padding: 32px 20px;
+    font-size: 14px;
+}
+
+/* ---------- Form boxes ---------- */
+.grid-3, .grid-2 { gap: 16px; }
+
+/* Columns stay equal however long a box's text is (a long choice in a list no longer widens its column) */
+.form-group { min-width: 0; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; max-width: 100%; }
+
+.form-group label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #4a3563;
+    margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea,
+.toolbar-search {
+    min-height: 40px;
+    padding: 9px 12px;
+    border: 1px solid var(--fewa-field);
+    border-radius: var(--fewa-radius-small);
+    background-color: #ffffff;
+    font-size: 14px;
+    color: var(--fewa-text);
+}
+
+.form-group textarea { min-height: 80px; }
+
+.form-group input:hover,
+.form-group select:hover,
+.form-group textarea:hover,
+.toolbar-search:hover {
+    border-color: #bca8d3;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.toolbar-search:focus {
+    border-color: var(--fewa-gold);
+    box-shadow: var(--fewa-focus);
+    outline: none;
+}
+
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group input[readonly] {
+    background-color: #f4f1f7;
+    color: var(--fewa-muted);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: #9a8bad;
+}
+
+input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--fewa-ink);
+}
+
+/* ---------- Buttons ---------- */
+.btn-submit,
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 9px 20px;
+    border-radius: var(--fewa-radius-small);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+
+.btn-submit {
+    box-shadow: 0 2px 6px rgba(36, 16, 58, 0.18);
+}
+
+.btn-submit:hover {
+    transform: none;
+    box-shadow: 0 4px 12px rgba(223, 177, 91, 0.35);
+}
+
+.btn-submit:active,
+.btn-secondary:active {
+    transform: translateY(1px);
+}
+
+.btn-secondary {
+    border-color: var(--fewa-field);
+}
+
+.btn-secondary:hover {
+    border-color: var(--fewa-ink);
+    background-color: #faf6fd;
+}
+
+.btn-submit:disabled,
+.btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-small {
+    border-radius: 6px;
+}
+
+/* ---------- Tabs ---------- */
+.settings-tabs { gap: 8px; margin-bottom: 18px; }
+
+.settings-tab,
+.page-tab {
+    padding: 9px 16px;
+    font-size: 14px;
+    background: #ffffff;
+    border: 1px solid var(--fewa-line);
+    border-radius: var(--fewa-radius-small);
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.settings-tab:hover,
+.page-tab:hover {
+    border-color: var(--fewa-gold);
+    background: var(--fewa-gold-tint);
+}
+
+.settings-tab.active,
+.page-tab.active {
+    background: var(--fewa-ink);
+    color: var(--fewa-gold);
+    border-color: var(--fewa-ink);
+    box-shadow: 0 2px 6px rgba(36, 16, 58, 0.18);
+}
+
+/* ---------- Tables ---------- */
+.data-table { font-size: 13.5px; }
+
+.data-table th {
+    padding: 11px 12px;
+    font-size: 12.5px;
+    letter-spacing: 0.3px;
+}
+
+.data-table td {
+    padding: 10px 12px;
+    border-bottom-color: var(--fewa-line);
+}
+
+.data-table tbody tr:nth-child(even) { background: #fbf9fd; }
+.data-table tbody tr:hover { background: var(--fewa-gold-tint); }
+
+/* The picked row: soft gold with a gold mark on the left (it was grey) */
+.data-table tbody tr.selected,
+.data-table tbody tr.selected:hover {
+    background: #f8ecd1;
+    box-shadow: inset 3px 0 0 var(--fewa-gold);
+}
+
+.data-table .empty-row td {
+    color: var(--fewa-muted);
+    padding: 28px;
+}
+
+/* ---------- Footer ---------- */
+.system-footer {
+    padding: 11px 24px;
+    font-size: 12.5px;
+    color: #4a3563;
+    border-top-color: var(--fewa-line);
+}
+
+/* ---------- Login page ---------- */
+body.login-page .login-card {
+    border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(23, 8, 38, 0.45);
+}
+
+body.login-page .login-logo-badge {
+    border-radius: 14px;
+}
+
+body.login-page .field input {
+    min-height: 44px;
+    border-radius: 10px;
+}
+
+body.login-page .field input:focus {
+    box-shadow: var(--fewa-focus);
+}
+
+body.login-page .btn-login {
+    min-height: 46px;
+    border-radius: 10px;
+    font-size: 15px;
+    letter-spacing: 0.3px;
+}
+
+/* ---------- Phones and small tablets ---------- */
+@media (max-width: 768px) {
+    #content-area { padding: 16px 12px; }
+    .form-section { padding: 16px; }
+    .sp-crumbs > span:not(.sp-crumb-sep) { font-size: 19px; }
+
+    /* Every tab stays in view: they wrap onto more lines instead of running off the screen */
+    .settings-tabs, .page-tabs { flex-wrap: wrap; overflow-x: visible; gap: 6px; }
+    .settings-tab, .page-tab { flex: 1 1 auto; padding: 8px 12px; font-size: 13px; text-align: center; }
+
+    /* The footer wraps onto two short lines instead of running off the screen */
+    .system-footer {
+        flex-wrap: wrap;
+        white-space: normal;
+        justify-content: center;
+        gap: 2px 14px;
+        padding: 8px 12px;
+        font-size: 11.5px;
+        text-align: center;
+    }
+
+    .search-box input { width: 100%; min-width: 0; }
+}
+
+/* People who ask their computer for less movement get none */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
