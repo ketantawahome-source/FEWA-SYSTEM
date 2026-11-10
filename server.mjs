@@ -919,6 +919,15 @@ async function emailPrivateKey() {
     return (await loadConfig().catch(() => ({}))).emailjsPrivateKey || '';
 }
 
+// The same email as HTML, with every web address a real, clickable link (the EmailJS template shows it with
+// {{{message_html}}}; plain {{message}} still works, but then only some email apps make the links clickable)
+function emailHtml(message) {
+    const escape = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(message).split(/(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)])/).map((part, index) => index % 2
+        ? `<a href="${escape(part)}" style="color:#31184d;font-weight:bold;text-decoration:underline">${escape(part)}</a>`
+        : escape(part)).join('');
+}
+
 async function sendSystemEmail(to, message) {
     const settings = await emailSettings();
     const privateKey = await emailPrivateKey();
@@ -934,7 +943,7 @@ async function sendSystemEmail(to, message) {
                 template_params: {
                     college_name: organization.collegeName || 'FEWA Beauty & Fashion College',
                     login_time: new Date().toLocaleString('en-GB', { timeZone: 'Africa/Nairobi' }),
-                    to_email: String(to).trim(), message
+                    to_email: String(to).trim(), message, message_html: emailHtml(message)
                 }
             }),
             signal: AbortSignal.timeout(20000)
