@@ -2143,5 +2143,10 @@ http.createServer(async (req, res) => {
 }).listen(port, listenAddress, () => {
     console.log(`FEWA system is running at http://localhost:${port}/` + (process.env.PORT ? ' (online)' : ''));
     console.log('Keep this window open while using the system. Close it to stop the server.');
+    // start-server.bat asks for the browser ("open") only now that the server answers, so it never shows
+    // "can't reach this page"
+    if (!process.env.PORT && process.argv[3] === 'open' && process.platform === 'win32') {
+        execFile('cmd', ['/c', 'start', '', `http://localhost:${port}/`], () => { });
+    }
     connectDatabase();
 });
