@@ -6168,5 +6168,14 @@ body.login-page .btn-login {
 /* Settings notes (e.g. Registration Number Sequences): a light blue information box */
 .settings-banner.info-banner { background: #eef6fc; color: #2f6f8f; border: 1px solid #bcdcec; border-radius: 4px; text-align: left; font-weight: 400; font-size: 14px; padding: 16px 20px; }
 
-/* The logo at the top of the side menu stays in place while the menu scrolls under it */
-#sidebar > .brand { position: sticky; top: 0; z-index: 5; flex-shrink: 0; }
+/* The logo at the top of the side menu never moves: only the menu below it scrolls (with its own scroll bar) */
+#sidebar { overflow: hidden !important; }
+#sidebar > .brand { flex-shrink: 0; }
+#sidebar > .menu-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(223, 177, 91, 0.4) transparent;
+}
