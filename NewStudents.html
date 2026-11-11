@@ -11,12 +11,13 @@
     <script src="school-data.js"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="topbar-search.js?v=20261111c"></script>
     <script>
         requireLogin();
         // New Students is part of Student Hub (Role Operations)
         if (currentAccount() && !allowed('students', 'view')) location.replace('Dashboard.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261111a">
+    <link rel="stylesheet" href="styles.css?v=20261111c">
 </head>
 
 <body>
@@ -127,8 +128,6 @@
             <div class="search-box">
                 <input type="text" placeholder="Search for a student... (name or AdmNo)"
                     onkeydown="if (event.key === 'Enter') searchStudents(this.value)">
-                <button type="button" class="search-go" title="Search" aria-label="Search"
-                    onclick="searchStudents(this.previousElementSibling.value)">&#128269;</button>
             </div>
             <div class="topbar-user">
                 <div class="user-info">

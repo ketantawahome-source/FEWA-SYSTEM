@@ -12,11 +12,12 @@
     <script src="backup-page.js"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="topbar-search.js?v=20261111c"></script>
     <script src="countries.js"></script>
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261111a">
+    <link rel="stylesheet" href="styles.css?v=20261111c">
 </head>
 
 <body>
@@ -129,13 +130,8 @@
         <!-- Top Bar Header -->
         <div id="topbar">
             <div class="search-box">
-                <input type="text" placeholder="Search for a student... (name or AdmNo)" list="topbarStudentOptions"
-                    autocomplete="off" onfocus="fillTopbarStudentOptions()"
-                    oninput="topbarStudentPicked(this.value)"
+                <input type="text" placeholder="Search for a student... (name or AdmNo)" autocomplete="off"
                     onkeydown="if (event.key === 'Enter') searchFromTopbar(this.value)">
-                <datalist id="topbarStudentOptions"></datalist>
-                <button type="button" class="search-go" title="Search" aria-label="Search"
-                    onclick="searchFromTopbar(this.parentNode.querySelector('input').value)">&#128269;</button>
             </div>
             <div class="topbar-user">
                 <div class="user-info">
@@ -4434,25 +4430,9 @@
             showToast(`Password reset for ${fullName(student)}.`);
         }
 
-        // The top bar search looks students up on the Student Status tab
         /* Top bar search: opens the student's portal (the Student Enquiry window under Student Queries).
-           Suggestions "Name (AdmNo)" show while typing; picking one, or pressing Enter with only one student
-           matching, opens that student. When several match, Student Queries lists just those to pick from. */
-        let topbarLabels = [];
-
-        async function fillTopbarStudentOptions() {
-            const students = (await getAll('students')).sort((a, b) => fullName(a).localeCompare(fullName(b)));
-            topbarLabels = students.map(studentOptionLabel);
-            document.getElementById('topbarStudentOptions').innerHTML =
-                topbarLabels.map(label => `<option value="${escapeHtml(label)}">`).join('');
-        }
-
-        // A suggestion picked from the list opens that student at once
-        async function topbarStudentPicked(value) {
-            if (!topbarLabels.length) await fillTopbarStudentOptions();
-            if (topbarLabels.includes(value)) searchFromTopbar(value);
-        }
-
+           The list of matching students while typing is topbar-search.js; Enter or the search button with one
+           student matching opens them, and when several match Student Queries lists just those to pick from. */
         async function searchFromTopbar(value) {
             const typed = value.replace(INACTIVE_MARK.trim(), '').trim().toLowerCase();
             if (!typed) return;

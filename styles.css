@@ -6113,11 +6113,26 @@ body.login-page .btn-login {
 .status-history-card { width: min(720px, 100%); }
 .status-history-card .table-wrap { max-height: 50vh; overflow-y: auto; margin: 10px 0; }
 
-/* ---------- Top bar search: a button to click as well as pressing Enter ---------- */
+/* ---------- Top bar search ---------- */
 #topbar .search-box { display: flex; align-items: center; gap: 8px; }
-.search-go {
-    flex: 0 0 auto; width: 36px; height: 36px; border: none; border-radius: 999px;
-    background: var(--fewa-gold, #dfb15b); color: var(--fewa-ink, #24103a);
-    font-size: 15px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+
+/* ---------- Top bar search: matching students while typing (topbar-search.js) ---------- */
+#topbar .search-box { position: relative; }
+.search-results {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 1000;
+    width: max(100%, 340px); max-width: calc(100vw - 24px); max-height: 60vh; overflow-y: auto;
+    background: #fff; border: 1px solid var(--fewa-line, #e7def0); border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(23, 8, 38, 0.25); padding: 6px;
 }
-.search-go:hover { background: var(--fewa-gold-light, #f3d08f); }
+.search-results[hidden] { display: none; }
+.search-result {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+    padding: 8px 12px; border: none; border-radius: 8px; background: none; text-align: left; cursor: pointer;
+    font: inherit; color: var(--fewa-text, #2a1a3d);
+}
+.search-result:hover, .search-result.picked { background: var(--fewa-gold-tint, #fbf3e2); }
+.search-result.picked { box-shadow: inset 3px 0 0 var(--fewa-gold, #dfb15b); }
+.search-result-name { font-weight: 700; font-size: 14px; }
+.search-result-sub { font-size: 12.5px; color: var(--fewa-muted, #6b5a80); }
+.search-result-inactive { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fde8e8; color: #b42318; }
+.search-result-none { padding: 10px 12px; color: var(--fewa-muted, #6b5a80); font-size: 13.5px; }
