@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112b">
+    <link rel="stylesheet" href="styles.css?v=20261112c">
 </head>
 
 <body>
@@ -1003,6 +1003,10 @@
                     { name: 'code', label: 'Code', placeholder: 'e.g. HBT01' },
                     { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 1',
                         listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
+                    // YES shows the short courses of the course's Institute to tick (Program Setup > Short Courses)
+                    { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
+                    { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
+                        showIf: ['hasShortCourses', 'YES', false], filterBy: ['institute', 'school'], wide: true },
                     // Institute: one of the Schools saved under Program Setup > Schools
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
                     { name: 'award', label: 'Award', placeholder: '-- select one --',
@@ -1017,11 +1021,7 @@
                     { name: 'intake', label: 'Intakes', placeholder: 'Select',
                         options: ['January', 'May', 'September'], hideInList: true },
                     // Its admission numbers come from this sequence (Program Setup > Registration Number Sequences)
-                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true },
-                    // YES shows the short courses of the course's Institute to tick (Program Setup > Short Courses)
-                    { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
-                    { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
-                        showIf: ['hasShortCourses', 'YES', false], filterBy: ['institute', 'school'], wide: true }
+                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true }
                 ],
                 validate: i => i.hasShortCourses === 'YES' && !i.shortCourses ? 'Tick at least one short course, or set "Has Short Courses" to NO.' : '',
                 label: i => i.name,
@@ -1149,10 +1149,7 @@
                     { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
                     { name: 'award', label: 'Award', placeholder: '-- select one --',
                         options: ['Certificate of Completion', 'Certificate of Attendance', 'Certificate', 'Diploma'] },
-                    { name: 'code', label: 'Code', placeholder: 'e.g. GN01' },
-                    { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 2',
-                        listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
-                    { name: 'durationType', label: 'Duration Type', options: ['WEEKS', 'MONTHS', 'DAYS'], hideInList: true }
+                    { name: 'code', label: 'Code', placeholder: 'e.g. GN01' }
                 ],
                 label: i => i.name,
                 defaults: []
@@ -1240,6 +1237,7 @@
 
         async function renderSystemUpdate(check = true) {
             document.getElementById('settingsBanner').innerText = 'System Update';
+            document.getElementById('settingsBanner').classList.remove('info-banner');
             const content = document.getElementById('settingsContent');
             if (!isAdmin()) {
                 content.innerHTML = '<div class="empty-state">Only administrators can update the system.</div>';
@@ -1600,6 +1598,8 @@
                 : f.format ? f.format(item[f.name]) : escapeHtml(item[f.name]);
 
             document.getElementById('settingsBanner').innerText = list.banner || `Manage ${list.title.toLowerCase()}`;
+            // A written note (banner) shows as a light blue information box; a short title keeps the purple bar
+            document.getElementById('settingsBanner').classList.toggle('info-banner', !!list.banner);
             document.getElementById('settingsContent').innerHTML = `
                 <form id="settingsItemForm" class="settings-form" onsubmit="saveSettingsItem(event)" onchange="applyShowIf(this)">
                     <div id="settingsFormTitle" class="section-title">Add ${list.singular}</div>
@@ -1636,6 +1636,7 @@
 
         async function renderRoleOperations() {
             document.getElementById('settingsBanner').innerText = 'Role Operations';
+            document.getElementById('settingsBanner').classList.remove('info-banner');
             const content = document.getElementById('settingsContent');
             if (!isAdmin()) {
                 content.innerHTML = '<div class="empty-state">Only administrators can set the rights of roles.</div>';
@@ -1741,6 +1742,7 @@
                 </div>`;
 
             document.getElementById('settingsBanner').innerText = `Manage ${list.title.toLowerCase()}`;
+            document.getElementById('settingsBanner').classList.remove('info-banner');
             document.getElementById('settingsContent').innerHTML = `
                 <div class="settings-form">
                     <!-- Add / edit form first, the saved items below it -->
@@ -1949,7 +1951,7 @@
         // Shows a single-form setting in Settings, or in another page's container (e.g. Manage Finance)
         async function renderSettingsForm(key, container = document.getElementById('settingsContent')) {
             const settings = SETTINGS_FORMS[key];
-            if (container.id === 'settingsContent') document.getElementById('settingsBanner').innerText = settings.title;
+            if (container.id === 'settingsContent') { document.getElementById('settingsBanner').innerText = settings.title; document.getElementById('settingsBanner').classList.remove('info-banner'); }
             container.innerHTML = `
                 <form class="settings-form" onsubmit="saveSettingsForm(event, '${key}')">
                     <div class="grid-3">${renderFields(settings.fields, await getSettingsRecord(key))}</div>

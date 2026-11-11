@@ -6164,3 +6164,6 @@ body.login-page .btn-login {
 .checklist-item[hidden] { display: none; }
 .checklist input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; flex: 0 0 auto; }
 .checklist-empty { color: var(--fewa-muted, #6b5a80); font-size: 13px; font-style: italic; }
+
+/* Settings notes (e.g. Registration Number Sequences): a light blue information box */
+.settings-banner.info-banner { background: #eef6fc; color: #2f6f8f; border: 1px solid #bcdcec; border-radius: 4px; text-align: left; font-weight: 400; font-size: 14px; padding: 16px 20px; }
