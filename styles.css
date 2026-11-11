@@ -6156,3 +6156,11 @@ body.login-page .btn-login {
 
 /* A form field shown only for a value of another field (e.g. Short Course Name when Award is Short Course) */
 .form-group[hidden] { display: none !important; }
+
+/* ---------- Tick-box lists in Settings forms (e.g. a course's Short Courses) ---------- */
+.form-group.wide-field { grid-column: 1 / -1; }
+.checklist { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 12px; border: 1px solid var(--fewa-field, #d6c9e4); border-radius: var(--fewa-radius-small, 8px); background: #fff; }
+.checklist-item { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13.5px; margin: 0; cursor: pointer; }
+.checklist-item[hidden] { display: none; }
+.checklist input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; flex: 0 0 auto; }
+.checklist-empty { color: var(--fewa-muted, #6b5a80); font-size: 13px; font-style: italic; }

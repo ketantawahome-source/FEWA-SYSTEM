@@ -192,6 +192,8 @@ CREATE TABLE IF NOT EXISTS settings.reg_number_sequences (
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_sequence text;   -- from settings.reg_number_sequences
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS has_short_courses text;  -- YES or NO
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS short_courses text;      -- the short courses ticked, e.g. "Gel Nails, Lash Extensions"
 
 
 -- Row level security with no policies: only the owner can read or change the rows

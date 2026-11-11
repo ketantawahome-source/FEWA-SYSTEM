@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112a">
+    <link rel="stylesheet" href="styles.css?v=20261112b">
 </head>
 
 <body>
@@ -1017,8 +1017,13 @@
                     { name: 'intake', label: 'Intakes', placeholder: 'Select',
                         options: ['January', 'May', 'September'], hideInList: true },
                     // Its admission numbers come from this sequence (Program Setup > Registration Number Sequences)
-                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true }
+                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true },
+                    // YES shows the short courses of the course's Institute to tick (Program Setup > Short Courses)
+                    { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
+                    { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
+                        showIf: ['hasShortCourses', 'YES', false], filterBy: ['institute', 'school'], wide: true }
                 ],
+                validate: i => i.hasShortCourses === 'YES' && !i.shortCourses ? 'Tick at least one short course, or set "Has Short Courses" to NO.' : '',
                 label: i => i.name,
                 // Disabled courses stay on existing students but can't be picked for new ones
                 selectable: i => i.enabled !== 'NO',
@@ -1456,7 +1461,7 @@
 
         function renderFields(fields, values = {}) {
             return fields.map(f => `
-                <div class="form-group${f.type === 'image' ? ' image-field' : ''}"${f.showIf
+                <div class="form-group${f.type === 'image' ? ' image-field' : ''}${f.wide ? ' wide-field' : ''}"${f.showIf
                     ? ` data-show-field="${f.showIf[0]}" data-show-value="${escapeHtml(f.showIf[1])}" data-required="${f.showIf[2] === false ? '' : '1'}"` : ''}${f.filterBy
                     ? ` data-filter-field="${f.filterBy[0]}"` : ''}>
                     <label>${f.label}${f.required || (f.showIf && f.showIf[2] !== false) ? ' <span class="req">*</span>' : ''}</label>
@@ -1477,6 +1482,12 @@
                                 ${values[f.name] ? `<label class="image-remove"><input type="checkbox" name="${f.name}Remove"> Remove logo</label>` : ''}
                             </div>
                           </div>`
+                        : f.type === 'checklist'
+                        // Tick boxes, one per choice (saved as "A, B"); each remembers its school to follow the Institute
+                        ? `<div class="checklist">${(f.choices || []).length ? f.choices.map(o => `
+                            <label class="checklist-item"${f.choiceTags ? ` data-tag="${escapeHtml(f.choiceTags[o] || '')}"` : ''}>
+                                <input type="checkbox" name="${f.name}" value="${escapeHtml(o)}"> ${escapeHtml(o)}</label>`).join('')
+                            : `<span class="checklist-empty">None set up yet (${settingsLocation(f.optionsFrom)})</span>`}</div>`
                         : f.options
                         ? `<select name="${f.name}">${f.placeholder ? `<option value="">${escapeHtml(f.placeholder)}</option>` : ''}${f.options.map(o =>
                             `<option${o === values[f.name] ? ' selected' : ''}>${escapeHtml(o)}</option>`).join('')}</select>`
@@ -1502,12 +1513,17 @@
                 group.hidden = !show;
                 group.querySelectorAll('select, input').forEach(el => {
                     el.required = show && group.dataset.required === '1';
-                    if (!show) el.value = '';
+                    if (!show) { if (el.type === 'checkbox') el.checked = false; else el.value = ''; }
                 });
             });
             form.querySelectorAll('[data-filter-field]').forEach(group => {
                 const other = form.elements[group.dataset.filterField];
                 const want = other ? other.value : '';
+                group.querySelectorAll('.checklist-item').forEach(item => {
+                    const hide = !!want && !!item.dataset.tag && item.dataset.tag !== want;
+                    item.hidden = hide;
+                    if (hide) item.querySelector('input').checked = false;
+                });
                 const select = group.querySelector('select');
                 if (!select) return;
                 [...select.options].forEach(o => { if (o.value) o.hidden = !!want && !!o.dataset.tag && o.dataset.tag !== want; });
@@ -1549,7 +1565,10 @@
                 const items = await getSettingItems(otherKey);
                 let changed = false;
                 items.forEach(i => linked.forEach(f => {
-                    if (i[f.name] === oldLabel) { i[f.name] = newLabel; changed = true; }
+                    if (f.type === 'checklist') {
+                        const parts = (i[f.name] || '').split(',').map(v => v.trim()).filter(Boolean);
+                        if (parts.includes(oldLabel)) { i[f.name] = parts.map(v => v === oldLabel ? newLabel : v).join(', '); changed = true; }
+                    } else if (i[f.name] === oldLabel) { i[f.name] = newLabel; changed = true; }
                 }));
                 if (changed) await saveSettingItems(otherKey, items);
             }
@@ -1808,7 +1827,7 @@
             if (!item) return;
             const form = document.getElementById('settingsItemForm');
             form.elements['id'].value = id;
-            list.fields.filter(f => !f.hideInForm).forEach(f => {
+            list.fields.filter(f => !f.hideInForm && f.type !== 'checklist').forEach(f => {
                 const el = form.elements[f.name];
                 // Keep a choice that has since been removed or renamed in Settings, so editing doesn't lose it
                 if ((f.optionsFrom || f.choicesFrom || f.options) && item[f.name] && ![...el.options].some(o => o.value === item[f.name])) {
@@ -1818,7 +1837,21 @@
             });
             // Show the fields that depend on others, then put their saved values back
             applyShowIf(form);
-            list.fields.filter(f => f.showIf && !f.hideInForm && form.elements[f.name]).forEach(f => form.elements[f.name].value = item[f.name] || '');
+            list.fields.filter(f => f.showIf && !f.hideInForm && f.type !== 'checklist' && form.elements[f.name]).forEach(f => form.elements[f.name].value = item[f.name] || '');
+            // Tick the saved choices (one that is no longer set up is added, so editing keeps it)
+            list.fields.filter(f => f.type === 'checklist').forEach(f => {
+                const saved = (item[f.name] || '').split(',').map(v => v.trim()).filter(Boolean);
+                const box = form.querySelector(`[name="${f.name}"]`)?.closest('.checklist') || form.querySelector('.checklist');
+                saved.forEach(v => {
+                    let input = [...form.querySelectorAll(`input[name="${f.name}"]`)].find(i => i.value === v);
+                    if (!input && box) {
+                        box.querySelector('.checklist-empty')?.remove();
+                        box.insertAdjacentHTML('beforeend', `<label class="checklist-item"><input type="checkbox" name="${f.name}" value="${escapeHtml(v)}"> ${escapeHtml(v)}</label>`);
+                        input = box.lastElementChild.querySelector('input');
+                    }
+                    if (input) { input.closest('.checklist-item').hidden = false; input.checked = true; }
+                });
+            });
             document.getElementById('settingsFormTitle').innerText = `Edit ${list.singular}`;
             document.getElementById('settingsSaveBtn').innerText = 'Save Details';
             form.scrollIntoView({ behavior: 'smooth' });
@@ -1834,7 +1867,9 @@
             const id = form.elements['id'].value;
 
             const item = { id: id || newId() };
-            list.fields.filter(f => !f.hideInForm).forEach(f => item[f.name] = form.elements[f.name].value.trim());
+            list.fields.filter(f => !f.hideInForm).forEach(f => item[f.name] = f.type === 'checklist'
+                ? [...form.querySelectorAll(`input[name="${f.name}"]:checked`)].map(box => box.value).join(', ')
+                : form.elements[f.name].value.trim());
             const label = list.label(item);
 
             const problem = list.validate && list.validate(item);
