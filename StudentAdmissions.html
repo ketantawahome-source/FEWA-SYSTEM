@@ -1565,6 +1565,17 @@
            dates of the school's batches whenever one is saved or deleted (kept as succeeds / precedes). */
         let batchSchool = '';
         let batchEditingId = null;
+        let batchDraft = null; // what was typed in the form when the school was changed, so it is not lost
+
+        // Choosing a school shows its batches and keeps the Academic Year and dates already typed
+        function changeBatchSchool(school) {
+            const form = document.getElementById('batchForm');
+            batchDraft = form ? { academicYear: form.elements.academicYear.value, startDate: form.elements.startDate.value,
+                endDate: form.elements.endDate.value } : null;
+            batchSchool = school;
+            batchEditingId = null;
+            renderBatches();
+        }
 
         // The schools to choose from: Program Setup > Schools, or the college itself when none are set up
         async function batchSchools() {
@@ -1598,6 +1609,9 @@
             const schools = await batchSchools();
             if (!schools.includes(batchSchool)) batchSchool = schools.length === 1 ? schools[0] : '';
             const editing = items.find(i => i.id === batchEditingId && i.school === batchSchool) || null;
+            // The values the boxes start with: the batch being edited, or what was typed before the school was changed
+            const start = editing || batchDraft || {};
+            batchDraft = null;
             const ofSchool = items.filter(i => i.school === batchSchool).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
             const options = (list, current, placeholder) => `<option value="">${placeholder}</option>` +
                 list.map(v => `<option value="${escapeHtml(v)}"${v === current ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('');
@@ -1609,29 +1623,29 @@
                     ${editing ? `<div class="batch-editing">Editing: <b>${escapeHtml(editing.name)}</b></div>` : ''}
                     <!-- Compact: each label on the left of its box, two fields per row -->
                     <div class="batch-grid">
-                        <label for="batchSchool">School <span class="req">*</span></label>
-                        <div><select id="batchSchool" name="school" required onchange="batchSchool = this.value; batchEditingId = null; renderBatches()">
+                        <label for="batchSchoolBox">School <span class="req">*</span></label>
+                        <div><select id="batchSchoolBox" name="school" required onchange="changeBatchSchool(this.value)">
                             ${options(schools, batchSchool, schools.length ? '-- select one --' : '-- no schools yet (Program Setup > Schools) --')}
                         </select></div>
-                        <label for="batchYear">Academic Year <span class="req">*</span></label>
-                        <div><select id="batchYear" name="academicYear" required>
-                            ${options(batchYears(items), editing ? editing.academicYear : '', '-- select one --')}
+                        <label for="batchYearBox">Academic Year <span class="req">*</span></label>
+                        <div><select id="batchYearBox" name="academicYear" required>
+                            ${options(batchYears(items), start.academicYear || '', '-- select one --')}
                         </select></div>
 
-                        <label for="batchFrom">Date From <span class="req">*</span></label>
-                        <div><input id="batchFrom" type="date" name="startDate" required value="${escapeHtml(editing ? editing.startDate : '')}" oninput="previewBatch()"></div>
-                        <label for="batchTo">Date To <span class="req">*</span></label>
-                        <div><input id="batchTo" type="date" name="endDate" required value="${escapeHtml(editing ? editing.endDate : '')}" oninput="previewBatch()"></div>
+                        <label for="batchFromBox">Date From <span class="req">*</span></label>
+                        <div><input id="batchFromBox" type="date" name="startDate" required value="${escapeHtml(start.startDate || '')}" oninput="previewBatch()"></div>
+                        <label for="batchToBox">Date To <span class="req">*</span></label>
+                        <div><input id="batchToBox" type="date" name="endDate" required value="${escapeHtml(start.endDate || '')}" oninput="previewBatch()"></div>
 
-                        <label for="batchAfter">Batch Succeeds (Comes After)</label>
-                        <div><select id="batchAfter" name="succeeds" disabled><option value="">-- no other batch --</option></select>
+                        <label for="batchAfterBox">Batch Succeeds (Comes After)</label>
+                        <div><select id="batchAfterBox" name="succeeds" disabled><option value="">-- no other batch --</option></select>
                             <small class="field-hint">Worked out from the dates when the batch is saved.</small></div>
-                        <label for="batchBefore">Batch Precedes (Comes Before)</label>
-                        <div><select id="batchBefore" name="precedes" disabled><option value="">-- no other batch --</option></select>
+                        <label for="batchBeforeBox">Batch Precedes (Comes Before)</label>
+                        <div><select id="batchBeforeBox" name="precedes" disabled><option value="">-- no other batch --</option></select>
                             <small class="field-hint">Worked out from the dates when the batch is saved.</small></div>
 
-                        <label for="batchName">Name</label>
-                        <div><input id="batchName" type="text" name="name" readonly value="${escapeHtml(editing ? editing.name : '')}">
+                        <label for="batchNameBox">Name</label>
+                        <div><input id="batchNameBox" type="text" name="name" readonly value="${escapeHtml(editing ? editing.name : '')}">
                             <small class="field-hint">Made from the two dates.</small></div>
                         <span></span>
                         <div class="batch-buttons">
