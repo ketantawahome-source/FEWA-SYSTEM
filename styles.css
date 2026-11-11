@@ -6197,3 +6197,29 @@ body.login-page .btn-login {
     .report-filter-rows > .form-group > label { flex: none; }
     .report-form-buttons { padding-left: 0; }
 }
+
+/* ---------- Report PDF viewer (report-pdf.js): the PDF in a window over the page ---------- */
+.pdf-viewer { position: fixed; inset: 0; z-index: 3000; background: rgba(20, 8, 32, 0.55); display: flex; align-items: stretch; justify-content: center; padding: 16px; }
+.pdf-viewer[hidden] { display: none; }
+.pdf-viewer-box { background: #fff; border-radius: 8px; width: 100%; max-width: 1400px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); }
+.pdf-viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid #ece4f3; }
+.pdf-viewer-title { font-size: 22px; font-weight: 600; color: var(--fewa-purple, #31184d); }
+.pdf-viewer-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.pdf-viewer iframe { flex: 1; width: 100%; border: 0; background: #525659; }
+@media (max-width: 768px) { .pdf-viewer { padding: 0; } .pdf-viewer-box { border-radius: 0; } .pdf-viewer-title { font-size: 18px; } }
+
+/* School Setup: one box per row (name on the left), the logo at the top on the right */
+.org-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 40px; row-gap: 12px; align-items: center; }
+.org-form-grid > .form-group { grid-column: 1; display: flex; flex-direction: row; align-items: center; gap: 18px; margin: 0; }
+.org-form-grid > .form-group > label { flex: 0 0 230px; margin: 0; }
+.org-form-grid > .form-group > input, .org-form-grid > .form-group > div { flex: 1 1 auto; min-width: 0; }
+.org-form-grid > .form-group.image-field { grid-column: 2; grid-row: 1 / span 10; align-self: start; flex-direction: column; align-items: stretch; gap: 8px; }
+.org-form-grid > .image-field > label { flex: none; font-weight: 700; }
+.org-form-grid .image-upload { flex-direction: column; align-items: stretch; }
+.org-form-grid .image-preview { width: 100%; height: 200px; background: #f5f5f5; }
+@media (max-width: 900px) {
+    .org-form-grid { grid-template-columns: minmax(0, 1fr); }
+    .org-form-grid > .form-group.image-field { grid-column: 1; grid-row: 1; }
+    .org-form-grid > .form-group { flex-direction: column; align-items: stretch; gap: 6px; }
+    .org-form-grid > .form-group > label { flex: none; }
+}

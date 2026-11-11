@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS settings.school_setup (
     logo            text,                   -- the logo picture (data: address), printed on reports
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+ALTER TABLE settings.school_setup ADD COLUMN IF NOT EXISTS incorporation_no text;   -- Incorporation No.
 COMMENT ON TABLE settings.school_setup IS 'Settings > Organisation Setup > School Setup (one row).';
 
 CREATE TABLE IF NOT EXISTS settings.campuses (

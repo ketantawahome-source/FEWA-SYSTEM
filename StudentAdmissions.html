@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FEWA Beauty & Fashion College</title>
     <script src="db.js"></script>
+    <!-- Reports as PDF files (Report Format PDF): jsPDF with its table add-on, kept in this folder -->
+    <script src="vendor/jspdf.umd.min.js" defer></script>
+    <script src="vendor/jspdf.plugin.autotable.min.js" defer></script>
+    <script src="report-pdf.js" defer></script>
     <script src="auth.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
@@ -17,7 +21,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112f">
+    <link rel="stylesheet" href="styles.css?v=20261112h">
 </head>
 
 <body>
@@ -1223,21 +1227,20 @@
             }
         });
 
+        /* School Setup: one row per box, the logo on the right. Motto, KRA PIN, Year Founded and County are no longer
+           asked; anything saved in them before is kept (saving keeps fields that are not on the form) */
         const ORGANIZATION_FIELDS = [
             { name: 'collegeName', label: 'College Name', required: true },
-            { name: 'motto', label: 'Motto' },
-            { name: 'registrationNo', label: 'Registration / TVETA No.' },
-            { name: 'kraPin', label: 'KRA PIN' },
-            { name: 'yearFounded', label: 'Year Founded', type: 'number' },
-            { name: 'principal', label: 'Principal / Director' },
-            { name: 'email', label: 'Admin Contact Email', type: 'email' },
-            { name: 'phone', label: 'Accounts Office Phone No.' },
+            { name: 'postalAddress', label: 'Postal Address (P.O. Box)', placeholder: 'e.g. P.O. Box 123-00100, Nairobi' },
+            { name: 'email', label: 'Email Address', type: 'email' },
+            { name: 'phone', label: 'College Phone No.', placeholder: 'e.g. 0712 345 678' },
             { name: 'website', label: 'Website', placeholder: 'e.g. www.fewacollege.ac.ke' },
+            { name: 'registrationNo', label: 'TVETA Registration No.' },
+            { name: 'incorporationNo', label: 'Incorporation No.' },
+            { name: 'principal', label: 'Principal / Director' },
+            { name: 'address', label: 'Physical Address' },
             // Shown with a Copy button; it is the system's own address, so it is not saved or typed in
             { name: 'applicationLink', label: 'Application Link (for prospects)', type: 'link' },
-            { name: 'address', label: 'Physical Address' },
-            { name: 'postalAddress', label: 'Postal Address', placeholder: 'e.g. P.O. Box 123-00100, Nairobi' },
-            { name: 'county', label: 'County' },
             // Printed at the top of every report; kept as a picture inside the School Setup record
             { name: 'logo', label: 'School Logo (shown on reports)', type: 'image' }
         ];
@@ -2023,7 +2026,7 @@
             if (container.id === 'settingsContent') { document.getElementById('settingsBanner').innerText = settings.title; document.getElementById('settingsBanner').classList.remove('info-banner'); }
             container.innerHTML = `
                 <form class="settings-form" onsubmit="saveSettingsForm(event, '${key}')">
-                    <div class="grid-3">${renderFields(settings.fields, await getSettingsRecord(key))}</div>
+                    <div class="${key === 'organization' ? 'org-form-grid' : 'grid-3'}">${renderFields(settings.fields, await getSettingsRecord(key))}</div>
                     <div class="action-bar" style="margin-bottom: 0;">
                         <button type="submit" class="btn-submit">Save Settings</button>
                     </div>
@@ -2036,8 +2039,9 @@
             if (!allowed(key === 'paymentDetails' ? 'finance' : 'settings', 'edit')) return;
             const settings = SETTINGS_FORMS[key];
             const form = event.target;
-            const record = { key };
             const old = await getSettingsRecord(key);
+            // Starts from what was saved, so a field no longer on the form keeps its value
+            const record = { ...old, key };
             for (const f of settings.fields) {
                 if (f.type === 'link') continue;
                 if (f.type !== 'image') {
@@ -2090,9 +2094,11 @@
             return `<div class="report-letterhead">
                 <img class="report-logo" src="${escapeHtml(org.logo || 'fewa-logo.jpg')}" alt="School logo">
                 <div class="report-name">${escapeHtml(org.collegeName)}</div>
-                ${org.motto ? `<div class="report-motto">${escapeHtml(org.motto)}</div>` : ''}
-                ${[org.postalAddress, org.phone, org.email].filter(Boolean).length
-                    ? `<div class="report-contacts">${[org.postalAddress, org.phone, org.email].filter(Boolean).map(escapeHtml).join(' &nbsp;|&nbsp; ')}</div>` : ''}
+                ${[org.postalAddress, org.phone, org.email, org.website].filter(Boolean).length
+                    ? `<div class="report-contacts">${[org.postalAddress, org.phone, org.email, org.website].filter(Boolean).map(escapeHtml).join(' &nbsp;|&nbsp; ')}</div>` : ''}
+                ${org.registrationNo || org.incorporationNo
+                    ? `<div class="report-contacts">${[org.registrationNo && 'TVETA Reg. No: ' + org.registrationNo,
+                        org.incorporationNo && 'Incorporation No: ' + org.incorporationNo].filter(Boolean).map(escapeHtml).join(' &nbsp;|&nbsp; ')}</div>` : ''}
             </div>`;
         }
 
@@ -2267,6 +2273,7 @@
             document.getElementById('reportHeaderTitle').innerText =
                 REPORT_OPTIONS[category].find(([value]) => value === reportKey)[1];
             // The report's code, e.g. ACTIVE_INACTIVE -> rptActiveInactive
+            document.getElementById('reportSStatus').value = 'Active';
             document.getElementById('reportCode').innerText = 'rpt' + reportKey.toLowerCase()
                 .split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
             document.getElementById('reportGallery').style.display = 'none';
@@ -2617,18 +2624,18 @@
 
         const STUDENT_LIST_REPORTS = {
             ROSTER: {
-                title: 'Student Roster / Active Student List', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student'],
+                title: 'Student Roster / Active Student List', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status'],
                 build: async f => {
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => isActiveStudent(s) && studentMatch(f, s)));
+                        .filter(s => studentMatch(f, s) && matchesStatus(s, f.status)));
                     return {
-                        total: students.length, totalLabel: 'Active students',
+                        total: students.length, totalLabel: f.status === 'Inactive' ? 'Inactive students' : f.status ? 'Active students' : 'Students',
                         boxes: students.length ? [{ title: 'By course', rows: countBy(students, s => s.admissionCourse) }] : [],
                         sections: [{
                             headers: ['No.', 'Adm No.', 'Student Name', 'Gender', 'Course', 'Campus', 'Study Session', 'Phone', 'Email'],
                             rows: students.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.gender), cell(s.admissionCourse),
                                 cell(s.campus), cell(s.studySession), cell(s.phone), cell(s.email)]),
-                            empty: 'No active students.'
+                            empty: 'No students match these choices.'
                         }]
                     };
                 }
@@ -2693,12 +2700,12 @@
                 }
             },
             DEFERRALS: {
-                title: 'Deferred / Suspended Students Report', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'period'], periodLabel: 'Started in',
+                title: 'Deferred / Suspended Students Report', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status', 'period'], periodLabel: 'Started in',
                 build: async f => {
                     const students = await getAll('students');
                     const records = (await getAll('deferrals'))
                         .map(d => ({ ...d, student: students.find(s => s.id === d.studentId) || {} }))
-                        .filter(d => studentMatch(f, d.student) && inPeriod(d.startDate, f.period))
+                        .filter(d => studentMatch(f, d.student) && matchesStatus(d.student, f.status) && inPeriod(d.startDate, f.period))
                         .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
                     const today = isoDate(new Date());
                     const ongoing = records.filter(d => !d.endDate || d.endDate >= today).length;
@@ -2744,9 +2751,9 @@
                 }
             },
             ADMISSION_STATS: {
-                title: 'Admission Statistics', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender'],
+                title: 'Admission Statistics', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'status'],
                 build: async f => {
-                    const students = (await getAll('students')).filter(s => studentMatch(f, s) && dayOf(s.createdAt));
+                    const students = (await getAll('students')).filter(s => studentMatch(f, s) && matchesStatus(s, f.status) && dayOf(s.createdAt));
                     const { terms, years } = await periodChoices(students);
                     const within = p => students.filter(s => inPeriod(s.createdAt, p));
                     const row = (label, list) => [label, list.length, list.filter(s => s.gender === 'FEMALE').length,
@@ -3708,13 +3715,15 @@
             setTimeout(() => URL.revokeObjectURL(url), 10000);
         }
 
-        // Generate Report: shows the report, then PDF opens the print window (choose "Save as PDF") and EXCEL
+        // Generate Report: shows the report, then PDF opens it as a PDF in the viewer (report-pdf.js) and EXCEL
         // downloads its tables as a spreadsheet
         async function generateInFormat() {
             if (!(await generateReport())) return;
             const format = document.getElementById('reportFormat').value;
             if (format === 'EXCEL') return downloadReportTables();
-            setTimeout(() => window.print(), 300);
+            await showReportPdf(document.getElementById('reportHeaderTitle').innerText || 'Report');
+            // The PDF is the report: the copy drawn on the page to make it is not kept under the filters
+            document.getElementById('reportOutput').innerHTML = '';
         }
 
         // Every table in the report shown, one under the other, in one spreadsheet
