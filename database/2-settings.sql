@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS settings.short_courses (
     position        integer NOT NULL DEFAULT 0,
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+ALTER TABLE settings.short_courses ADD COLUMN IF NOT EXISTS award text;      -- e.g. Certificate of Completion
 
 CREATE TABLE IF NOT EXISTS settings.courses (
     id                  text PRIMARY KEY,
@@ -191,7 +192,6 @@ CREATE TABLE IF NOT EXISTS settings.reg_number_sequences (
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_sequence text;   -- from settings.reg_number_sequences
-ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS short_course text;   -- from settings.short_courses, when the award is Short Course
 
 
 -- Row level security with no policies: only the owner can read or change the rows

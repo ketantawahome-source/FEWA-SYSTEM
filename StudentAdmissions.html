@@ -1006,10 +1006,8 @@
                     // Institute: one of the Schools saved under Program Setup > Schools
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
                     { name: 'award', label: 'Award', placeholder: '-- select one --',
-                        options: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan', 'Short Course'] },
-                    // Only shown (and needed) when Award is Short Course; lists the short courses of the chosen Institute
-                    { name: 'shortCourse', label: 'Short Course Name', optionsFrom: 'shortCourses', hideInList: true,
-                        showIf: ['award', 'Short Course'], filterBy: ['institute', 'school'] },
+                        // Short courses are set up on their own (Program Setup > Short Courses), with their own awards
+                        options: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan'] },
                     { name: 'department', label: 'Department', optionsFrom: 'departments', hideInList: true },
                     { name: 'durationType', label: 'Duration Type', options: ['YEARS', 'MONTHS', 'WEEKS', 'DAYS'], hideInList: true },
                     { name: 'applyExamWeight', label: 'Apply Exam Weight', options: ['YES', 'NO'], hideInList: true },
@@ -1137,13 +1135,15 @@
                 label: i => i.name,
                 defaults: []
             },
-            // Program Setup > Short Courses: the short courses of each school; a course with Award "Short Course" picks one
+            // Program Setup > Short Courses: the short courses of each school, with their own awards
             shortCourses: {
                 title: 'Short Courses', singular: 'Short Course',
-                banner: 'Set up the short courses of each school. A course with the award "Short Course" picks its short course from here.',
+                banner: 'Set up the short courses of each school, each with its own award.',
                 fields: [
                     { name: 'name', label: 'Short Course Name', required: true, placeholder: 'e.g. Gel Nails' },
                     { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
+                    { name: 'award', label: 'Award', placeholder: '-- select one --',
+                        options: ['Certificate of Completion', 'Certificate of Attendance', 'Certificate', 'Diploma'] },
                     { name: 'code', label: 'Code', placeholder: 'e.g. GN01' },
                     { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 2',
                         listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
@@ -1811,7 +1811,7 @@
             list.fields.filter(f => !f.hideInForm).forEach(f => {
                 const el = form.elements[f.name];
                 // Keep a choice that has since been removed or renamed in Settings, so editing doesn't lose it
-                if ((f.optionsFrom || f.choicesFrom) && item[f.name] && ![...el.options].some(o => o.value === item[f.name])) {
+                if ((f.optionsFrom || f.choicesFrom || f.options) && item[f.name] && ![...el.options].some(o => o.value === item[f.name])) {
                     el.add(new Option(item[f.name], item[f.name]));
                 }
                 el.value = item[f.name] || (f.options && !f.placeholder ? f.options[0] : '');
