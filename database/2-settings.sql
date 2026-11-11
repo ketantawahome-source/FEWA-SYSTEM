@@ -169,16 +169,20 @@ CREATE TABLE IF NOT EXISTS settings.document_types (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
--- Batches: the years the school runs (Settings > Institution Setup > Batches)
+-- Batches: a school's periods of study (Settings > Institution Setup > Batches)
 CREATE TABLE IF NOT EXISTS settings.batches (
     id          text PRIMARY KEY,
-    name        text,                       -- the year, e.g. 2026
-    start_date  date,
-    end_date    date,
-    status      text,                       -- Active or Inactive
+    name        text,                       -- made from the two dates, e.g. 05 Jan 2026 - 04 Dec 2026
+    start_date  date,                       -- Date From
+    end_date    date,                       -- Date To
+    status      text,                       -- (not used any more)
     position    integer NOT NULL DEFAULT 0,
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+ALTER TABLE settings.batches ADD COLUMN IF NOT EXISTS school text;          -- from settings.schools
+ALTER TABLE settings.batches ADD COLUMN IF NOT EXISTS academic_year text;   -- e.g. 2026
+ALTER TABLE settings.batches ADD COLUMN IF NOT EXISTS succeeds text;        -- the batch of the school it comes after
+ALTER TABLE settings.batches ADD COLUMN IF NOT EXISTS precedes text;        -- the batch of the school it comes before
 
 
 -- Row level security with no policies: only the owner can read or change the rows

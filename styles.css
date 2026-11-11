@@ -6148,3 +6148,9 @@ body.login-page .btn-login {
 @media print { .report-thumb { width: 32px; height: 32px; } }
 .report-doc-checks input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; flex: 0 0 auto; margin: 0; padding: 0; }
 .report-doc-checks label { white-space: nowrap; }
+
+/* ---------- Settings > Institution Setup > Batches ---------- */
+.batch-note { background: #eef5fb; border: 1px solid #cfe2f3; color: #1f5f8b; border-radius: var(--fewa-radius-small, 8px); padding: 12px 16px; margin-bottom: 14px; font-size: 13.5px; }
+.batch-form .field-hint { display: block; margin-top: 4px; font-size: 12px; color: var(--fewa-muted, #6b5a80); }
+.batch-form select:disabled, .batch-form input[readonly] { background: #f4f1f7; color: var(--fewa-text, #2a1a3d); }
+.batch-empty { font-style: italic; color: var(--fewa-muted, #6b5a80); margin: 10px 0 0; }
