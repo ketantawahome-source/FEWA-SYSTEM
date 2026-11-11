@@ -169,6 +169,17 @@ CREATE TABLE IF NOT EXISTS settings.document_types (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Batches: the years the school runs (Settings > Institution Setup > Batches)
+CREATE TABLE IF NOT EXISTS settings.batches (
+    id          text PRIMARY KEY,
+    name        text,                       -- the year, e.g. 2026
+    start_date  date,
+    end_date    date,
+    status      text,                       -- Active or Inactive
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
 
 -- Row level security with no policies: only the owner can read or change the rows
 ALTER TABLE settings.settings ENABLE ROW LEVEL SECURITY;
@@ -183,6 +194,7 @@ ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.batches ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------- System updates (Settings > System Update): one row each time the rocket is run ----------

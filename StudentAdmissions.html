@@ -1039,6 +1039,19 @@
                 selectable: i => i.status !== 'Inactive',
                 defaults: []
             },
+            // The years the school runs (e.g. 2026), each with its dates; only Active ones can be picked
+            batches: {
+                title: 'Batches', singular: 'Batch',
+                fields: [
+                    { name: 'name', label: 'Batch (Year)', required: true, placeholder: 'e.g. 2026' },
+                    { name: 'startDate', label: 'Start Date', type: 'date', format: formatDate },
+                    { name: 'endDate', label: 'End Date', type: 'date', format: formatDate },
+                    { name: 'status', label: 'Status', options: ['Active', 'Inactive'], format: statusBadge }
+                ],
+                label: i => i.name,
+                selectable: i => i.status !== 'Inactive',
+                defaults: []
+            },
             studentTypes: {
                 title: 'Student Types', singular: 'Student Type', studentField: 'studentType',
                 fields: [{ name: 'name', label: 'Student Type', required: true, placeholder: 'e.g. Student' }],
@@ -1164,7 +1177,7 @@
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions'] },
-            general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
+            general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes', 'batches'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
             update: { title: 'System Update', tabs: ['systemUpdate'] }
