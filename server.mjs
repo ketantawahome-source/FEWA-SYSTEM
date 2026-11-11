@@ -13,7 +13,7 @@
                          "extra". Columns added in pgAdmin become fields of the records (within 15 seconds).
      settings.settings   which table holds each Settings list or form (stored_in)
      settings.courses, schools, enrollment_types, study_sessions, campuses, academic_terms, departments,
-     student_types, student_groups, document_types, reg_number_sequences, staff_roles
+     student_types, student_groups, document_types, reg_number_sequences, short_courses, staff_roles
                          one row per item of that Settings list, in the order shown (position)
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
@@ -184,7 +184,7 @@ const SCHEMA_OF = {
     settings: 'settings', schools: 'settings', courses: 'settings', enrollment_types: 'settings',
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
-    reg_number_sequences: 'settings',
+    reg_number_sequences: 'settings', short_courses: 'settings',
     fee_payment_details: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff',
@@ -431,7 +431,8 @@ async function deleteUnusedFiles(client, before, after) {
 const SETTING_LISTS = {
     courses: 'courses', studySessions: 'study_sessions', enrollmentTypes: 'enrollment_types', schools: 'schools',
     campuses: 'campuses', terms: 'academic_terms', departments: 'departments', studentTypes: 'student_types',
-    groups: 'student_groups', documentTypes: 'document_types', roles: 'staff_roles', regSequences: 'reg_number_sequences'
+    groups: 'student_groups', documentTypes: 'document_types', roles: 'staff_roles', regSequences: 'reg_number_sequences',
+    shortCourses: 'short_courses'
 };
 const SETTING_FORMS = { organization: 'school_setup', paymentDetails: 'fee_payment_details' };
 

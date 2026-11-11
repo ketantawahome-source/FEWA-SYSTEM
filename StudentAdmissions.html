@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261111h">
+    <link rel="stylesheet" href="styles.css?v=20261112a">
 </head>
 
 <body>
@@ -1007,6 +1007,9 @@
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
                     { name: 'award', label: 'Award', placeholder: '-- select one --',
                         options: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan', 'Short Course'] },
+                    // Only shown (and needed) when Award is Short Course; lists the short courses of the chosen Institute
+                    { name: 'shortCourse', label: 'Short Course Name', optionsFrom: 'shortCourses', hideInList: true,
+                        showIf: ['award', 'Short Course'], filterBy: ['institute', 'school'] },
                     { name: 'department', label: 'Department', optionsFrom: 'departments', hideInList: true },
                     { name: 'durationType', label: 'Duration Type', options: ['YEARS', 'MONTHS', 'WEEKS', 'DAYS'], hideInList: true },
                     { name: 'applyExamWeight', label: 'Apply Exam Weight', options: ['YES', 'NO'], hideInList: true },
@@ -1016,7 +1019,7 @@
                     { name: 'intake', label: 'Intakes', placeholder: 'Select',
                         options: ['January', 'May', 'September'], hideInList: true },
                     // Its admission numbers come from this sequence (Program Setup > Registration Number Sequences)
-                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true }
+                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true }
                 ],
                 label: i => i.name,
                 // Disabled courses stay on existing students but can't be picked for new ones
@@ -1133,6 +1136,21 @@
                 ],
                 label: i => i.name,
                 defaults: []
+            },
+            // Program Setup > Short Courses: the short courses of each school; a course with Award "Short Course" picks one
+            shortCourses: {
+                title: 'Short Courses', singular: 'Short Course',
+                banner: 'Set up the short courses of each school. A course with the award "Short Course" picks its short course from here.',
+                fields: [
+                    { name: 'name', label: 'Short Course Name', required: true, placeholder: 'e.g. Gel Nails' },
+                    { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
+                    { name: 'code', label: 'Code', placeholder: 'e.g. GN01' },
+                    { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 2',
+                        listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
+                    { name: 'durationType', label: 'Duration Type', options: ['WEEKS', 'MONTHS', 'DAYS'], hideInList: true }
+                ],
+                label: i => i.name,
+                defaults: []
             }
         });
 
@@ -1180,7 +1198,7 @@
         // The tabs shown under each Settings sidebar link
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
-            setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
+            setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
@@ -1438,8 +1456,10 @@
 
         function renderFields(fields, values = {}) {
             return fields.map(f => `
-                <div class="form-group${f.type === 'image' ? ' image-field' : ''}">
-                    <label>${f.label}${f.required ? ' <span class="req">*</span>' : ''}</label>
+                <div class="form-group${f.type === 'image' ? ' image-field' : ''}"${f.showIf
+                    ? ` data-show-field="${f.showIf[0]}" data-show-value="${escapeHtml(f.showIf[1])}" data-required="${f.showIf[2] === false ? '' : '1'}"` : ''}${f.filterBy
+                    ? ` data-filter-field="${f.filterBy[0]}"` : ''}>
+                    <label>${f.label}${f.required || (f.showIf && f.showIf[2] !== false) ? ' <span class="req">*</span>' : ''}</label>
                     ${f.type === 'link'
                         ? `<div style="display: flex; gap: 8px;">
                             <input type="text" value="${escapeHtml(applyLinkUrl())}" readonly onclick="this.select()" style="flex: 1; min-width: 0;">
@@ -1463,7 +1483,7 @@
                         : f.choices
                         ? `<select name="${f.name}"${f.required ? ' required' : ''}>
                             <option value="">-- select ${f.optionsFrom ? SETTINGS_LISTS[f.optionsFrom].singular.toLowerCase() : 'one'} --</option>
-                            ${f.choices.map(o => `<option value="${escapeHtml(o)}"${o === (values[f.name] ?? (f.choices.length === 1 ? o : null))
+                            ${f.choices.map(o => `<option value="${escapeHtml(o)}"${f.choiceTags ? ` data-tag="${escapeHtml(f.choiceTags[o] || '')}"` : ''}${o === (values[f.name] ?? (f.choices.length === 1 && !f.showIf && !f.noAutoPick ? o : null))
                                 ? ' selected' : ''}>${escapeHtml(o)}</option>`).join('')}
                           </select>`
                         : `<input type="${f.type || 'text'}" name="${f.name}" value="${escapeHtml(values[f.name])}"
@@ -1471,12 +1491,42 @@
                 </div>`).join('');
         }
 
+        /* Fields shown only for one value of another field (showIf), e.g. Short Course Name when Award is Short Course:
+           hidden, emptied and not required otherwise. Choices that follow another field (filterBy), e.g. only the short
+           courses of the chosen Institute (all of them while no Institute is chosen). */
+        function applyShowIf(form) {
+            if (!form) return;
+            form.querySelectorAll('[data-show-field]').forEach(group => {
+                const other = form.elements[group.dataset.showField];
+                const show = !!other && other.value === group.dataset.showValue;
+                group.hidden = !show;
+                group.querySelectorAll('select, input').forEach(el => {
+                    el.required = show && group.dataset.required === '1';
+                    if (!show) el.value = '';
+                });
+            });
+            form.querySelectorAll('[data-filter-field]').forEach(group => {
+                const other = form.elements[group.dataset.filterField];
+                const want = other ? other.value : '';
+                const select = group.querySelector('select');
+                if (!select) return;
+                [...select.options].forEach(o => { if (o.value) o.hidden = !!want && !!o.dataset.tag && o.dataset.tag !== want; });
+                if (select.selectedOptions[0] && select.selectedOptions[0].hidden) select.value = '';
+            });
+        }
+
         // Fields with optionsFrom get their dropdown choices from another Settings list (e.g. a Course's Department);
         // choicesFrom: 'organization' offers the college name from Organisation Setup > School Setup.
         // A single choice is picked automatically on a new item.
         async function withListChoices(fields) {
             return Promise.all(fields.map(async f =>
-                f.optionsFrom ? { ...f, choices: await getSettingLabels(f.optionsFrom) }
+                f.optionsFrom && f.filterBy ? await (async () => {
+                    // Each choice remembers its school, so the list can follow the Institute chosen
+                    const list = SETTINGS_LISTS[f.optionsFrom];
+                    const items = (await getSettingItems(f.optionsFrom)).filter(list.selectable || (() => true));
+                    return { ...f, choices: items.map(list.label), choiceTags: Object.fromEntries(items.map(i => [list.label(i), i[f.filterBy[1]] || ''])) };
+                })()
+                : f.optionsFrom ? { ...f, choices: await getSettingLabels(f.optionsFrom) }
                     : f.choicesFrom === 'organization' ? { ...f, choices: [(await getOrganization()).collegeName].filter(Boolean) }
                         : f));
         }
@@ -1532,7 +1582,7 @@
 
             document.getElementById('settingsBanner').innerText = list.banner || `Manage ${list.title.toLowerCase()}`;
             document.getElementById('settingsContent').innerHTML = `
-                <form id="settingsItemForm" class="settings-form" onsubmit="saveSettingsItem(event)">
+                <form id="settingsItemForm" class="settings-form" onsubmit="saveSettingsItem(event)" onchange="applyShowIf(this)">
                     <div id="settingsFormTitle" class="section-title">Add ${list.singular}</div>
                     <input type="hidden" name="id">
                     <div class="${list.formGrid || 'grid-3'}">${renderFields(await withListChoices(list.fields.filter(f => !f.hideInForm)))}</div>
@@ -1557,6 +1607,7 @@
                         </tbody>
                     </table>
                 </div>`;
+            applyShowIf(document.getElementById('settingsItemForm'));
         }
 
         /* ---------- Role Operations (Settings > Access Management) ----------
@@ -1765,6 +1816,9 @@
                 }
                 el.value = item[f.name] || (f.options && !f.placeholder ? f.options[0] : '');
             });
+            // Show the fields that depend on others, then put their saved values back
+            applyShowIf(form);
+            list.fields.filter(f => f.showIf && !f.hideInForm && form.elements[f.name]).forEach(f => form.elements[f.name].value = item[f.name] || '');
             document.getElementById('settingsFormTitle').innerText = `Edit ${list.singular}`;
             document.getElementById('settingsSaveBtn').innerText = 'Save Details';
             form.scrollIntoView({ behavior: 'smooth' });

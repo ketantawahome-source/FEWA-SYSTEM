@@ -6153,3 +6153,6 @@ body.login-page .btn-login {
 .compact-fields .form-group { display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr); align-items: center; gap: 10px; }
 .compact-fields .form-group label { margin: 0; font-weight: 700; color: var(--fewa-ink, #24103a); }
 @media (max-width: 768px) { .compact-fields .form-group { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+/* A form field shown only for a value of another field (e.g. Short Course Name when Award is Short Course) */
+.form-group[hidden] { display: none !important; }

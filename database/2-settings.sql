@@ -61,6 +61,18 @@ CREATE TABLE IF NOT EXISTS settings.schools (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Short Courses (Program Setup): the short courses of each school
+CREATE TABLE IF NOT EXISTS settings.short_courses (
+    id              text PRIMARY KEY,
+    name            text,                   -- Short Course Name
+    school          text,                   -- from settings.schools
+    code            text,
+    duration        integer,
+    duration_type   text,                   -- WEEKS, MONTHS or DAYS
+    position        integer NOT NULL DEFAULT 0,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE TABLE IF NOT EXISTS settings.courses (
     id                  text PRIMARY KEY,
     name                text,               -- shown in Admission Course; students.students.admission_course uses it
@@ -179,6 +191,7 @@ CREATE TABLE IF NOT EXISTS settings.reg_number_sequences (
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_sequence text;   -- from settings.reg_number_sequences
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS short_course text;   -- from settings.short_courses, when the award is Short Course
 
 
 -- Row level security with no policies: only the owner can read or change the rows
@@ -195,6 +208,7 @@ ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.reg_number_sequences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.short_courses ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------- System updates (Settings > System Update): one row each time the rocket is run ----------
