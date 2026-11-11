@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261111c">
+    <link rel="stylesheet" href="styles.css?v=20261111e">
 </head>
 
 <body>
@@ -70,8 +70,8 @@
                     <li class="submenu-item" data-open="reports-performance" onclick="switchTab('reportsTab', this, 'Performance Reports')">
                         <span class="icon-circle"></span> Performance Reports
                     </li>
-                    <li class="submenu-item" data-open="reports-class" onclick="switchTab('reportsTab', this, 'Class Reports')">
-                        <span class="icon-circle"></span> Class Reports
+                    <li class="submenu-item" data-open="reports-class" onclick="switchTab('reportsTab', this, 'Student Reports')">
+                        <span class="icon-circle"></span> Student Reports
                     </li>
                     <li class="submenu-item" data-open="reports-finance" onclick="switchTab('reportsTab', this, 'Finance Reports')">
                         <span class="icon-circle"></span> Finance Reports
@@ -829,6 +829,10 @@
                                 <option value="FINANCIAL_REPORTS">Financial Reports</option>
                                 <option value="ACADEMIC_REPORTS">Academic Reports</option>
                                 <option value="HR_REPORTS">HR & Payroll Reports</option>
+                                <option value="SM_REPORTS">Student Management Reports</option>
+                                <option value="ADM_REPORTS">Admissions & Application Reports</option>
+                                <option value="CONTACT_REPORTS">Contact & Communication Reports</option>
+                                <option value="DOC_REPORTS">Document & Compliance Reports</option>
                             </select>
                         </div>
                         <div class="form-group" style="display: none;">
@@ -867,6 +871,27 @@
                                 <option value="Active" selected>Active Only</option>
                                 <option value="Inactive">Inactive Only</option>
                             </select>
+                        </div>
+                        <!-- Student Reports filters: each report shows the ones it uses (STUDENT_LIST_REPORTS) -->
+                        <div class="form-group report-s-filter" data-filter="course" style="display: none;">
+                            <label>Course</label>
+                            <select id="reportSCourse"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="status" style="display: none;">
+                            <label>Students</label>
+                            <select id="reportSStatus">
+                                <option value="">All Students</option>
+                                <option value="Active">Active Only</option>
+                                <option value="Inactive">Inactive Only</option>
+                            </select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="period" style="display: none;">
+                            <label id="reportSPeriodLabel">Year or Term</label>
+                            <select id="reportSPeriod"></select>
+                        </div>
+                        <div class="form-group report-s-filter report-s-docs" data-filter="docs" style="display: none;">
+                            <label>Required documents (untick any that are not needed)</label>
+                            <div id="reportSDocs" class="report-doc-checks"></div>
                         </div>
                     </div>
                     <div class="action-bar" style="margin-top: 15px; gap: 10px;">
@@ -938,8 +963,10 @@
                     document.getElementById('reportCategorySelect').value = 'STUDENT_REPORTS';
                 } else if (reportType === 'Finance Reports') {
                     document.getElementById('reportCategorySelect').value = 'FINANCIAL_REPORTS';
-                } else if (reportType === 'Performance Reports' || reportType === 'Class Reports') {
+                } else if (reportType === 'Performance Reports') {
                     document.getElementById('reportCategorySelect').value = 'ACADEMIC_REPORTS';
+                } else if (reportType === 'Student Reports') {
+                    document.getElementById('reportCategorySelect').value = 'SM_REPORTS';
                 }
                 updateReportOptions();
                 renderReportGallery(reportType);
@@ -1915,6 +1942,24 @@
                 ['CLASS_LIST', 'Class List'],
                 ['EXAM_RESULTS', 'Exam Results']
             ],
+            // Reports > Student Reports (STUDENT_LIST_REPORTS)
+            SM_REPORTS: [
+                ['ROSTER', 'Student Roster / Active Student List'],
+                ['DEMOGRAPHICS', 'Student Demographics Report'],
+                ['ACTIVE_INACTIVE', 'Active vs. Inactive Students'],
+                ['DEFERRALS', 'Deferred / Suspended Students Report']
+            ],
+            ADM_REPORTS: [
+                ['APPLICATIONS_SUMMARY', 'Online Applications Summary'],
+                ['ADMISSION_STATS', 'Admission Statistics']
+            ],
+            CONTACT_REPORTS: [
+                ['CONTACT_DIRECTORY', 'Student & Guardian Contact Directory']
+            ],
+            DOC_REPORTS: [
+                ['DOCUMENT_STATUS', 'Student Document Status Report'],
+                ['PHOTO_AUDIT', 'Student Photo Directory / Audit']
+            ],
             // Built from the staff accounts under Staff Management; administrators only
             HR_REPORTS: [
                 ['STAFF_LIST', 'Staff List'],
@@ -1929,23 +1974,26 @@
             STUDENT_REPORTS: 'Student Reports',
             FINANCIAL_REPORTS: 'Financial Reports',
             ACADEMIC_REPORTS: 'Academic Reports',
+            SM_REPORTS: '1. Student Management Reports',
+            ADM_REPORTS: '2. Admissions & Application Reports',
+            CONTACT_REPORTS: '3. Contact & Communication Reports',
+            DOC_REPORTS: '4. Document & Compliance Reports',
             HR_REPORTS: 'HR & Payroll Reports'
         };
 
         // Which categories each sidebar Reports link shows
         const GALLERY_CATEGORIES = {
-            'All Reports': ['STUDENT_REPORTS', 'FINANCIAL_REPORTS', 'ACADEMIC_REPORTS', 'HR_REPORTS'],
+            'All Reports': ['STUDENT_REPORTS', 'SM_REPORTS', 'ADM_REPORTS', 'CONTACT_REPORTS', 'DOC_REPORTS',
+                'FINANCIAL_REPORTS', 'ACADEMIC_REPORTS', 'HR_REPORTS'],
             'Standard Reports': ['STUDENT_REPORTS'],
             'Performance Reports': ['ACADEMIC_REPORTS'],
-            'Class Reports': ['STUDENT_REPORTS', 'ACADEMIC_REPORTS'],
+            'Student Reports': ['SM_REPORTS', 'ADM_REPORTS', 'CONTACT_REPORTS', 'DOC_REPORTS'],
             'Finance Reports': ['FINANCIAL_REPORTS'],
             'HR & Payroll Reports': ['HR_REPORTS']
         };
 
         // Sections that show only some reports of a category; any other category shows all its reports
-        const GALLERY_ONLY = {
-            'Class Reports': { ACADEMIC_REPORTS: ['CLASS_LIST'] }
-        };
+        const GALLERY_ONLY = {};
 
         // Simple line icons drawn on a 48x48 grid
         const ICON_SHAPES = {
@@ -1981,7 +2029,16 @@
             STAFF_LIST: ['idcard', '#7b3fbf'],
             STAFF_CONTACTS: ['phone', '#2e86de'],
             STAFF_BY_ROLE: ['pie', '#b9770e'],
-            DEACTIVATED_STAFF: ['userx', '#c0392b']
+            DEACTIVATED_STAFF: ['userx', '#c0392b'],
+            ROSTER: ['list', '#7b3fbf'],
+            DEMOGRAPHICS: ['pie', '#2e86de'],
+            ACTIVE_INACTIVE: ['people', '#16a085'],
+            DEFERRALS: ['calendar', '#c0392b'],
+            APPLICATIONS_SUMMARY: ['documents', '#d35400'],
+            ADMISSION_STATS: ['chart', '#27ae60'],
+            CONTACT_DIRECTORY: ['phone', '#2e86de'],
+            DOCUMENT_STATUS: ['check', '#b9770e'],
+            PHOTO_AUDIT: ['idcard', '#7b3fbf']
         };
 
         function reportIcon(reportKey) {
@@ -2003,7 +2060,7 @@
                         <span class="report-tile-label">${label}</span>
                     </button>`).join('');
 
-            // Sections with chosen reports (e.g. Class Reports) show them all in one grid with no category headings
+            // Sections with chosen reports (none at the moment) show them all in one grid with no category headings
             const groups = GALLERY_ONLY[reportType]
                 ? `<div class="report-tiles">${categories.map(tiles).join('')}</div>`
                 : categories.map(category => `
@@ -2056,6 +2113,11 @@
             // The Deactivated Staff List is always inactive staff, so it has no Status choice
             if (report === 'DEACTIVATED_STAFF') document.querySelector('.report-staff-status').style.display = 'none';
             document.getElementById('reportOutput').innerHTML = '';
+
+            const studentReport = STUDENT_LIST_REPORTS[report];
+            document.querySelectorAll('.report-s-filter').forEach(group =>
+                group.style.display = studentReport && studentReport.filters.includes(group.dataset.filter) ? 'flex' : 'none');
+            if (studentReport) await fillStudentReportFilters(studentReport);
 
             if (isStaff) {
                 // Roles from Settings plus any older role still held by a staff member
@@ -2288,9 +2350,347 @@
             return true;
         }
 
+        /* ---------- Student Reports (Reports > Student Reports) ----------
+           Student management, admissions, contact and document reports, each shown on screen (and printed with
+           Export PDF Report). Each report says which filters it offers: course, status, a year or term ("period"),
+           and, for the document report, which document types are required. */
+        let reportSPeriods = new Map();
+
+        // The filters chosen on the report page
+        function studentReportFilters() {
+            const period = reportSPeriods.get(document.getElementById('reportSPeriod').value) || null;
+            return {
+                course: document.getElementById('reportSCourse').value,
+                status: document.getElementById('reportSStatus').value,
+                period,
+                docs: [...document.querySelectorAll('#reportSDocs input:checked')].map(box => box.value)
+            };
+        }
+
+        async function fillStudentReportFilters(report) {
+            const courseSelect = document.getElementById('reportSCourse');
+            fillSelect(courseSelect, await getSettingLabels('courses'), '-- All Courses --', courseSelect.value);
+            const { terms, years } = await periodChoices(await getAll('students'));
+            reportSPeriods = new Map([...years, ...terms].map(p => [p.label, p]));
+            const periodSelect = document.getElementById('reportSPeriod');
+            const keep = periodSelect.value;
+            periodSelect.innerHTML = '<option value="">-- Any time --</option>' +
+                [...reportSPeriods.keys()].map(label => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`).join('');
+            if (reportSPeriods.has(keep)) periodSelect.value = keep;
+            document.getElementById('reportSPeriodLabel').textContent = report.periodLabel || 'Year or Term';
+            if (report.filters.includes('docs')) {
+                const types = await getSettingLabels('documentTypes');
+                const box = document.getElementById('reportSDocs');
+                if (box.dataset.types !== types.join('|')) {
+                    // Every type counts as required except "Other"; untick any that are not needed
+                    box.innerHTML = types.map(t => `<label><input type="checkbox" value="${escapeHtml(t)}"
+                        ${/^other$/i.test(t.trim()) ? '' : 'checked'}> ${escapeHtml(t)}</label>`).join('');
+                    box.dataset.types = types.join('|');
+                }
+            }
+        }
+
+        const inPeriod = (value, period) => !period || inDateRange(value, { dateFrom: period.from, dateTo: period.to });
+        const matchesStatus = (s, status) => !status || (status === 'Active') === isActiveStudent(s);
+        const studentStatusBadge = s => isActiveStudent(s) ? '<span class="badge active">Active</span>' : '<span class="badge inactive">Inactive</span>';
+        const cell = value => escapeHtml(value) || '—';
+        const personName = (s, p) => [s[p + 'FirstName'], s[p + 'MiddleName'], s[p + 'LastName']].filter(Boolean).join(' ');
+        const sortStudents = list => list.sort((a, b) => (a.admNo || '').localeCompare(b.admNo || '') || fullName(a).localeCompare(fullName(b)));
+
+        const STUDENT_LIST_REPORTS = {
+            ROSTER: {
+                title: 'Student Roster / Active Student List', filters: ['course'],
+                build: async f => {
+                    const students = sortStudents((await getAll('students'))
+                        .filter(s => isActiveStudent(s) && (!f.course || s.admissionCourse === f.course)));
+                    return {
+                        total: students.length, totalLabel: 'Active students',
+                        boxes: students.length ? [{ title: 'By course', rows: countBy(students, s => s.admissionCourse) }] : [],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Gender', 'Course', 'Campus', 'Study Session', 'Phone', 'Email'],
+                            rows: students.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.gender), cell(s.admissionCourse),
+                                cell(s.campus), cell(s.studySession), cell(s.phone), cell(s.email)]),
+                            empty: 'No active students.'
+                        }]
+                    };
+                }
+            },
+            DEMOGRAPHICS: {
+                title: 'Student Demographics Report', filters: ['course', 'status', 'period'], periodLabel: 'Admitted in',
+                build: async f => {
+                    const students = (await getAll('students')).filter(s => (!f.course || s.admissionCourse === f.course) &&
+                        matchesStatus(s, f.status) && inPeriod(s.createdAt, f.period));
+                    // Course by gender, with totals
+                    const genders = [...new Set(students.map(s => s.gender || 'Not set'))].sort();
+                    const courses = countBy(students, s => s.admissionCourse).map(([course]) => course);
+                    const rows = courses.map(course => {
+                        const inCourse = students.filter(s => (s.admissionCourse || 'Not set') === course);
+                        return [cell(course), ...genders.map(g => inCourse.filter(s => (s.gender || 'Not set') === g).length), `<b>${inCourse.length}</b>`];
+                    });
+                    if (rows.length) rows.push(['<b>Total</b>', ...genders.map(g => `<b>${students.filter(s => (s.gender || 'Not set') === g).length}</b>`), `<b>${students.length}</b>`]);
+                    return {
+                        total: students.length, totalLabel: 'Students in this report',
+                        boxes: students.length ? [
+                            { title: 'By gender', rows: countBy(students, s => s.gender) },
+                            { title: 'By enrollment', rows: countBy(students, s => s.enrollment) },
+                            { title: 'By student type', rows: countBy(students, s => s.studentType) },
+                            { title: 'By campus', rows: countBy(students, s => s.campus) },
+                            { title: 'By study session', rows: countBy(students, s => s.studySession) },
+                            { title: 'By year admitted', rows: countBy(students, s => (dayOf(s.createdAt) || '').slice(0, 4)) }
+                        ] : [],
+                        sections: [{ title: 'Students per course, by gender', headers: ['Course', ...genders, 'Total'], rows, empty: 'No students match these choices.' }]
+                    };
+                }
+            },
+            ACTIVE_INACTIVE: {
+                title: 'Active vs. Inactive Students', filters: ['course', 'period'], periodLabel: 'Status date in',
+                build: async f => {
+                    const students = sortStudents((await getAll('students'))
+                        .filter(s => (!f.course || s.admissionCourse === f.course) && inPeriod(statusDay(s), f.period)));
+                    const active = students.filter(isActiveStudent);
+                    const inactive = students.filter(s => !isActiveStudent(s));
+                    return {
+                        total: students.length, totalLabel: 'Students in this report',
+                        boxes: [
+                            { title: 'Status', rows: [['Active (attending)', active.length], ['Inactive (left or completed)', inactive.length]] },
+                            ...(inactive.length ? [{ title: 'Why inactive students left', rows: countBy(inactive, s => s.exitReason) }] : [])
+                        ],
+                        sections: [
+                            {
+                                title: `Active students (${active.length})`,
+                                headers: ['No.', 'Adm No.', 'Student Name', 'Course', 'Phone', 'Active Since'],
+                                rows: active.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.admissionCourse), cell(s.phone),
+                                    statusDay(s) ? formatDate(statusDay(s)) : '—']),
+                                empty: 'No active students.'
+                            },
+                            {
+                                title: `Inactive students (${inactive.length})`,
+                                headers: ['No.', 'Adm No.', 'Student Name', 'Course', 'Exit Date', 'Reason for Exit'],
+                                rows: inactive.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.admissionCourse),
+                                    s.exitDate ? formatDate(s.exitDate) : '—', cell(s.exitReason)]),
+                                empty: 'No inactive students.'
+                            }
+                        ]
+                    };
+                }
+            },
+            DEFERRALS: {
+                title: 'Deferred / Suspended Students Report', filters: ['course', 'period'], periodLabel: 'Started in',
+                build: async f => {
+                    const students = await getAll('students');
+                    const records = (await getAll('deferrals'))
+                        .map(d => ({ ...d, student: students.find(s => s.id === d.studentId) || {} }))
+                        .filter(d => (!f.course || d.student.admissionCourse === f.course) && inPeriod(d.startDate, f.period))
+                        .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+                    const today = isoDate(new Date());
+                    const ongoing = records.filter(d => !d.endDate || d.endDate >= today).length;
+                    return {
+                        total: records.length, totalLabel: 'Deferrals and suspensions',
+                        boxes: records.length ? [
+                            { title: 'By type', rows: countBy(records, d => d.type) },
+                            { title: 'Now', rows: [['Still running', ongoing], ['Ended', records.length - ongoing]] },
+                            { title: 'By course', rows: countBy(records, d => d.student.admissionCourse) }
+                        ] : [],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Course', 'Type', 'Start Date', 'End Date', 'Reason', 'Student Now'],
+                            rows: records.map((d, i) => [i + 1, cell(d.student.admNo), cell(fullName(d.student)), cell(d.student.admissionCourse),
+                                cell(d.type), d.startDate ? formatDate(d.startDate) : '—', d.endDate ? formatDate(d.endDate) : '—',
+                                cell(d.reason), d.student.id ? studentStatusBadge(d.student) : '—']),
+                            empty: 'No deferrals or suspensions recorded.'
+                        }]
+                    };
+                }
+            },
+            APPLICATIONS_SUMMARY: {
+                title: 'Online Applications Summary', filters: ['course', 'period'], periodLabel: 'Applied in',
+                build: async f => {
+                    const applications = (await getAll('applications'))
+                        .filter(a => (!f.course || appliedCourse(a) === f.course) && inPeriod(a.submittedAt, f.period))
+                        .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+                    const label = { Prospect: 'Pending review (Prospect)', Verified: 'Verified (ready to admit)', Admitted: 'Accepted (Admitted)', Rejected: 'Rejected' };
+                    const byStatus = ['Prospect', 'Verified', 'Admitted', 'Rejected']
+                        .map(status => [label[status], applications.filter(a => applicationStatus(a) === status).length]);
+                    return {
+                        total: applications.length, totalLabel: 'Applications',
+                        boxes: [
+                            { title: 'By status', rows: byStatus },
+                            ...(applications.length ? [{ title: 'By course applied for', rows: countBy(applications, appliedCourse) }] : [])
+                        ],
+                        sections: [{
+                            headers: ['No.', 'Prospect No.', 'Applied On', 'Applicant Name', 'Course', 'Enrollment', 'Phone', 'Status'],
+                            rows: applications.map((a, i) => [i + 1, cell(a.reference), a.submittedAt ? formatDate(dayOf(a.submittedAt)) : '—',
+                                cell(fullName(a)), cell(appliedCourse(a)), cell(appliedEnrollment(a)), cell(a.phone), cell(label[applicationStatus(a)] || applicationStatus(a))]),
+                            empty: 'No online applications.'
+                        }]
+                    };
+                }
+            },
+            ADMISSION_STATS: {
+                title: 'Admission Statistics', filters: ['course'],
+                build: async f => {
+                    const students = (await getAll('students')).filter(s => (!f.course || s.admissionCourse === f.course) && dayOf(s.createdAt));
+                    const { terms, years } = await periodChoices(students);
+                    const within = p => students.filter(s => inPeriod(s.createdAt, p));
+                    const row = (label, list) => [label, list.length, list.filter(s => s.gender === 'FEMALE').length,
+                        list.filter(s => s.gender === 'MALE').length, list.filter(isActiveStudent).length, list.filter(s => !isActiveStudent(s)).length];
+                    const termRows = terms.map(t => ({ t, list: within(t) })).filter(x => x.list.length)
+                        .map(({ t, list }) => [cell(t.label), `${formatDate(t.from)} – ${formatDate(t.to)}`, ...row('', list).slice(1)]);
+                    const yearRows = years.map(y => ({ y, list: within(y) })).filter(x => x.list.length)
+                        .map(({ y, list }) => row(cell(y.label), list));
+                    return {
+                        total: students.length, totalLabel: 'Students admitted (all time)',
+                        boxes: students.length ? [{ title: 'By course', rows: countBy(students, s => s.admissionCourse) }] : [],
+                        sections: [
+                            { title: 'Intake per academic year', headers: ['Year', 'Admitted', 'Female', 'Male', 'Active Now', 'Inactive Now'], rows: yearRows, empty: 'No admissions yet.' },
+                            { title: 'Intake per term', headers: ['Term', 'Dates', 'Admitted', 'Female', 'Male', 'Active Now', 'Inactive Now'], rows: termRows, empty: 'No admissions yet.' }
+                        ]
+                    };
+                }
+            },
+            CONTACT_DIRECTORY: {
+                title: 'Student & Guardian Contact Directory', filters: ['course', 'status'],
+                build: async f => {
+                    const students = sortStudents((await getAll('students'))
+                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                    const family = s => ['father', 'mother', 'guardian'].map(p => {
+                        const name = personName(s, p);
+                        const phones = [s[p + 'Phone'], s[p + 'Phone2']].filter(Boolean).join(' / ');
+                        return name || phones ? `<div><b>${escapeHtml(p[0].toUpperCase() + p.slice(1))}:</b> ${escapeHtml(name || '—')}${phones ? ' · ' + escapeHtml(phones) : ''}${s[p + 'Email'] ? '<br><small>' + escapeHtml(s[p + 'Email']) + '</small>' : ''}</div>` : '';
+                    }).join('') || '—';
+                    const emergency = s => s.emergencyName || s.emergencyPhone
+                        ? `${escapeHtml(s.emergencyName || '—')}${s.emergencyRelationship ? ' (' + escapeHtml(s.emergencyRelationship) + ')' : ''}<br>${escapeHtml([s.emergencyPhone, s.emergencyAltPhone].filter(Boolean).join(' / ') || '—')}`
+                        : '—';
+                    return {
+                        total: students.length, totalLabel: 'Students in this directory',
+                        boxes: [{ title: 'Missing contact details', rows: [
+                            ['No student phone', students.filter(s => !s.phone).length],
+                            ['No student email', students.filter(s => !s.email).length],
+                            ['No emergency contact', students.filter(s => !s.emergencyPhone).length]] }],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Course', 'Student Phone', 'Student Email', 'Parents / Guardian', 'Emergency Contact'],
+                            rows: students.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.admissionCourse), cell(s.phone),
+                                cell(s.email), family(s), emergency(s)]),
+                            empty: 'No students match these choices.'
+                        }]
+                    };
+                }
+            },
+            DOCUMENT_STATUS: {
+                title: 'Student Document Status Report', filters: ['course', 'status', 'docs'],
+                build: async f => {
+                    if (!f.docs.length) return { error: 'Tick at least one required document.' };
+                    const students = sortStudents((await getAll('students'))
+                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                    const documents = await getAll('documents');
+                    const has = new Set(documents.map(d => d.studentId + '|' + d.docType));
+                    const missingOf = s => f.docs.filter(t => !has.has(s.id + '|' + t));
+                    const complete = students.filter(s => !missingOf(s).length);
+                    // Students with something missing first, most missing at the top
+                    const ordered = [...students].sort((a, b) => missingOf(b).length - missingOf(a).length);
+                    return {
+                        total: students.length, totalLabel: 'Students checked',
+                        boxes: [
+                            { title: 'Documents', rows: [['Complete', complete.length], ['Missing documents', students.length - complete.length]] },
+                            { title: 'Students missing each document', rows: f.docs.map(t => [t, students.filter(s => !has.has(s.id + '|' + t)).length]) }
+                        ],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Course', ...f.docs.map(escapeHtml), 'Result'],
+                            rows: ordered.map((s, i) => {
+                                const missing = missingOf(s).length;
+                                return [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.admissionCourse),
+                                    ...f.docs.map(t => has.has(s.id + '|' + t) ? '<span class="doc-yes">✓</span>' : '<span class="doc-no">✗</span>'),
+                                    missing ? `<span class="badge inactive">Missing ${missing}</span>` : '<span class="badge active">Complete</span>'];
+                            }),
+                            empty: 'No students match these choices.'
+                        }],
+                        note: 'Required: ' + f.docs.join(', ')
+                    };
+                }
+            },
+            PHOTO_AUDIT: {
+                title: 'Student Photo Directory / Audit', filters: ['course', 'status'],
+                build: async f => {
+                    const students = sortStudents((await getAll('students'))
+                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                    const withPhoto = students.filter(s => s.photo);
+                    // Students without a photo first, so they can be fixed under Upload Student Photos
+                    const ordered = [...students.filter(s => !s.photo), ...withPhoto];
+                    return {
+                        total: students.length, totalLabel: 'Students checked',
+                        boxes: [{ title: 'Photos', rows: [['With a photo', withPhoto.length], ['Photo missing', students.length - withPhoto.length]] }],
+                        sections: [{
+                            headers: ['No.', 'Photo', 'Adm No.', 'Student Name', 'Course', 'Status', 'Result'],
+                            rows: ordered.map((s, i) => [i + 1,
+                                s.photo ? `<img class="report-thumb" data-student="${escapeHtml(s.id)}" alt="Photo">` : '<span class="report-thumb missing">No photo</span>',
+                                cell(s.admNo), cell(fullName(s)), cell(s.admissionCourse), studentStatusBadge(s),
+                                s.photo ? '<span class="badge active">Uploaded</span>' : '<span class="badge inactive">Missing</span>']),
+                            empty: 'No students match these choices.'
+                        }],
+                        photos: withPhoto
+                    };
+                }
+            }
+        };
+
+        async function generateStudentListReport(key) {
+            const report = STUDENT_LIST_REPORTS[key];
+            const f = studentReportFilters();
+            const result = await report.build(f);
+            const output = document.getElementById('reportOutput');
+            if (result.error) {
+                alert(result.error);
+                return false;
+            }
+            const org = await getOrganization();
+            const choices = [
+                report.filters.includes('course') && `Course: <b>${escapeHtml(f.course || 'All')}</b>`,
+                report.filters.includes('status') && `Students: <b>${escapeHtml(f.status || 'All')}</b>`,
+                report.filters.includes('period') && `${escapeHtml(report.periodLabel)}: <b>${escapeHtml(f.period ? f.period.label : 'Any time')}</b>`
+            ].filter(Boolean).join(' &nbsp;|&nbsp; ');
+            const box = b => `
+                <div class="report-summary-box">
+                    <div class="report-summary-title">${escapeHtml(b.title)}</div>
+                    ${b.rows.map(([label, count]) => `<div class="dash-row"><span>${escapeHtml(label)}</span><b>${count}</b></div>`).join('')}
+                </div>`;
+            const section = s => `
+                ${s.title ? `<div class="report-subtitle">${escapeHtml(s.title)}</div>` : ''}
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr>${s.headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+                        <tbody>${s.rows.length ? s.rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')
+                            : `<tr class="empty-row"><td colspan="${s.headers.length}">${escapeHtml(s.empty)}</td></tr>`}</tbody>
+                    </table>
+                </div>`;
+            output.innerHTML = `
+                <div class="form-section">
+                    <div class="report-heading">
+                        ${reportLetterhead(org)}
+                        <div class="report-title-line">${escapeHtml(report.title)}</div>
+                        ${choices ? `<div class="report-meta">${choices}</div>` : ''}
+                        ${result.note ? `<div class="report-meta">${escapeHtml(result.note)}</div>` : ''}
+                        <div class="report-meta">Generated: ${new Date().toLocaleString()}</div>
+                    </div>
+                    <div class="report-summary">
+                        <div class="report-summary-box report-total">
+                            <div class="report-summary-title">${escapeHtml(result.totalLabel)}</div>
+                            <div class="report-total-number">${result.total}</div>
+                        </div>
+                        ${result.boxes.map(box).join('')}
+                    </div>
+                    ${result.sections.map(section).join('')}
+                </div>`;
+            // Student photos (Photo Directory)
+            for (const s of result.photos || []) {
+                const img = output.querySelector(`img[data-student="${CSS.escape(s.id)}"]`);
+                try { if (img) img.src = URL.createObjectURL(s.photo); } catch { }
+            }
+            return true;
+        }
+
         async function generateReport() {
             const reportKey = document.getElementById('specificReportSelect').value;
             if (STAFF_REPORTS[reportKey]) return generateStaffReport(reportKey);
+            if (STUDENT_LIST_REPORTS[reportKey]) return generateStudentListReport(reportKey);
             if (reportKey === 'ADMISSION_REPORT') {
                 return generateAdmissionsReport();
             }
