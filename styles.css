@@ -6097,3 +6097,18 @@ body.login-page .btn-login {
         animation-iteration-count: 1 !important;
     }
 }
+
+/* ---------- Student Status: period, archive by when students left, status pop-ups ---------- */
+.status-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; }
+.status-period label { font-weight: 600; color: #4a3563; }
+.status-period select, .status-period input { width: auto; min-width: 150px; }
+.status-period [hidden] { display: none !important; }
+.status-archive { margin-bottom: 12px; }
+.status-archive:empty { display: none; }
+.archive-title { font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--fewa-muted, #6b5a80); margin-bottom: 6px; }
+.archive-year { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.archive-chip { border: 1px solid var(--fewa-line, #e7def0); background: #fff; color: var(--fewa-ink, #24103a); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; }
+.archive-chip:hover { border-color: var(--fewa-gold, #dfb15b); background: var(--fewa-gold-tint, #fbf3e2); }
+.status-change-card .form-group { margin-bottom: 10px; }
+.status-history-card { width: min(720px, 100%); }
+.status-history-card .table-wrap { max-height: 50vh; overflow-y: auto; margin: 10px 0; }

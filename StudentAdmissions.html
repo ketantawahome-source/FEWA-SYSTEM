@@ -16,7 +16,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261110b">
+    <link rel="stylesheet" href="styles.css?v=20261110c">
 </head>
 
 <body>
@@ -304,7 +304,30 @@
                                     </select>
                                 </div>
                             </div>
+                            <!-- Period: only the students whose status (active, or inactive with the exit date) falls in
+                                 a day, a term, a year or between two dates -->
+                            <div class="status-period">
+                                <label for="statusPeriodKind">Status date</label>
+                                <select id="statusPeriodKind" class="toolbar-search" onchange="updateStatusPeriod()">
+                                    <option value="">Any time</option>
+                                    <option value="day">One day</option>
+                                    <option value="term">A term</option>
+                                    <option value="year">A year</option>
+                                    <option value="range">Between dates</option>
+                                </select>
+                                <input type="date" id="statusPeriodDay" class="toolbar-search" hidden onchange="renderStatusList()">
+                                <select id="statusPeriodTerm" class="toolbar-search" hidden onchange="renderStatusList()"></select>
+                                <select id="statusPeriodYear" class="toolbar-search" hidden onchange="renderStatusList()"></select>
+                                <span id="statusPeriodRange" hidden>
+                                    <input type="date" id="statusPeriodFrom" class="toolbar-search" onchange="renderStatusList()"
+                                        aria-label="From"> to
+                                    <input type="date" id="statusPeriodTo" class="toolbar-search" onchange="renderStatusList()"
+                                        aria-label="To">
+                                </span>
+                            </div>
                             <div id="statusSummary" class="status-summary"></div>
+                            <!-- Archive: inactive students by the year and term they left; a click lists just those -->
+                            <div id="statusArchive" class="status-archive"></div>
                             <div class="table-wrap">
                                 <table class="data-table">
                                     <thead>
@@ -313,7 +336,8 @@
                                             <th>Full Name</th>
                                             <th>Course</th>
                                             <th>Status</th>
-                                            <th>Date Recorded</th>
+                                            <th>Status Date</th>
+                                            <th>Reason for Exit</th>
                                             <th>Action</th>
                                         </tr>
                                     </thead>
@@ -2745,8 +2769,15 @@
             enabled: { label: 'Course Enabled', all: '-- all courses --', choices: async () => ['YES', 'NO'] },
             role: { label: 'Role', all: '-- all roles --', choices: async () => [...new Set([...(await getSettingLabels('roles')),
                 ...getAccounts().map(a => a.jobTitle).filter(Boolean)])].sort() },
-            staffStatus: { label: 'Status', all: '-- all staff --', choices: async () => ['Active', 'Inactive'] }
+            staffStatus: { label: 'Status', all: '-- all staff --', choices: async () => ['Active', 'Inactive'] },
+            // A year or a term: used instead of the From / To dates
+            period: { label: 'Year or Term', all: '-- use the dates below --', choices: async () => {
+                const { terms, years } = await periodChoices(await getAll('students'));
+                reportPeriods = new Map([...years, ...terms].map(p => [p.label, p]));
+                return [...reportPeriods.keys()];
+            } }
         };
+        let reportPeriods = new Map();
 
         // Students matching the School / Campus / Course / Enrollment / Gender / Status filters
         async function studentsMatching(f) {
@@ -2762,7 +2793,7 @@
             {
                 key: 'students', category: 'Admissions Office', title: 'Student List',
                 about: 'Every student with personal and admission details.',
-                filters: ['school', 'campus', 'course', 'enrollment', 'gender', 'status'], dateLabel: 'Admitted',
+                filters: ['school', 'campus', 'course', 'enrollment', 'gender', 'status', 'period'], dateLabel: 'Admitted',
                 build: async f => ({
                     headers: ['Adm No.', 'Student Name', 'Gender', 'Date of Birth', 'Phone', 'Email', 'ID / Birth Cert No.',
                         'Course', 'Campus', 'Enrollment', 'Study Session', 'Student Type', 'Group', 'Status', 'Admission Date'],
@@ -2788,7 +2819,7 @@
             {
                 key: 'admissions', category: 'Admissions Office', title: 'New Admissions',
                 about: 'Students admitted between two dates (starts on the current term).',
-                filters: ['school', 'campus', 'course', 'enrollment'], dateLabel: 'Admitted',
+                filters: ['school', 'campus', 'course', 'enrollment', 'period'], dateLabel: 'Admitted',
                 // The dates start on the current term (Settings > Organisation Setup > Academic Terms)
                 defaults: async () => {
                     const term = await currentTermRange();
@@ -2806,14 +2837,30 @@
             },
             {
                 key: 'status', category: 'Admissions Office', title: 'Student Status List',
-                about: 'Active and inactive students, when the status was recorded, and exit details.',
-                filters: ['school', 'course', 'status'], dateLabel: 'Status Recorded',
+                about: 'Active and inactive students by year, term, day or dates (inactive ones by their exit date), with exit details.',
+                filters: ['school', 'course', 'status', 'period'], dateLabel: 'Status Date',
                 build: async f => ({
-                    headers: ['Adm No.', 'Student Name', 'Course', 'Status', 'Date Recorded', 'Exit Date', 'Reason for Exit'],
-                    rows: (await studentsMatching(f)).filter(s => inDateRange(s.statusRecordedAt || s.createdAt, f))
+                    headers: ['Adm No.', 'Student Name', 'Course', 'Status', 'Status Date', 'Date Recorded', 'Exit Date', 'Reason for Exit'],
+                    rows: (await studentsMatching(f)).filter(s => inDateRange(statusDay(s), f))
                         .map(s => [s.admNo, fullName(s), s.admissionCourse, yesNo(s.activeStudent),
-                            formatDateTime(s.statusRecordedAt || s.createdAt), s.exitDate ? formatDate(s.exitDate) : '', s.exitReason])
+                            statusDay(s) ? formatDate(statusDay(s)) : '', formatDateTime(s.statusRecordedAt || s.createdAt),
+                            !isActiveStudent(s) && s.exitDate ? formatDate(s.exitDate) : '', isActiveStudent(s) ? '' : s.exitReason])
                 })
+            },
+            {
+                key: 'statusHistory', category: 'Admissions Office', title: 'Student Status History',
+                about: 'Every time a student was admitted, made inactive or reactivated: the date, the reason and who recorded it.',
+                filters: ['school', 'course', 'period'], dateLabel: 'Changed',
+                build: async f => {
+                    const changes = (await studentsMatching(f)).flatMap(s => (s.statusHistory || []).map(h => ({ s, h })))
+                        .filter(({ h }) => inDateRange(h.date || h.at, f))
+                        .sort((a, b) => (a.h.date || '').localeCompare(b.h.date || '') || (a.h.at || '').localeCompare(b.h.at || ''));
+                    return {
+                        headers: ['Date', 'Adm No.', 'Student Name', 'Course', 'Status', 'Reason / Note', 'Recorded By', 'Recorded On'],
+                        rows: changes.map(({ s, h }) => [h.date ? formatDate(h.date) : '', s.admNo, fullName(s), s.admissionCourse,
+                            h.status, h.reason, h.by, h.at ? formatDateTime(h.at) : ''])
+                    };
+                }
             },
             {
                 key: 'deferrals', category: 'Admissions Office', title: 'Deferred / Suspended Students',
@@ -3013,11 +3060,18 @@
             if (!report || !allowed('reports', 'view')) return;
             if (report.adminOnly && !isAdmin()) return alert('Only administrators can download this report.');
             const f = Object.fromEntries(new FormData(event.target));
+            // A chosen year or term gives the dates (instead of the From / To boxes)
+            const chosenPeriod = f.period && reportPeriods.get(f.period);
+            if (chosenPeriod) {
+                f.dateFrom = chosenPeriod.from;
+                f.dateTo = chosenPeriod.to;
+            }
             if (f.dateFrom && f.dateTo && f.dateTo < f.dateFrom) return alert('The "To" date cannot be before the "From" date.');
 
             const { headers, rows } = await report.build(f);
             if (!rows.length) return alert(`Nothing in "${report.title}" matches these choices.`);
-            const period = f.dateFrom || f.dateTo ? ` ${f.dateFrom || 'start'} to ${f.dateTo || 'today'}` : '';
+            const period = chosenPeriod ? ` ${f.period}`
+                : f.dateFrom || f.dateTo ? ` ${f.dateFrom || 'start'} to ${f.dateTo || 'today'}` : '';
             downloadCsv(`${report.title}${period} - ${isoDate(new Date())}`, headers, rows);
             showToast(`${report.title} generated (${rows.length} row${rows.length === 1 ? '' : 's'}).`);
         }
@@ -3613,27 +3667,160 @@
             renderContactsList();
         }
 
-        /* ---------- Student Status ---------- */
+        /* ---------- Student Status ----------
+           Every change of a student's status (admitted, made inactive, reactivated) is kept in their record as
+           statusHistory: [{ at, status, date, reason, by }], oldest first, so their whole story stays, not only the
+           latest status. The list can show one day, a term, a year or the students between two dates, and the archive
+           groups inactive students by the year and term they left. */
+        const isActiveStudent = s => s.activeStudent !== 'no';
+
+        // The day the student's current status counts from: the exit date of an inactive student, otherwise the day
+        // the status was recorded (or they were admitted)
+        const statusDay = s => (!isActiveStudent(s) && s.exitDate) || dayOf(s.statusRecordedAt || s.createdAt) || '';
+
+        // The record with this status change added to its history (unchanged when the status did not change).
+        // before: the record as it was ({} for a new student); details: { date, reason } of the change.
+        function withStatusHistory(student, before = {}, details = {}) {
+            const label = s => s.activeStudent === 'no' ? 'Inactive' : 'Active';
+            const was = before.id ? label(before) : null;
+            const now = label(student);
+            if (was === now) return student;
+            const history = [...(before.statusHistory || student.statusHistory || [])];
+            // Records from before the history was kept start with their earlier status
+            if (was && !history.length) {
+                history.push({
+                    at: before.statusRecordedAt || before.createdAt || '', status: was, by: '',
+                    date: was === 'Inactive' ? before.exitDate || dayOf(before.statusRecordedAt) : dayOf(before.statusRecordedAt || before.createdAt),
+                    reason: was === 'Inactive' ? before.exitReason || '' : 'Admitted'
+                });
+            }
+            const account = currentAccount();
+            history.push({
+                at: new Date().toISOString(), status: now, by: account ? accountName(account) : '',
+                date: details.date || (now === 'Inactive' ? student.exitDate : '') || isoDate(new Date()),
+                reason: details.reason ?? (now === 'Inactive' ? student.exitReason || '' : was ? 'Reactivated' : 'Admitted')
+            });
+            return { ...student, statusHistory: history };
+        }
+
+        /* Terms and years to choose from: the terms in Settings > Organisation Setup > Academic Terms, and Term 1-3
+           (Jan-Apr, May-Aug, Sep-Dec) for any part of a year they do not cover; newest first. */
+        async function periodChoices(students) {
+            const years = new Set([new Date().getFullYear()]);
+            for (const s of students) {
+                for (const value of [s.createdAt, s.statusRecordedAt, s.exitDate, ...(s.statusHistory || []).map(h => h.date)]) {
+                    const day = dayOf(value);
+                    if (/^\d{4}-/.test(day)) years.add(Number(day.slice(0, 4)));
+                }
+            }
+            const terms = (await getSettingItems('terms')).filter(t => t.startDate && t.endDate).map(t => ({
+                label: /\d{4}/.test(t.name || '') ? t.name : `${t.name || 'Term'}, ${t.startDate.slice(0, 4)}`,
+                from: t.startDate, to: t.endDate
+            }));
+            for (const year of years) {
+                for (let i = 0; i < 3; i++) {
+                    const from = isoDate(new Date(year, i * 4, 1));
+                    const to = isoDate(new Date(year, i * 4 + 4, 0));
+                    if (!terms.some(t => t.from <= to && from <= t.to)) terms.push({ label: `Term ${i + 1}, ${year}`, from, to });
+                }
+            }
+            terms.sort((a, b) => b.from.localeCompare(a.from));
+            return {
+                terms,
+                years: [...years].sort((a, b) => b - a).map(y => ({ label: String(y), from: `${y}-01-01`, to: `${y}-12-31` }))
+            };
+        }
+
+        let statusPeriods = { terms: [], years: [] };
+
+        // Shows the box(es) for the chosen kind of period
+        function updateStatusPeriod() {
+            const kind = document.getElementById('statusPeriodKind').value;
+            document.getElementById('statusPeriodDay').hidden = kind !== 'day';
+            document.getElementById('statusPeriodTerm').hidden = kind !== 'term';
+            document.getElementById('statusPeriodYear').hidden = kind !== 'year';
+            document.getElementById('statusPeriodRange').hidden = kind !== 'range';
+            if (kind === 'day' && !document.getElementById('statusPeriodDay').value) {
+                document.getElementById('statusPeriodDay').value = isoDate(new Date());
+            }
+            renderStatusList();
+        }
+
+        // { from, to } of the chosen period, or null for any time
+        function chosenStatusPeriod() {
+            const value = id => document.getElementById(id).value;
+            const kind = value('statusPeriodKind');
+            if (kind === 'day') return value('statusPeriodDay') ? { from: value('statusPeriodDay'), to: value('statusPeriodDay') } : null;
+            if (kind === 'term') return statusPeriods.terms.find(t => t.label === value('statusPeriodTerm')) || null;
+            if (kind === 'year') return statusPeriods.years.find(y => y.label === value('statusPeriodYear')) || null;
+            if (kind === 'range') return { from: value('statusPeriodFrom'), to: value('statusPeriodTo') };
+            return null;
+        }
+
+        // An archive button: inactive students who left in that year or term
+        function pickStatusPeriod(kind, label) {
+            document.getElementById('statusFilter').value = 'no';
+            document.getElementById('statusPeriodKind').value = kind;
+            document.getElementById(kind === 'term' ? 'statusPeriodTerm' : 'statusPeriodYear').value = label;
+            updateStatusPeriod();
+        }
+
+        function fillPeriodSelect(id, choices) {
+            const select = document.getElementById(id);
+            const picked = select.value;
+            select.innerHTML = choices.map(c => `<option value="${escapeHtml(c.label)}">${escapeHtml(c.label)}</option>`).join('');
+            if (choices.some(c => c.label === picked)) select.value = picked;
+        }
+
         async function renderStatusList() {
             const term = document.getElementById('statusSearch').value.trim().toLowerCase();
             const filter = document.getElementById('statusFilter').value;
             const all = await getAll('students');
-            const isActive = s => s.activeStudent !== 'no';
 
-            const activeCount = all.filter(isActive).length;
+            statusPeriods = await periodChoices(all);
+            fillPeriodSelect('statusPeriodTerm', statusPeriods.terms);
+            fillPeriodSelect('statusPeriodYear', statusPeriods.years);
+            const period = chosenStatusPeriod();
+            const inPeriod = s => !period || inDateRange(statusDay(s), { dateFrom: period.from, dateTo: period.to });
+
+            const activeCount = all.filter(isActiveStudent).length;
             document.getElementById('statusSummary').innerHTML =
                 `<span class="badge active">Active: ${activeCount}</span>
                  <span class="badge inactive">Inactive: ${all.length - activeCount}</span>`;
 
+            // Archive: inactive students by the year, then the term, of their exit date
+            const archive = new Map(); // year -> Map(term label -> count)
+            for (const s of all.filter(s => !isActiveStudent(s))) {
+                const day = statusDay(s);
+                if (!/^\d{4}-/.test(day)) continue;
+                const year = day.slice(0, 4);
+                const termLabel = (statusPeriods.terms.find(t => t.from <= day && day <= t.to) || {}).label;
+                if (!archive.has(year)) archive.set(year, new Map());
+                const terms = archive.get(year);
+                if (termLabel) terms.set(termLabel, (terms.get(termLabel) || 0) + 1);
+                terms.total = (terms.total || 0) + 1;
+            }
+            const button = (kind, label, text) =>
+                `<button type="button" class="archive-chip" onclick="pickStatusPeriod('${kind}', ${escapeHtml(JSON.stringify(label))})">${text}</button>`;
+            document.getElementById('statusArchive').innerHTML = archive.size ? `
+                <div class="archive-title">Inactive students by when they left</div>
+                ${[...archive.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([year, terms]) => `
+                    <div class="archive-year">
+                        ${button('year', year, `<b>${year}</b> (${terms.total})`)}
+                        ${[...terms.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([label, count]) =>
+                            button('term', label, `${escapeHtml(label.replace(/,?\s*\d{4}$/, ''))} (${count})`)).join('')}
+                    </div>`).join('')}` : '';
+
             const students = all
                 .sort((a, b) => (a.admNo || '').localeCompare(b.admNo || ''))
-                .filter(s => !filter || (filter === 'yes') === isActive(s))
+                .filter(s => !filter || (filter === 'yes') === isActiveStudent(s))
+                .filter(inPeriod)
                 .filter(s => !term || [fullName(s), s.admNo, s.admissionCourse]
                     .join(' ').toLowerCase().includes(term));
 
             const tbody = document.getElementById('statusTableBody');
             if (!students.length) {
-                tbody.innerHTML = `<tr class="empty-row"><td colspan="6">${all.length ? 'No students match your search.' :
+                tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${all.length ? 'No students match your choices.' :
                     'No students yet.'}</td></tr>`;
                 return;
             }
@@ -3643,37 +3830,111 @@
                     <td>${escapeHtml(s.admNo)}</td>
                     <td>${escapeHtml(fullName(s))}</td>
                     <td>${escapeHtml(s.admissionCourse)}</td>
-                    <td>${isActive(s)
+                    <td>${isActiveStudent(s)
                         ? '<span class="badge active">Active</span>'
                         : '<span class="badge inactive">Inactive</span>'}</td>
-                    <td>${formatDateTime(s.statusRecordedAt || s.createdAt) || '—'}</td>
-                    <td class="status-actions">${isActive(s)
+                    <td>${statusDay(s) ? formatDate(statusDay(s)) : '—'}</td>
+                    <td>${escapeHtml(isActiveStudent(s) ? '' : s.exitReason || '')}</td>
+                    <td class="status-actions">${isActiveStudent(s)
                         ? `<button type="button" class="btn-small danger" onclick="setStudentActive('${s.id}', false)">Deactivate</button>`
-                        : `<button type="button" class="btn-small" onclick="setStudentActive('${s.id}', true)">Activate</button>`}
+                        : `<button type="button" class="btn-small" onclick="setStudentActive('${s.id}', true)">Reactivate</button>`}
+                        <button type="button" class="btn-small" onclick="showStatusHistory('${s.id}')">History</button>
                         ${/* Reactivated, so their old password was cancelled: shown until the password is reset */
-                        isActive(s) && s.adminResetRequired && !s.loginHash
+                        isActiveStudent(s) && s.adminResetRequired && !s.loginHash
                             ? `<button type="button" class="btn-small btn-reset-needed" title="Their old password was cancelled when they were deactivated"
                                 onclick="resetStudentPassword('${s.id}')">&#128273; Reset Password</button>` : ''}</td>
                 </tr>`).join('');
+        }
+
+        // Asks for the date and reason of a status change; resolves to { date, reason }, or null when cancelled
+        function askStatusChange(student, active) {
+            return new Promise(resolve => {
+                const box = document.createElement('div');
+                box.className = 'reset-backdrop';
+                box.innerHTML = `
+                    <form class="reset-card status-change-card" role="dialog" aria-modal="true" aria-labelledby="statusChangeTitle">
+                        <div class="reset-title" id="statusChangeTitle">${active ? 'Reactivate' : 'Deactivate'} student</div>
+                        <p><b>${escapeHtml(fullName(student))}</b> (${escapeHtml(student.admNo)})</p>
+                        <div class="form-group">
+                            <label>${active ? 'Date they came back' : 'Exit date'} <span class="req">*</span></label>
+                            <input type="date" name="date" required value="${isoDate(new Date())}">
+                        </div>
+                        <div class="form-group">
+                            <label>${active ? 'Note (optional)' : 'Reason for exit <span class="req">*</span>'}</label>
+                            <input type="text" name="reason" ${active ? '' : 'required'} maxlength="200"
+                                placeholder="${active ? 'e.g. Back from deferral, Fees cleared' : 'e.g. Completed course, Transfer, Personal reasons'}">
+                        </div>
+                        <p class="reset-note">${active
+                            ? 'Their old Student Portal password will NOT work: press Reset Password on their record so they can log in.'
+                            : 'They will be logged out of the Student Portal and their password cancelled. Everything about them is kept.'}</p>
+                        <div class="reset-buttons">
+                            <button type="button" class="btn-secondary" data-action="cancel">Cancel</button>
+                            <button type="submit" class="btn-submit">${active ? 'Reactivate' : 'Deactivate'}</button>
+                        </div>
+                    </form>`;
+                document.body.appendChild(box);
+                const form = box.querySelector('form');
+                const close = answer => { box.remove(); resolve(answer); };
+                box.querySelector('[data-action="cancel"]').onclick = () => close(null);
+                form.onsubmit = event => {
+                    event.preventDefault();
+                    close({ date: form.elements.date.value, reason: form.elements.reason.value.trim() || (active ? 'Reactivated' : '') });
+                };
+                form.elements.reason.focus();
+            });
         }
 
         async function setStudentActive(id, active) {
             if (!allowed('students', 'edit')) return;
             const student = await getOne('students', id);
             if (!student) return;
-            if (!active && !confirm(`Deactivate ${fullName(student)} (${student.admNo})?\n\n` +
-                'They will be logged out of the Student Portal and their password cancelled. ' +
-                'If they are activated again, press Reset Password on their record so they can log in.')) return;
-            if (active && !confirm(`Activate ${fullName(student)} (${student.admNo})?\n\n` +
-                'They will be an active student again. Their old Student Portal password will NOT work: ' +
-                'press Reset Password on their record so they can log in.')) return;
-            await putOne('students', deactivatedStudent({
-                ...student, activeStudent: active ? 'yes' : 'no', statusRecordedAt: new Date().toISOString()
-            }, student));
+            const answer = await askStatusChange(student, active);
+            if (!answer) return;
+            const changed = active
+                ? { activeStudent: 'yes' }
+                : { activeStudent: 'no', exitDate: answer.date, exitReason: answer.reason };
+            const updated = withStatusHistory({ ...student, ...changed, statusRecordedAt: new Date().toISOString() }, student, answer);
+            await putOne('students', deactivatedStudent(updated, student));
             showToast(active
-                ? `${fullName(student)} activated. Press 🔑 Reset Password next to their name so they can log in to the Student Portal.`
+                ? `${fullName(student)} reactivated. Press 🔑 Reset Password next to their name so they can log in to the Student Portal.`
                 : `${fullName(student)} deactivated successfully.`);
             renderStatusList();
+        }
+
+        // Every status change of the student, newest first
+        async function showStatusHistory(id) {
+            const s = await getOne('students', id);
+            if (!s) return;
+            const history = [...(s.statusHistory || [])].reverse()
+                .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            if (!history.length) {
+                history.push({ status: isActiveStudent(s) ? 'Active' : 'Inactive', date: statusDay(s),
+                    reason: isActiveStudent(s) ? 'Admitted' : s.exitReason || '', by: '' });
+            }
+            const box = document.createElement('div');
+            box.className = 'reset-backdrop';
+            box.innerHTML = `
+                <div class="reset-card status-history-card" role="dialog" aria-modal="true" aria-labelledby="statusHistoryTitle">
+                    <div class="reset-title" id="statusHistoryTitle">Status history</div>
+                    <p><b>${escapeHtml(fullName(s))}</b> (${escapeHtml(s.admNo)})</p>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead><tr><th>Date</th><th>Status</th><th>Reason / Note</th><th>Recorded By</th></tr></thead>
+                            <tbody>${history.map(h => `
+                                <tr>
+                                    <td>${h.date ? formatDate(h.date) : '—'}</td>
+                                    <td><span class="badge ${h.status === 'Inactive' ? 'inactive' : 'active'}">${escapeHtml(h.status)}</span></td>
+                                    <td>${escapeHtml(h.reason || '')}</td>
+                                    <td>${escapeHtml(h.by || '')}</td>
+                                </tr>`).join('')}</tbody>
+                        </table>
+                    </div>
+                    <div class="reset-buttons">
+                        <button type="button" class="btn-submit" data-action="done">Close</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(box);
+            box.querySelector('[data-action="done"]').onclick = () => box.remove();
         }
 
         /* ---------- Course Deferral / Suspension ---------- */
@@ -3723,8 +3984,9 @@
             await putOne('deferrals', {
                 id: newId(), studentId: student.id, type: type || 'Deferral', startDate, endDate: endDate || '', reason
             });
-            await putOne('students', deactivatedStudent(
-                { ...student, activeStudent: 'no', statusRecordedAt: new Date().toISOString() }, student));
+            await putOne('students', deactivatedStudent(withStatusHistory(
+                { ...student, activeStudent: 'no', statusRecordedAt: new Date().toISOString() }, student,
+                { date: startDate, reason: [type || 'Deferral', reason].filter(Boolean).join(': ') }), student));
         }
 
         async function saveDeferral(event) {
@@ -4066,7 +4328,7 @@
             student.statusRecordedAt = currentStatusRecordedAt() || new Date().toISOString();
 
             // Changing the status to Inactive cancels the Student Portal password
-            await putOne('students', deactivatedStudent(student, existing || {}));
+            await putOne('students', deactivatedStudent(withStatusHistory(student, existing || {}), existing || {}));
             // Admitting an online application: mark it Admitted and keep its documents with the new student
             if (admittingApplication && !existing) await finishAdmission(student);
             // Stay on this student's form (now saved) with a message at the top, rather than leaving the page

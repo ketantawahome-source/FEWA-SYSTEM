@@ -14,7 +14,7 @@
         if (currentUser()) location.replace('Dashboard.html');
         else if (currentStudentId()) location.replace('StudentPortal.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261110b">
+    <link rel="stylesheet" href="styles.css?v=20261110c">
 </head>
 
 <body class="login-page">
@@ -523,18 +523,14 @@
             history.replaceState(null, '', location.pathname);
             showResetForm(linkParams.get('reset'), linkParams.get('user') || '');
         }
-        // Sent here after a system update (auth.js logOutAfterUpdate)
-        if (linkParams.get('updated') && !settingUp) {
-            history.replaceState(null, '', location.pathname);
-            showError('The system has been updated. Please log in again.');
-        }
+        // Sent here after a system update (auth.js logOutAfterUpdate): just the sign-in page, with no message (the
+        // college found the red note confusing)
+        if (linkParams.get('updated')) history.replaceState(null, '', location.pathname);
 
-        // Every successful login: confirm on screen. Only a brand new administrator account gets an email; the college
-        // chose not to have an email for ordinary logins.
-        // The first login waits for "Continue"; later logins carry on to the system by themselves.
-        const AUTO_CONTINUE_SECONDS = 3;
-
+        // A successful login goes straight into the system (the college did not want a "Login Successful" screen or a
+        // wait). Only a brand new administrator account sees a screen, with its welcome email, and waits for "Continue".
         async function showWelcome(email, { firstTime }) {
+            if (!firstTime) return location.replace('Dashboard.html');
             ['loginForm', 'loginTitle', 'loginSubtitle'].forEach(id =>
                 document.getElementById(id).style.display = 'none');
             document.getElementById('welcomePanel').style.display = 'block';
@@ -543,17 +539,12 @@
                 : 'You are now logged in.';
 
             const status = document.getElementById('emailStatus');
-            if (firstTime) {
-                status.innerText = `Sending a welcome email to ${email}...`;
-                const sent = await sendNewAdminEmail();
-                status.className = 'email-status ' + (sent ? 'sent' : 'failed');
-                status.innerText = sent
-                    ? `A welcome email has been sent to ${email}.`
-                    : `The welcome email could not be sent to ${email}. Email sending is not set up yet or there is no internet connection.`;
-            } else {
-                status.innerText = `Opening the system in ${AUTO_CONTINUE_SECONDS} seconds...`;
-                setTimeout(() => location.replace('Dashboard.html'), AUTO_CONTINUE_SECONDS * 1000);
-            }
+            status.innerText = `Sending a welcome email to ${email}...`;
+            const sent = await sendNewAdminEmail();
+            status.className = 'email-status ' + (sent ? 'sent' : 'failed');
+            status.innerText = sent
+                ? `A welcome email has been sent to ${email}.`
+                : `The welcome email could not be sent to ${email}. Email sending is not set up yet or there is no internet connection.`;
         }
     </script>
 </body>

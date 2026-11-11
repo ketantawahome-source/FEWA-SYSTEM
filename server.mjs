@@ -2108,7 +2108,7 @@ async function handleApi(req, res, parts) {
 }
 
 /* ---------- Start ---------- */
-http.createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
     // Protections every browser understands: no showing the system inside another website, no guessing file types,
     // and the address of a page (a reset link has a code in it) is never told to other websites
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -2132,7 +2132,8 @@ http.createServer(async (req, res) => {
         if (!res.headersSent) send(res, err.status || 500, { error: err.status ? err.message : 'The database could not do this: ' + err.message });
         else res.end();
     }
-}).on('error', err => {
+};
+const server = http.createServer(handleRequest).on('error', err => {
     if (err.code === 'EADDRINUSE') {
         console.log(`Port ${port} is already in use - the FEWA system is probably already running.`);
         console.log(`Open http://localhost:${port}/ in the browser.`);
@@ -2140,7 +2141,13 @@ http.createServer(async (req, res) => {
         console.log('The server could not start: ' + err.message);
     }
     process.exit(1);
-}).listen(port, listenAddress, () => {
+});
+
+server.listen(port, listenAddress, () => {
+    /* On the office computer "localhost" is tried as ::1 (IPv6) first: with no answer there, every request waited
+       about 0.2 seconds before trying 127.0.0.1, which made each page slow. So the server answers on both (still
+       only this computer itself can reach them). */
+    if (!process.env.PORT) http.createServer(handleRequest).on('error', () => { }).listen(port, '::1');
     console.log(`FEWA system is running at http://localhost:${port}/` + (process.env.PORT ? ' (online)' : ''));
     console.log('Keep this window open while using the system. Close it to stop the server.');
     // start-server.bat asks for the browser ("open") only now that the server answers, so it never shows
