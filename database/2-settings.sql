@@ -169,6 +169,17 @@ CREATE TABLE IF NOT EXISTS settings.document_types (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Registration Number Sequences (Program Setup): the last registration number issued; courses that pick the same
+-- sequence (settings.courses.reg_sequence) share its numbering, and the next student gets last_number + 1
+CREATE TABLE IF NOT EXISTS settings.reg_number_sequences (
+    id              text PRIMARY KEY,
+    name            text,                   -- Sequence Name
+    last_number     integer,                -- Last number issued
+    position        integer NOT NULL DEFAULT 0,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_sequence text;   -- from settings.reg_number_sequences
+
 
 -- Row level security with no policies: only the owner can read or change the rows
 ALTER TABLE settings.settings ENABLE ROW LEVEL SECURITY;
@@ -183,6 +194,7 @@ ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.reg_number_sequences ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------- System updates (Settings > System Update): one row each time the rocket is run ----------

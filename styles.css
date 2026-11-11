@@ -6148,3 +6148,8 @@ body.login-page .btn-login {
 @media print { .report-thumb { width: 32px; height: 32px; } }
 .report-doc-checks input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; flex: 0 0 auto; margin: 0; padding: 0; }
 .report-doc-checks label { white-space: nowrap; }
+
+/* ---------- Settings forms shown compact: each label beside its box (e.g. Registration Number Sequences) ---------- */
+.compact-fields .form-group { display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr); align-items: center; gap: 10px; }
+.compact-fields .form-group label { margin: 0; font-weight: 700; color: var(--fewa-ink, #24103a); }
+@media (max-width: 768px) { .compact-fields .form-group { grid-template-columns: minmax(0, 1fr); gap: 4px; } }

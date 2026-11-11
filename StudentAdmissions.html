@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261111g">
+    <link rel="stylesheet" href="styles.css?v=20261111h">
 </head>
 
 <body>
@@ -1014,7 +1014,9 @@
                     { name: 'use100Conversion', label: 'Use 100% Conversion', options: ['YES', 'NO'], hideInList: true },
                     { name: 'transcriptFile', label: 'Transcript File', hideInList: true },
                     { name: 'intake', label: 'Intakes', placeholder: 'Select',
-                        options: ['January', 'May', 'September'], hideInList: true }
+                        options: ['January', 'May', 'September'], hideInList: true },
+                    // Its admission numbers come from this sequence (Program Setup > Registration Number Sequences)
+                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true }
                 ],
                 label: i => i.name,
                 // Disabled courses stay on existing students but can't be picked for new ones
@@ -1037,6 +1039,21 @@
                 label: i => i.name,
                 // Inactive enrollments stay on existing students but can't be picked for new ones
                 selectable: i => i.status !== 'Inactive',
+                defaults: []
+            },
+            /* Registration Number Sequences: each holds the last registration number issued. Courses (programmes) pick a
+               sequence under Courses; those sharing one share its numbering, and the next student gets the value plus 1. */
+            regSequences: {
+                title: 'Registration Number Sequences', singular: 'Sequence', formGrid: 'grid-2 compact-fields',
+                banner: 'A sequence holds the last registration number issued. Programmes that share a sequence share its numbering. The next student gets the value plus 1.',
+                fields: [
+                    // Picked from the courses (programmes) in the system; that course uses it straight away
+                    { name: 'name', label: 'Sequence Name', required: true, optionsFrom: 'courses' },
+                    { name: 'lastNumber', label: 'Last number issued', type: 'number', required: true, placeholder: 'e.g. 1000' }
+                ],
+                label: i => i.name,
+                validate: i => Number.isInteger(Number(i.lastNumber)) && Number(i.lastNumber) >= 0
+                    ? '' : 'Last number issued must be a whole number, 0 or more.',
                 defaults: []
             },
             studentTypes: {
@@ -1163,7 +1180,7 @@
         // The tabs shown under each Settings sidebar link
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
-            setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions'] },
+            setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
@@ -1518,7 +1535,7 @@
                 <form id="settingsItemForm" class="settings-form" onsubmit="saveSettingsItem(event)">
                     <div id="settingsFormTitle" class="section-title">Add ${list.singular}</div>
                     <input type="hidden" name="id">
-                    <div class="${list.formGrid || 'grid-3'}">${renderFields(await withListChoices(list.fields))}</div>
+                    <div class="${list.formGrid || 'grid-3'}">${renderFields(await withListChoices(list.fields.filter(f => !f.hideInForm)))}</div>
                     <div class="action-bar" style="gap: 10px; margin-bottom: 0;">
                         <button type="submit" class="btn-submit" id="settingsSaveBtn">Save Details</button>
                     </div>
@@ -1740,7 +1757,7 @@
             if (!item) return;
             const form = document.getElementById('settingsItemForm');
             form.elements['id'].value = id;
-            list.fields.forEach(f => {
+            list.fields.filter(f => !f.hideInForm).forEach(f => {
                 const el = form.elements[f.name];
                 // Keep a choice that has since been removed or renamed in Settings, so editing doesn't lose it
                 if ((f.optionsFrom || f.choicesFrom) && item[f.name] && ![...el.options].some(o => o.value === item[f.name])) {
@@ -1763,7 +1780,7 @@
             const id = form.elements['id'].value;
 
             const item = { id: id || newId() };
-            list.fields.forEach(f => item[f.name] = form.elements[f.name].value.trim());
+            list.fields.filter(f => !f.hideInForm).forEach(f => item[f.name] = form.elements[f.name].value.trim());
             const label = list.label(item);
 
             const problem = list.validate && list.validate(item);
@@ -4525,15 +4542,54 @@
             return code.toUpperCase().replace(/\//g, '-');
         }
 
+        /* A course's Registration Number Sequence (Settings > Program Setup): the one chosen for it under Courses,
+           otherwise the sequence named after the course itself; null when it has none */
+        async function courseSequence(courseName) {
+            const course = (await getSettingItems('courses')).find(c => c.name === courseName);
+            const sequences = await getSettingItems('regSequences');
+            return (course && course.regSequence && sequences.find(s => s.name === course.regSequence))
+                || sequences.find(s => s.name === courseName) || null;
+        }
+
+        // After a student is saved: their course's sequence becomes the number they were given, when that is higher
+        async function noteSequenceNumber(student) {
+            const sequence = await courseSequence(student.admissionCourse);
+            const parts = (student.admNo || '').split('/');
+            const number = parts.length === 3 ? parseInt(parts[1], 10) : NaN;
+            if (!sequence || !Number.isFinite(number) || number <= (parseInt(sequence.lastNumber, 10) || 0)) return;
+            const items = await getSettingItems('regSequences');
+            await saveSettingItems('regSequences', items.map(i => i.id === sequence.id ? { ...i, lastNumber: String(number) } : i));
+        }
+
+        /* <course code>/<number>/<year>. The number: with a sequence, its last number issued + 1 (skipping any already
+           used); otherwise the next number of that course this year, starting at 001. */
         async function nextAdmissionNumber(courseName, year = new Date().getFullYear()) {
-            const prefix = await courseCode(courseName) + '/';
-            const suffix = '/' + year;
-            const used = (await getAll('students'))
-                .map(s => (s.admNo || '').toUpperCase())
-                .filter(n => n.startsWith(prefix) && n.endsWith(suffix))
-                .map(n => parseInt(n.slice(prefix.length, -suffix.length), 10))
-                .filter(Number.isFinite);
-            return prefix + String(Math.max(0, ...used) + 1).padStart(3, '0') + suffix;
+            const code = await courseCode(courseName);
+            const sequence = await courseSequence(courseName);
+            if (sequence) {
+                const taken = new Set((await getAll('students')).map(s => (s.admNo || '').toUpperCase()));
+                let number = (parseInt(sequence.lastNumber, 10) || 0) + 1;
+                while (taken.has(`${code}/${String(number).padStart(3, '0')}/${year}`.toUpperCase())) number++;
+                return `${code}/${String(number).padStart(3, '0')}/${year}`;
+            }
+            const rule = { prefix: code, separator: '/', start: 1, digits: 3, withYear: true, yearly: true };
+            const prefix = (rule.prefix + rule.separator).toUpperCase();
+            // Which numbers are taken: this year's only when numbering starts again each year, otherwise all of them
+            const yearEnd = rule.withYear ? rule.separator + year : '';
+            const numberOf = admNo => {
+                if (!admNo.startsWith(prefix)) return NaN;
+                let rest = admNo.slice(prefix.length);
+                if (rule.withYear) {
+                    const cut = rule.separator ? rest.lastIndexOf(rule.separator) : rest.length - 4;
+                    if (cut <= 0) return NaN;
+                    if (rule.yearly && rest.slice(cut) !== yearEnd) return NaN;
+                    rest = rest.slice(0, cut);
+                }
+                return /^\d+$/.test(rest) ? parseInt(rest, 10) : NaN;
+            };
+            const used = (await getAll('students')).map(s => numberOf((s.admNo || '').toUpperCase())).filter(Number.isFinite);
+            const next = Math.max(rule.start, Math.max(0, ...used) + 1);
+            return prefix + String(next).padStart(rule.digits, '0') + yearEnd;
         }
 
         // Greyed (and not typed into) until a course is chosen
@@ -4727,6 +4783,7 @@
 
             // Changing the status to Inactive cancels the Student Portal password
             await putOne('students', deactivatedStudent(withStatusHistory(student, existing || {}), existing || {}));
+            await noteSequenceNumber(student);
             // Admitting an online application: mark it Admitted and keep its documents with the new student
             if (admittingApplication && !existing) await finishAdmission(student);
             // Stay on this student's form (now saved) with a message at the top, rather than leaving the page
