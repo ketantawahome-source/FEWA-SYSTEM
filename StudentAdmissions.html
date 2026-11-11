@@ -16,7 +16,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261110c">
+    <link rel="stylesheet" href="styles.css?v=20261111a">
 </head>
 
 <body>
@@ -134,6 +134,8 @@
                     oninput="topbarStudentPicked(this.value)"
                     onkeydown="if (event.key === 'Enter') searchFromTopbar(this.value)">
                 <datalist id="topbarStudentOptions"></datalist>
+                <button type="button" class="search-go" title="Search" aria-label="Search"
+                    onclick="searchFromTopbar(this.parentNode.querySelector('input').value)">&#128269;</button>
             </div>
             <div class="topbar-user">
                 <div class="user-info">
@@ -4456,7 +4458,13 @@
             if (!typed) return;
             const students = await getAll('students');
             const exact = findStudent(students, typed);
-            const matches = exact ? [exact] : students.filter(s => plainStudentLabel(s).toLowerCase().includes(typed));
+            // Every word typed must be somewhere in the student's names, AdmNo, phone or email, in any order
+            // (so "abigail muthenya" also finds Abigail Mwende Muthenya)
+            const words = typed.split(/\s+/).filter(Boolean);
+            const matches = exact ? [exact] : students.filter(s => {
+                const text = [plainStudentLabel(s), s.phone, s.email, s.prospectNo].filter(Boolean).join(' ').toLowerCase();
+                return words.every(word => text.includes(word));
+            });
 
             if (!matches.length) return showToast(`No student matches "${value.trim()}".`, 'warning');
             await openStudentQueries(document.getElementById('menuStudentQueries'));

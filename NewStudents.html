@@ -16,7 +16,7 @@
         // New Students is part of Student Hub (Role Operations)
         if (currentAccount() && !allowed('students', 'view')) location.replace('Dashboard.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261110c">
+    <link rel="stylesheet" href="styles.css?v=20261111a">
 </head>
 
 <body>
@@ -125,8 +125,10 @@
     <div id="main-wrapper">
         <div id="topbar">
             <div class="search-box">
-                <input type="text" placeholder="Search for a student... (press Enter)"
+                <input type="text" placeholder="Search for a student... (name or AdmNo)"
                     onkeydown="if (event.key === 'Enter') searchStudents(this.value)">
+                <button type="button" class="search-go" title="Search" aria-label="Search"
+                    onclick="searchStudents(this.previousElementSibling.value)">&#128269;</button>
             </div>
             <div class="topbar-user">
                 <div class="user-info">
