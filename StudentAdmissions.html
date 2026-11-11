@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112c">
+    <link rel="stylesheet" href="styles.css?v=20261112d">
 </head>
 
 <body>
@@ -1003,15 +1003,15 @@
                     { name: 'code', label: 'Code', placeholder: 'e.g. HBT01' },
                     { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 1',
                         listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
-                    // YES shows the short courses of the course's Institute to tick (Program Setup > Short Courses)
-                    { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
-                    { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
-                        showIf: ['hasShortCourses', 'YES', false], filterBy: ['institute', 'school'], wide: true },
                     // Institute: one of the Schools saved under Program Setup > Schools
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
                     { name: 'award', label: 'Award', placeholder: '-- select one --',
                         // Short courses are set up on their own (Program Setup > Short Courses), with their own awards
                         options: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan'] },
+                    // YES shows the short courses to tick (Program Setup > Short Courses)
+                    { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
+                    { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
+                        showIf: ['hasShortCourses', 'YES', false], wide: true },
                     { name: 'department', label: 'Department', optionsFrom: 'departments', hideInList: true },
                     { name: 'durationType', label: 'Duration Type', options: ['YEARS', 'MONTHS', 'WEEKS', 'DAYS'], hideInList: true },
                     { name: 'applyExamWeight', label: 'Apply Exam Weight', options: ['YES', 'NO'], hideInList: true },
@@ -1143,12 +1143,9 @@
             // Program Setup > Short Courses: the short courses of each school, with their own awards
             shortCourses: {
                 title: 'Short Courses', singular: 'Short Course',
-                banner: 'Set up the short courses of each school, each with its own award.',
+                banner: 'Set up the short courses. A course with "Has Short Courses" YES ticks its short courses from here.',
                 fields: [
                     { name: 'name', label: 'Short Course Name', required: true, placeholder: 'e.g. Gel Nails' },
-                    { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
-                    { name: 'award', label: 'Award', placeholder: '-- select one --',
-                        options: ['Certificate of Completion', 'Certificate of Attendance', 'Certificate', 'Diploma'] },
                     { name: 'code', label: 'Code', placeholder: 'e.g. GN01' }
                 ],
                 label: i => i.name,

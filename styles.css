@@ -6167,3 +6167,6 @@ body.login-page .btn-login {
 
 /* Settings notes (e.g. Registration Number Sequences): a light blue information box */
 .settings-banner.info-banner { background: #eef6fc; color: #2f6f8f; border: 1px solid #bcdcec; border-radius: 4px; text-align: left; font-weight: 400; font-size: 14px; padding: 16px 20px; }
+
+/* The logo at the top of the side menu stays in place while the menu scrolls under it */
+#sidebar > .brand { position: sticky; top: 0; z-index: 5; flex-shrink: 0; }
