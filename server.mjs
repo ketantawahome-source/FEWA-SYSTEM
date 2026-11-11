@@ -13,7 +13,7 @@
                          "extra". Columns added in pgAdmin become fields of the records (within 15 seconds).
      settings.settings   which table holds each Settings list or form (stored_in)
      settings.courses, schools, enrollment_types, study_sessions, campuses, academic_terms, departments,
-     student_types, student_groups, document_types, reg_number_sequences, short_courses, staff_roles
+     student_types, student_groups, document_types, reg_number_sequences, short_courses, award_types, staff_roles
                          one row per item of that Settings list, in the order shown (position)
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
@@ -184,7 +184,7 @@ const SCHEMA_OF = {
     settings: 'settings', schools: 'settings', courses: 'settings', enrollment_types: 'settings',
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
-    reg_number_sequences: 'settings', short_courses: 'settings',
+    reg_number_sequences: 'settings', short_courses: 'settings', award_types: 'settings',
     fee_payment_details: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff',
@@ -253,6 +253,24 @@ async function upsertRow(db, table, key, values) {
         VALUES (${names.map((_, i) => '$' + (i + 1)).join(', ')})
         ON CONFLICT (${sqlName(key)}) DO ${updates.length ? 'UPDATE SET ' + updates.join(', ') : 'NOTHING'}`,
         names.map(n => values[n]));
+}
+
+// Many rows in one trip to the database (a column a row does not have gets its default); a later row with the same
+// key replaces an earlier one, as saving them one by one did
+async function upsertRows(db, table, key, rowsList) {
+    const byKey = new Map(rowsList.map(r => [String(r[key]), r]));
+    const list = [...byKey.values()];
+    if (!list.length) return;
+    const names = [...new Set(list.flatMap(r => Object.keys(r)))];
+    const params = [];
+    const tuples = list.map(r => '(' + names.map(n => {
+        if (!(n in r)) return 'DEFAULT';
+        params.push(r[n]);
+        return '$' + params.length;
+    }).join(', ') + ')');
+    const updates = names.filter(n => n !== key).map(n => `${sqlName(n)} = EXCLUDED.${sqlName(n)}`);
+    await db.query(`INSERT INTO ${T(table)} (${names.map(sqlName).join(', ')}) VALUES ${tuples.join(', ')}
+        ON CONFLICT (${sqlName(key)}) DO ${updates.length ? 'UPDATE SET ' + updates.join(', ') : 'NOTHING'}`, params);
 }
 
 /* ---------- Setting up the tables ---------- */
@@ -432,7 +450,7 @@ const SETTING_LISTS = {
     courses: 'courses', studySessions: 'study_sessions', enrollmentTypes: 'enrollment_types', schools: 'schools',
     campuses: 'campuses', terms: 'academic_terms', departments: 'departments', studentTypes: 'student_types',
     groups: 'student_groups', documentTypes: 'document_types', roles: 'staff_roles', regSequences: 'reg_number_sequences',
-    shortCourses: 'short_courses'
+    shortCourses: 'short_courses', awardTypes: 'award_types'
 };
 const SETTING_FORMS = { organization: 'school_setup', paymentDetails: 'fee_payment_details' };
 
@@ -459,11 +477,9 @@ async function writeSetting(db, record) {
         const { key: _, items, ...rest } = record;
         const columns = await tableColumns(db, listTable);
         await db.query(`DELETE FROM ${T(listTable)}`);
-        for (const [position, item] of (Array.isArray(items) ? items : []).entries()) {
-            const values = rowFromRecord(columns, { ...item, id: String(item.id || `${key}-${position + 1}`) });
-            values.position = position;
-            await upsertRow(db, listTable, 'id', values);
-        }
+        // All the items in one go (one by one took a trip to the database each)
+        await upsertRows(db, listTable, 'id', (Array.isArray(items) ? items : []).map((item, position) => ({
+            ...rowFromRecord(columns, { ...item, id: String(item.id || `${key}-${position + 1}`) }), position })));
         // Anything the list record has besides its items (normally nothing) is kept in settings.data
         await db.query(`INSERT INTO ${T('settings')} (key, stored_in, data, updated_at) VALUES ($1, $2, $3, now())
             ON CONFLICT (key) DO UPDATE SET stored_in = EXCLUDED.stored_in, data = EXCLUDED.data, updated_at = now()`,
@@ -522,9 +538,8 @@ async function selectRecords(db, store, id) {
             found.rows.forEach(r => rows.push({ key: r.key, stored_in: `${SCHEMA_OF[tables[r.key]]}.${tables[r.key]}`, data: null }));
             rows.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
         }
-        const records = [];
-        for (const row of rows) records.push(await readSetting(db, row));
-        return records;
+        // All at once, not one after another (each is a trip to the database, which is online)
+        return Promise.all(rows.map(row => readSetting(db, row)));
     }
     return rows.map(recordFromRow);
 }
@@ -611,11 +626,13 @@ const RESET_PREFIX = 'fewaPendingReset:';
 
 async function getValues() {
     const values = {};
-    const accounts = await pool.query(`SELECT * FROM ${T('staff')} ORDER BY position, id`);
+    // The three are read at the same time (each is a trip to the database)
+    const [accounts, roles, codes] = await Promise.all([
+        pool.query(`SELECT * FROM ${T('staff')} ORDER BY position, id`),
+        pool.query(`SELECT role, rights FROM ${T('role_operations')}`),
+        pool.query(`SELECT email, data FROM ${T('password_reset_codes')}`)]);
     if (accounts.rowCount) values[ACCOUNTS_KEY] = JSON.stringify(accounts.rows.map(row => withoutDetails(recordFromRow(row))));
-    const roles = await pool.query(`SELECT role, rights FROM ${T('role_operations')}`);
     if (roles.rowCount) values[ROLE_OPERATIONS_KEY] = JSON.stringify(Object.fromEntries(roles.rows.map(r => [r.role, r.rights])));
-    const codes = await pool.query(`SELECT email, data FROM ${T('password_reset_codes')}`);
     codes.rows.forEach(r => values[RESET_PREFIX + r.email] = JSON.stringify(r.data));
     return values;
 }
@@ -1175,19 +1192,31 @@ async function staffCan(session, ...rights) {
     const saved = rows[0].rights;
     const assigned = Array.isArray(saved.assigned) ? saved.assigned
         : Object.entries(saved).flatMap(([part, ops]) => Array.isArray(ops) ? ops.map(op => `${part}.${op}`) : []);
-    return rights.some(right => assigned.includes(right));
+    // A role saved before an operation existed has it if it had the right that used to cover it (as in auth.js)
+    const known = Array.isArray(saved.known) ? saved.known : [];
+    return rights.some(right => assigned.includes(right)
+        || (RIGHT_FROM[right] && !known.includes(right) && assigned.includes(RIGHT_FROM[right])));
 }
+
+// Operations added later and the right that covered them before (ROLE_OPERATIONS in auth.js)
+const RIGHT_FROM = {
+    'queries.view': 'students.view', 'reports.excel': 'reports.view', 'students.applications': 'students.edit',
+    'students.status': 'students.edit', 'students.deferrals': 'students.edit', 'students.contacts': 'students.edit',
+    'students.password': 'students.edit'
+};
 
 /* The rights that allow reading a kind of record (any one of them is enough). They include the work that needs the
    records behind the scenes: adding a student checks for duplicates, deleting one removes their documents, and
    renaming a course in Settings renames it on the students who have it. Settings can be read by all staff. */
+const STUDENT_WRITERS = ['students.edit', 'students.applications', 'students.status', 'students.deferrals', 'students.contacts',
+    'students.password', 'students.photos'];
 const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
-    'finance.view', 'finance.add', 'reports.view', 'settings.edit', 'settings.delete'];
+    'finance.view', 'finance.add', 'reports.view', 'reports.excel', 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS];
 const RIGHTS_TO_READ = {
     students: STUDENT_READERS,
     deferrals: STUDENT_READERS,
     documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'settings.edit', 'settings.delete'],
-    applications: ['students.view', 'students.add', 'students.edit']
+    applications: ['students.view', 'students.add', 'students.edit', 'students.applications']
 };
 
 // A stored file: someone who may read documents may open any; someone who may only read student records, not an
@@ -1204,11 +1233,11 @@ async function rightsToWrite(store, id, method) {
     if (store === 'students') {
         const { rowCount } = await pool.query(`SELECT 1 FROM ${T('students')} WHERE id = $1`, [id]);
         // (renaming a course in Settings also renames it on the students who have it)
-        return rowCount ? ['students.edit', 'settings.edit'] : ['students.add'];
+        return rowCount ? [...STUDENT_WRITERS, 'settings.edit'] : ['students.add'];
     }
     if (store === 'documents') return ['documents.add', 'students.add', 'settings.edit']; // (admitting an applicant files their documents)
-    if (store === 'deferrals') return ['students.edit'];
-    if (store === 'applications') return ['students.edit', 'students.add'];
+    if (store === 'deferrals') return ['students.edit', 'students.deferrals'];
+    if (store === 'applications') return ['students.edit', 'students.add', 'students.applications'];
     return id === 'paymentDetails' ? ['finance.edit', 'settings.edit'] : ['settings.add', 'settings.edit', 'settings.delete'];
 }
 
@@ -1509,9 +1538,11 @@ function countApplication(req) {
 
 // The choices, as the admission form has them (a list never saved in Settings has the same defaults as there)
 async function applicationOptions() {
+    // A course sharing its name with another is known by its name with award and duration, as on the pages
     const names = async (key, defaults = [], usable = () => true) => {
         const record = await getRecord('settings', key);
-        return (record ? record.items || [] : defaults.map(name => ({ name }))).filter(usable).map(i => i.name).filter(Boolean);
+        return (record ? record.items || [] : defaults.map(name => ({ name }))).filter(usable)
+            .map(i => i.labelSuffix && i.name ? `${i.name} (${i.labelSuffix})` : i.name).filter(Boolean);
     };
     const organization = (await getRecord('settings', 'organization')) || {};
     return {
@@ -1914,7 +1945,7 @@ async function handleApi(req, res, parts) {
     }
     if (area === 'student-password' && method === 'POST') {
         if (!staff && session.kind !== 'student') throw forbidden();
-        if (staff && !await staffCan(session, 'students.edit', 'students.add')) throw forbidden();
+        if (staff && !await staffCan(session, 'students.edit', 'students.add', 'students.password')) throw forbidden();
         const result = await setStudentPasswordOnServer(session, await readBody(req, SMALL_BODY_BYTES) || {});
         mirrorChanged(['students']);
         return send(res, 200, result);
@@ -1926,7 +1957,7 @@ async function handleApi(req, res, parts) {
         return send(res, 200, result);
     }
     if (area === 'student-email' && method === 'POST') {
-        if (!staff || !await staffCan(session, 'students.edit', 'students.add')) throw forbidden();
+        if (!staff || !await staffCan(session, 'students.edit', 'students.add', 'students.password')) throw forbidden();
         return send(res, 200, await sendStudentLoginEmail(await readBody(req, SMALL_BODY_BYTES) || {}));
     }
     if (area === 'new-admin-email' && method === 'POST') {

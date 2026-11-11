@@ -17,7 +17,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112e">
+    <link rel="stylesheet" href="styles.css?v=20261112f">
 </head>
 
 <body>
@@ -818,9 +818,12 @@
                     <button type="button" class="btn-secondary" onclick="goBack(showReportGallery)">&larr; Back to
                         Reports</button>
                 </div>
-                <div class="form-section no-print">
-                    <div id="reportHeaderTitle" class="section-title">ALL REPORTS - STUDENT & ADMISSIONS</div>
-                    <div class="grid-3">
+                <div class="settings-banner info-banner no-print report-note">Choose the filters for this report, then press
+                    Generate Report. A box left on "all" includes everything.</div>
+                <div class="form-section no-print report-form">
+                    <!-- The report's name and its code, e.g. Student Roster / Active Student List  rptRoster -->
+                    <div class="report-form-head"><span id="reportHeaderTitle"></span><span id="reportCode" class="report-code"></span></div>
+                    <div class="report-filter-rows">
                         <!-- Reports are picked from the tiles, so these two stay hidden; they hold the chosen report -->
                         <div class="form-group" style="display: none;">
                             <label>Report Category</label>
@@ -872,17 +875,51 @@
                                 <option value="Inactive">Inactive Only</option>
                             </select>
                         </div>
-                        <!-- Student Reports filters: each report shows the ones it uses (STUDENT_LIST_REPORTS) -->
+                        <!-- Student Reports filters: each report shows the ones it uses (STUDENT_LIST_REPORTS); the
+                             choices come from Settings (schools, campuses, courses, enrollments, study sessions) -->
+                        <div class="form-group report-s-filter" data-filter="school" style="display: none;">
+                            <label for="reportSSchool">School</label>
+                            <select id="reportSSchool"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="campus" style="display: none;">
+                            <label for="reportSCampus">Campus</label>
+                            <select id="reportSCampus"></select>
+                        </div>
                         <div class="form-group report-s-filter" data-filter="course" style="display: none;">
-                            <label>Course</label>
+                            <label for="reportSCourse">Course</label>
                             <select id="reportSCourse"></select>
                         </div>
+                        <div class="form-group report-s-filter" data-filter="enrollment" style="display: none;">
+                            <label for="reportSEnrollment">Enrollment</label>
+                            <select id="reportSEnrollment"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="session" style="display: none;">
+                            <label for="reportSSession">Study Session</label>
+                            <select id="reportSSession"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="gender" style="display: none;">
+                            <label for="reportSGender">Gender</label>
+                            <select id="reportSGender">
+                                <option value="">-- all genders --</option>
+                                <option value="FEMALE">FEMALE</option>
+                                <option value="MALE">MALE</option>
+                            </select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="year" style="display: none;">
+                            <label for="reportSYear">Year Admitted</label>
+                            <select id="reportSYear"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="student" style="display: none;">
+                            <label for="reportSStudent">Student</label>
+                            <input type="text" id="reportSStudent" list="reportStudentOptions" autocomplete="off"
+                                placeholder="Type the student's name or AdmNo (empty = all students)">
+                        </div>
                         <div class="form-group report-s-filter" data-filter="status" style="display: none;">
-                            <label>Students</label>
+                            <label for="reportSStatus">Student Status</label>
                             <select id="reportSStatus">
-                                <option value="">All Students</option>
-                                <option value="Active">Active Only</option>
-                                <option value="Inactive">Inactive Only</option>
+                                <option value="">-- all students --</option>
+                                <option value="Active">Active only</option>
+                                <option value="Inactive">Inactive only</option>
                             </select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="period" style="display: none;">
@@ -893,12 +930,17 @@
                             <label>Required documents (untick any that are not needed)</label>
                             <div id="reportSDocs" class="report-doc-checks"></div>
                         </div>
+                        <!-- Every report: shown on the screen, then saved as PDF (print) or downloaded for Excel -->
+                        <div class="form-group">
+                            <label for="reportFormat">Report Format</label>
+                            <select id="reportFormat">
+                                <option value="PDF">PDF</option>
+                                <option value="EXCEL">EXCEL</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="action-bar" style="margin-top: 15px; gap: 10px;">
-                        <button type="button" class="btn-secondary" onclick="generateReport()">Generate
-                            Report</button>
-                        <button type="button" class="btn-submit" onclick="exportReport()">Export
-                            PDF Report</button>
+                    <div class="action-bar report-form-buttons">
+                        <button type="button" class="btn-submit" onclick="generateInFormat()">Generate Report</button>
                     </div>
                 </div>
 
@@ -932,12 +974,13 @@
 
         // Which part of the system (Role Operations) each section belongs to
         const TAB_PARTS = {
-            studentsTab: 'students', queriesTab: 'students', documentsTab: 'documents', financeTab: 'finance',
-            reportsTab: 'reports', excelReportsTab: 'reports', settingsTab: 'settings'
+            studentsTab: 'students', queriesTab: 'queries', documentsTab: 'documents', financeTab: 'finance',
+            reportsTab: 'reports', excelReportsTab: 'reports.excel', settingsTab: 'settings'
         };
 
         function switchTab(tabId, element, reportType = null) {
-            if (TAB_PARTS[tabId] && !allowed(TAB_PARTS[tabId], 'view')) return;
+            // "part" needs its Access right; "part.operation" that operation (e.g. reports.excel)
+            if (TAB_PARTS[tabId] && !allowed(...(TAB_PARTS[tabId].includes('.') ? TAB_PARTS[tabId].split('.') : [TAB_PARTS[tabId], 'view']))) return;
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.style.display = 'none');
 
@@ -991,6 +1034,9 @@
 
         /* ---------- Settings ---------- */
         // Each list feeds a dropdown elsewhere; studentField is the student record field that stores its value.
+        // What a course is known by (and saved on students as): its name, plus award and duration when another course shares the name
+        function courseLabel(c) { return c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name; }
+
         const SETTINGS_LISTS = {
             courses: {
                 title: 'Courses', singular: 'Course', studentField: 'admissionCourse',
@@ -1005,9 +1051,8 @@
                         listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
                     // Institute: one of the Schools saved under Program Setup > Schools
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
-                    { name: 'award', label: 'Award', placeholder: '-- select one --',
-                        // Short courses are set up on their own (Program Setup > Short Courses), with their own awards
-                        options: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan'] },
+                    // Award: one of the Award Types saved under Program Setup > Award Types
+                    { name: 'award', label: 'Award', optionsFrom: 'awardTypes', noAutoPick: true },
                     // YES shows the short courses to tick (Program Setup > Short Courses)
                     { name: 'hasShortCourses', label: 'Has Short Courses', options: ['NO', 'YES'], hideInList: true },
                     { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
@@ -1024,7 +1069,21 @@
                     { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true }
                 ],
                 validate: i => i.hasShortCourses === 'YES' && !i.shortCourses ? 'Tick at least one short course, or set "Has Short Courses" to NO.' : '',
-                label: i => i.name,
+                /* The same course name can be added again with another award or duration: that one is then known by
+                   its name with them, e.g. "Hair Dressing (Certificate, 6 MONTHS)", so students on each stay apart */
+                prepare: (item, items) => {
+                    const same = name => (name || '').trim().toLowerCase() === item.name.trim().toLowerCase();
+                    const twin = items.some(i => i.id !== item.id && same(i.name));
+                    const old = items.find(i => i.id === item.id);
+                    // The course first added under a name keeps being known by the name alone
+                    const keepPlainName = old && !old.labelSuffix && same(old.name);
+                    if (twin && !keepPlainName) {
+                        item.labelSuffix = [item.award, item.duration && [item.duration, item.durationType].filter(Boolean).join(' ')]
+                            .filter(Boolean).join(', ');
+                    } else delete item.labelSuffix;
+                },
+                duplicateMessage: label => `"${label}" already exists. A course with the same name needs a different Award or Duration.`,
+                label: courseLabel,
                 // Disabled courses stay on existing students but can't be picked for new ones
                 selectable: i => i.enabled !== 'NO',
                 defaults: []
@@ -1150,6 +1209,17 @@
                 ],
                 label: i => i.name,
                 defaults: []
+            },
+            // Program Setup > Award Types: the awards a course can lead to (a course's Award is picked from here)
+            awardTypes: {
+                title: 'Award Types', singular: 'Award Type',
+                banner: 'Set up the award types. Each course picks its Award from this list.',
+                fields: [
+                    { name: 'name', label: 'Award Type', required: true, placeholder: 'e.g. Diploma' }
+                ],
+                label: i => i.name,
+                // The awards courses had to choose from before this list existed
+                defaults: ['Certificate', 'Diploma', 'Higher Diploma', 'Degree', 'Artisan'].map(name => ({ name }))
             }
         });
 
@@ -1197,7 +1267,7 @@
         // The tabs shown under each Settings sidebar link
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
-            setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
+            setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
@@ -1647,7 +1717,7 @@
             if (!roles.includes(roleOperationsRole)) roleOperationsRole = '';
             const rights = roleOperationsRole ? roleRights(roleOperationsRole) : null;
             // A role never set up has every right, so its boxes start ticked
-            const assigned = op => !rights || rights.assigned.includes(op.key);
+            const assigned = op => !rights || roleHasRight(rights, op.key);
             const limit = op => Number((rights && rights.limits[op.key]) || 0).toFixed(2);
 
             content.innerHTML = `
@@ -1711,7 +1781,8 @@
                 if (amount > 0) limits[input.dataset.op] = amount;
             });
 
-            saveRoleOperations({ ...getRoleOperations(), [roleOperationsRole]: { assigned: [...assigned], limits } });
+            // "known": the operations there are now, so ones added later are not taken as ticked or unticked here
+            saveRoleOperations({ ...getRoleOperations(), [roleOperationsRole]: { assigned: [...assigned], limits, known: ROLE_OPERATIONS.map(op => op.key) } });
             showToast(`Role operations for "${roleOperationsRole}" saved successfully.`);
             renderRoleOperations();
         }
@@ -1869,6 +1940,7 @@
             list.fields.filter(f => !f.hideInForm).forEach(f => item[f.name] = f.type === 'checklist'
                 ? [...form.querySelectorAll(`input[name="${f.name}"]:checked`)].map(box => box.value).join(', ')
                 : form.elements[f.name].value.trim());
+            if (list.prepare) list.prepare(item, items);
             const label = list.label(item);
 
             const problem = list.validate && list.validate(item);
@@ -1878,7 +1950,7 @@
             }
 
             if (items.some(i => i.id !== item.id && list.label(i).toLowerCase() === label.toLowerCase())) {
-                alert(`"${label}" already exists.`);
+                alert(list.duplicateMessage ? list.duplicateMessage(label) : `"${label}" already exists.`);
                 return;
             }
 
@@ -2193,7 +2265,10 @@
             document.getElementById('specificReportSelect').value = reportKey;
             onReportChange();
             document.getElementById('reportHeaderTitle').innerText =
-                REPORT_OPTIONS[category].find(([value]) => value === reportKey)[1].toUpperCase();
+                REPORT_OPTIONS[category].find(([value]) => value === reportKey)[1];
+            // The report's code, e.g. ACTIVE_INACTIVE -> rptActiveInactive
+            document.getElementById('reportCode').innerText = 'rpt' + reportKey.toLowerCase()
+                .split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
             document.getElementById('reportGallery').style.display = 'none';
             document.getElementById('reportViewer').style.display = 'block';
         }
@@ -2464,18 +2539,56 @@
         // The filters chosen on the report page
         function studentReportFilters() {
             const period = reportSPeriods.get(document.getElementById('reportSPeriod').value) || null;
+            const value = id => document.getElementById(id).value.trim();
             return {
-                course: document.getElementById('reportSCourse').value,
-                status: document.getElementById('reportSStatus').value,
+                school: value('reportSSchool'), campus: value('reportSCampus'), course: value('reportSCourse'),
+                enrollment: value('reportSEnrollment'), session: value('reportSSession'), gender: value('reportSGender'),
+                year: value('reportSYear'), student: value('reportSStudent'),
+                status: value('reportSStatus'),
                 period,
                 docs: [...document.querySelectorAll('#reportSDocs input:checked')].map(box => box.value)
             };
         }
 
+        // The courses of each school (a course's Institute), for the School filter
+        let reportCourseSchools = new Map();
+
+        // Whether a student fits the School, Campus, Course, Enrollment, Study Session, Gender, Year Admitted and
+        // Student filters (a filter left on "all" lets everyone through)
+        function studentMatch(f, s) {
+            if (!s) return false;
+            const typed = (f.student || '').toLowerCase();
+            return (!f.course || s.admissionCourse === f.course)
+                && (!f.school || reportCourseSchools.get(s.admissionCourse) === f.school)
+                && (!f.campus || s.campus === f.campus)
+                && (!f.enrollment || s.enrollment === f.enrollment)
+                && (!f.session || s.studySession === f.session)
+                && (!f.gender || s.gender === f.gender)
+                && (!f.year || (dayOf(s.createdAt) || '').slice(0, 4) === f.year)
+                && (!typed || studentOptionLabel(s).toLowerCase().includes(typed)
+                    || (s.admNo || '').toLowerCase() === typed || fullName(s).toLowerCase().includes(typed));
+        }
+
         async function fillStudentReportFilters(report) {
-            const courseSelect = document.getElementById('reportSCourse');
-            fillSelect(courseSelect, await getSettingLabels('courses'), '-- All Courses --', courseSelect.value);
-            const { terms, years } = await periodChoices(await getAll('students'));
+            const keepFill = async (id, labels, all) => {
+                const select = document.getElementById(id);
+                fillSelect(select, labels, all, labels.includes(select.value) ? select.value : '');
+            };
+            const courses = await getSettingItems('courses');
+            reportCourseSchools = new Map(courses.map(c => [courseLabel(c), c.institute || '']));
+            await keepFill('reportSSchool', await getSettingLabels('schools'), '-- all schools --');
+            await keepFill('reportSCampus', await getSettingLabels('campuses'), '-- all campuses --');
+            await keepFill('reportSCourse', courses.map(courseLabel), '-- all courses --');
+            await keepFill('reportSEnrollment', (await getSettingItems('enrollmentTypes')).map(i => i.name).filter(Boolean), '-- all enrollments --');
+            await keepFill('reportSSession', await getSettingLabels('studySessions'), '-- all study sessions --');
+            const allStudents = await getAll('students');
+            // The years students were admitted in, newest first
+            const admittedYears = [...new Set(allStudents.map(st => (dayOf(st.createdAt) || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+            await keepFill('reportSYear', admittedYears, '-- all years --');
+            document.getElementById('reportStudentOptions').innerHTML = [...allStudents]
+                .sort((a, b) => fullName(a).localeCompare(fullName(b)))
+                .map(st => `<option value="${escapeHtml(studentOptionLabel(st))}">`).join('');
+            const { terms, years } = await periodChoices(allStudents);
             reportSPeriods = new Map([...years, ...terms].map(p => [p.label, p]));
             const periodSelect = document.getElementById('reportSPeriod');
             const keep = periodSelect.value;
@@ -2504,10 +2617,10 @@
 
         const STUDENT_LIST_REPORTS = {
             ROSTER: {
-                title: 'Student Roster / Active Student List', filters: ['course'],
+                title: 'Student Roster / Active Student List', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student'],
                 build: async f => {
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => isActiveStudent(s) && (!f.course || s.admissionCourse === f.course)));
+                        .filter(s => isActiveStudent(s) && studentMatch(f, s)));
                     return {
                         total: students.length, totalLabel: 'Active students',
                         boxes: students.length ? [{ title: 'By course', rows: countBy(students, s => s.admissionCourse) }] : [],
@@ -2521,9 +2634,9 @@
                 }
             },
             DEMOGRAPHICS: {
-                title: 'Student Demographics Report', filters: ['course', 'status', 'period'], periodLabel: 'Admitted in',
+                title: 'Student Demographics Report', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status', 'period'], periodLabel: 'Admitted in',
                 build: async f => {
-                    const students = (await getAll('students')).filter(s => (!f.course || s.admissionCourse === f.course) &&
+                    const students = (await getAll('students')).filter(s => studentMatch(f, s) &&
                         matchesStatus(s, f.status) && inPeriod(s.createdAt, f.period));
                     // Course by gender, with totals
                     const genders = [...new Set(students.map(s => s.gender || 'Not set'))].sort();
@@ -2548,10 +2661,10 @@
                 }
             },
             ACTIVE_INACTIVE: {
-                title: 'Active vs. Inactive Students', filters: ['course', 'period'], periodLabel: 'Status date in',
+                title: 'Active vs. Inactive Students', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'period'], periodLabel: 'Status date in',
                 build: async f => {
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => (!f.course || s.admissionCourse === f.course) && inPeriod(statusDay(s), f.period)));
+                        .filter(s => studentMatch(f, s) && inPeriod(statusDay(s), f.period)));
                     const active = students.filter(isActiveStudent);
                     const inactive = students.filter(s => !isActiveStudent(s));
                     return {
@@ -2580,12 +2693,12 @@
                 }
             },
             DEFERRALS: {
-                title: 'Deferred / Suspended Students Report', filters: ['course', 'period'], periodLabel: 'Started in',
+                title: 'Deferred / Suspended Students Report', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'period'], periodLabel: 'Started in',
                 build: async f => {
                     const students = await getAll('students');
                     const records = (await getAll('deferrals'))
                         .map(d => ({ ...d, student: students.find(s => s.id === d.studentId) || {} }))
-                        .filter(d => (!f.course || d.student.admissionCourse === f.course) && inPeriod(d.startDate, f.period))
+                        .filter(d => studentMatch(f, d.student) && inPeriod(d.startDate, f.period))
                         .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
                     const today = isoDate(new Date());
                     const ongoing = records.filter(d => !d.endDate || d.endDate >= today).length;
@@ -2631,9 +2744,9 @@
                 }
             },
             ADMISSION_STATS: {
-                title: 'Admission Statistics', filters: ['course'],
+                title: 'Admission Statistics', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender'],
                 build: async f => {
-                    const students = (await getAll('students')).filter(s => (!f.course || s.admissionCourse === f.course) && dayOf(s.createdAt));
+                    const students = (await getAll('students')).filter(s => studentMatch(f, s) && dayOf(s.createdAt));
                     const { terms, years } = await periodChoices(students);
                     const within = p => students.filter(s => inPeriod(s.createdAt, p));
                     const row = (label, list) => [label, list.length, list.filter(s => s.gender === 'FEMALE').length,
@@ -2653,10 +2766,10 @@
                 }
             },
             CONTACT_DIRECTORY: {
-                title: 'Student & Guardian Contact Directory', filters: ['course', 'status'],
+                title: 'Student & Guardian Contact Directory', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status'],
                 build: async f => {
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                        .filter(s => studentMatch(f, s) && matchesStatus(s, f.status)));
                     const family = s => ['father', 'mother', 'guardian'].map(p => {
                         const name = personName(s, p);
                         const phones = [s[p + 'Phone'], s[p + 'Phone2']].filter(Boolean).join(' / ');
@@ -2681,11 +2794,11 @@
                 }
             },
             DOCUMENT_STATUS: {
-                title: 'Student Document Status Report', filters: ['course', 'status', 'docs'],
+                title: 'Student Document Status Report', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status', 'docs'],
                 build: async f => {
                     if (!f.docs.length) return { error: 'Tick at least one required document.' };
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                        .filter(s => studentMatch(f, s) && matchesStatus(s, f.status)));
                     const documents = await getAll('documents');
                     const has = new Set(documents.map(d => d.studentId + '|' + d.docType));
                     const missingOf = s => f.docs.filter(t => !has.has(s.id + '|' + t));
@@ -2713,10 +2826,10 @@
                 }
             },
             PHOTO_AUDIT: {
-                title: 'Student Photo Directory / Audit', filters: ['course', 'status'],
+                title: 'Student Photo Directory / Audit', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status'],
                 build: async f => {
                     const students = sortStudents((await getAll('students'))
-                        .filter(s => (!f.course || s.admissionCourse === f.course) && matchesStatus(s, f.status)));
+                        .filter(s => studentMatch(f, s) && matchesStatus(s, f.status)));
                     const withPhoto = students.filter(s => s.photo);
                     // Students without a photo first, so they can be fixed under Upload Student Photos
                     const ordered = [...students.filter(s => !s.photo), ...withPhoto];
@@ -2747,8 +2860,12 @@
                 return false;
             }
             const org = await getOrganization();
+            const shown = (key, label, value) => report.filters.includes(key) && value && `${label}: <b>${escapeHtml(value)}</b>`;
             const choices = [
+                shown('school', 'School', f.school), shown('campus', 'Campus', f.campus),
                 report.filters.includes('course') && `Course: <b>${escapeHtml(f.course || 'All')}</b>`,
+                shown('enrollment', 'Enrollment', f.enrollment), shown('session', 'Study Session', f.session),
+                shown('gender', 'Gender', f.gender), shown('year', 'Year Admitted', f.year), shown('student', 'Student', f.student),
                 report.filters.includes('status') && `Students: <b>${escapeHtml(f.status || 'All')}</b>`,
                 report.filters.includes('period') && `${escapeHtml(report.periodLabel)}: <b>${escapeHtml(f.period ? f.period.label : 'Any time')}</b>`
             ].filter(Boolean).join(' &nbsp;|&nbsp; ');
@@ -3285,7 +3402,7 @@
         // Students matching the School / Campus / Course / Enrollment / Gender / Status filters
         async function studentsMatching(f) {
             const courses = await getSettingItems('courses');
-            const schoolOf = courseName => (courses.find(c => c.name === courseName) || {}).institute;
+            const schoolOf = courseName => (courses.find(c => courseLabel(c) === courseName) || {}).institute;
             return sortByName((await getAll('students')).filter(s =>
                 (!f.school || schoolOf(s.admissionCourse) === f.school) && (!f.campus || s.campus === f.campus) &&
                 (!f.course || s.admissionCourse === f.course) && (!f.enrollment || s.enrollment === f.enrollment) &&
@@ -3591,6 +3708,35 @@
             setTimeout(() => URL.revokeObjectURL(url), 10000);
         }
 
+        // Generate Report: shows the report, then PDF opens the print window (choose "Save as PDF") and EXCEL
+        // downloads its tables as a spreadsheet
+        async function generateInFormat() {
+            if (!(await generateReport())) return;
+            const format = document.getElementById('reportFormat').value;
+            if (format === 'EXCEL') return downloadReportTables();
+            setTimeout(() => window.print(), 300);
+        }
+
+        // Every table in the report shown, one under the other, in one spreadsheet
+        function downloadReportTables() {
+            const output = document.getElementById('reportOutput');
+            const title = document.getElementById('reportHeaderTitle').innerText || 'Report';
+            const rows = [];
+            output.querySelectorAll('.report-meta').forEach(m => rows.push([m.innerText.trim()]));
+            output.querySelectorAll('table').forEach(table => {
+                const heading = table.closest('.table-wrap')?.previousElementSibling;
+                rows.push([]);
+                if (heading && heading.classList.contains('report-subtitle')) rows.push([heading.innerText.trim()]);
+                table.querySelectorAll('tr').forEach(tr => rows.push([...tr.cells].map(c => c.innerText.replace(/\s+/g, ' ').trim())));
+            });
+            if (!output.querySelector('table')) {
+                // Reports without tables (e.g. a student's details): their text, line by line
+                output.innerText.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => rows.push([l]));
+            }
+            downloadCsv(`${title} - ${isoDate(new Date())}`, [title], rows);
+            showToast(`${title} downloaded for Excel.`);
+        }
+
         async function exportReport() {
             const output = document.getElementById('reportOutput');
             if (!output.innerHTML.trim() && !(await generateReport())) return;
@@ -3638,7 +3784,7 @@
         // The Student Hub page has five tabs: Manage Student, Student Status, Contacts, Deferred/Suspended Students
         // and Upload Student Photos (administrators only)
         function showStudentListTab(paneId) {
-            if (paneId === 'studentPhotosPane' && !isAdmin()) return alert('Only administrators can upload student photos in bulk.');
+            if (paneId === 'studentPhotosPane' && !allowed('students', 'photos')) return;
             [['manageStudentPane', 'tabManageStudent'], ['studentApplicationsPane', 'tabStudentApplications'],
                 ['studentStatusPane', 'tabStudentStatus'],
                 ['studentContactsPane', 'tabStudentContacts'], ['studentDeferralsPane', 'tabStudentDeferrals'],
@@ -3732,7 +3878,7 @@
         }
 
         async function uploadBulkPhotos() {
-            if (!isAdmin()) return alert('Only administrators can upload student photos in bulk.');
+            if (!allowed('students', 'photos')) return;
             const ready = bulkPhotoPlan.filter(p => !p.problem);
             if (!ready.length) return;
             for (const { file, student } of ready) {
@@ -3909,7 +4055,7 @@
 
         // Saves the two verification ticks; with both ticked the prospect is Verified and can be admitted
         async function verifyApplication(id, ticks) {
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'applications')) return;
             const a = await getOne('applications', id);
             if (!a || !stillOpen(a)) return;
             const verified = ticks.verifiedDetails && ticks.verifiedDocuments;
@@ -3922,7 +4068,7 @@
         }
 
         async function rejectApplication(id) {
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'applications')) return;
             const a = await getOne('applications', id);
             if (!a) return;
             const note = prompt(`Reject the application of ${fullName(a)} (${a.reference})?\n\nReason (optional):`, '');
@@ -3939,7 +4085,7 @@
         const fileCopy = (blob, name) => blob ? new File([blob], name || blob.name || 'file', { type: blob.type }) : null;
 
         async function admitApplication(id) {
-            if (!allowed('students', 'add')) return;
+            if (!allowed('students', 'applications') || !allowed('students', 'add')) return;
             const a = await getOne('applications', id);
             if (!a) return;
             const status = applicationStatus(a);
@@ -4143,7 +4289,7 @@
 
         async function saveContacts(event) {
             event.preventDefault();
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'contacts')) return;
             const inputs = [...document.querySelectorAll('#contactsTableBody .contact-input')];
             const invalid = inputs.find(input => !input.checkValidity());
             if (invalid) {
@@ -4388,7 +4534,7 @@
         }
 
         async function setStudentActive(id, active) {
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'status')) return;
             const student = await getOne('students', id);
             if (!student) return;
             const answer = await askStatusChange(student, active);
@@ -4494,7 +4640,7 @@
 
         async function saveDeferral(event) {
             event.preventDefault();
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'deferrals')) return;
             const form = event.target;
             const data = Object.fromEntries(new FormData(form));
             const student = findStudent(await getAll('students'), data.student);
@@ -4543,7 +4689,7 @@
 
         async function uploadDeferrals(event) {
             event.preventDefault();
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'deferrals')) return;
             const file = document.getElementById('deferralFile').files[0];
             if (!file) return;
 
@@ -4624,16 +4770,16 @@
         let savedAdmission = null; // course and AdmNo of the student being edited, kept if their course is not changed
 
         async function courseCode(courseName) {
-            const course = (await getSettingItems('courses')).find(c => c.name === courseName);
+            const course = (await getSettingItems('courses')).find(c => courseLabel(c) === courseName);
             const code = ((course && course.code) || '').trim()
-                || courseName.split(/\s+/).filter(Boolean).map(word => word[0]).join('');
+                || ((course && course.name) || courseName).split(/\s+/).filter(Boolean).map(word => word[0]).join('');
             return code.toUpperCase().replace(/\//g, '-');
         }
 
         /* A course's Registration Number Sequence (Settings > Program Setup): the one chosen for it under Courses,
            otherwise the sequence named after the course itself; null when it has none */
         async function courseSequence(courseName) {
-            const course = (await getSettingItems('courses')).find(c => c.name === courseName);
+            const course = (await getSettingItems('courses')).find(c => courseLabel(c) === courseName);
             const sequences = await getSettingItems('regSequences');
             return (course && course.regSequence && sequences.find(s => s.name === course.regSequence))
                 || sequences.find(s => s.name === courseName) || null;
@@ -4898,7 +5044,7 @@
         /* Reset Password: a new temporary password for the Student Portal, shown here to hand to the student and,
            when the student has an email and email sending is set up, emailed to them. They choose their own at login. */
         async function resetStudentPassword(id) {
-            if (!allowed('students', 'edit')) return;
+            if (!allowed('students', 'password')) return;
             const student = await getOne('students', id);
             if (!student) return;
             // An inactive student can't log in whatever their password, so they are activated first
@@ -5088,7 +5234,7 @@
             document.getElementById('currentUserEmail').innerText = account ? account.username : '';
             // Only administrators manage staff and upload student photos in bulk
             document.getElementById('staffNavItem').style.display = isAdmin() ? '' : 'none';
-            document.getElementById('tabStudentPhotos').style.display = isAdmin() ? '' : 'none';
+            document.getElementById('tabStudentPhotos').style.display = can('students', 'photos') ? '' : 'none';
         }
 
         showCurrentUser();

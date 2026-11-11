@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS settings.schools (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Award Types (Program Setup): the awards a course can lead to, e.g. Diploma
+CREATE TABLE IF NOT EXISTS settings.award_types (
+    id              text PRIMARY KEY,
+    name            text,                   -- Award Type
+    code            text,
+    position        integer NOT NULL DEFAULT 0,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
 -- Short Courses (Program Setup): the short courses of each school
 CREATE TABLE IF NOT EXISTS settings.short_courses (
     id              text PRIMARY KEY,
@@ -211,6 +220,7 @@ ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.reg_number_sequences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.short_courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings.award_types ENABLE ROW LEVEL SECURITY;
 
 
 -- ---------- System updates (Settings > System Update): one row each time the rocket is run ----------

@@ -19,6 +19,7 @@ const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals
 const fewaServer = { online: false, error: '' };
 
 function apiSync(method, path, body) {
+    if (method !== 'GET' && typeof forgetReads === 'function') forgetReads();
     const xhr = new XMLHttpRequest();
     xhr.open(method, FEWA_API + path, false);
     xhr.setRequestHeader('X-FEWA-Client', '1');
@@ -32,7 +33,24 @@ function apiSync(method, path, body) {
     return result;
 }
 
+/* Records read from the server are remembered on this page for a minute, so moving between tabs does not fetch the
+   same students or settings again (each fetch goes to the database online, which takes time). Anything saved clears
+   them at once, so this page never shows its own changes late; another person's changes show within a minute, or
+   straight away after a refresh. Only kept in the page's memory, never stored in the browser. */
+const READ_MEMORY_MS = 60000;
+const readMemory = new Map();
+function forgetReads() { readMemory.clear(); }
+function rememberedGet(path) {
+    const hit = readMemory.get(path);
+    if (hit && Date.now() - hit.at < READ_MEMORY_MS) return hit.answer;
+    const answer = api('GET', path);
+    readMemory.set(path, { at: Date.now(), answer });
+    answer.catch(() => readMemory.delete(path));
+    return answer;
+}
+
 async function api(method, path, body) {
+    if (method !== 'GET') forgetReads();
     let response;
     try {
         response = await fetch(FEWA_API + path, {
@@ -175,13 +193,22 @@ let dataReady = Promise.resolve();
 const fewaDB = {
     async getAll(store) {
         await dataReady;
-        return unpackRecord(await api('GET', storePath(store)));
+        return unpackRecord(await rememberedGet(storePath(store)));
     },
     // undefined when there is no such record
     async getOne(store, id) {
         await dataReady;
         if (id == null || id === '') return undefined;
-        const record = await api('GET', storePath(store, id));
+        // Taken from the whole list when this page has just read it
+        const list = readMemory.get(storePath(store));
+        if (list && Date.now() - list.at < READ_MEMORY_MS && STORE_KEYS[store]) {
+            const all = await list.answer.catch(() => null);
+            if (Array.isArray(all)) {
+                const found = all.find(r => String(r[STORE_KEYS[store]]) === String(id));
+                return found ? unpackRecord(found) : undefined;
+            }
+        }
+        const record = await rememberedGet(storePath(store, id));
         return record ? unpackRecord(record) : undefined;
     },
     async put(store, record) {
@@ -266,4 +293,13 @@ function waitForDatabase() {
 if (!fewaServer.online) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showServerProblem);
     else showServerProblem();
+}
+
+// Staff pages: fetch all the Settings lists (and the students) once as the page opens, in the background, so tabs and
+// dropdowns that need them show straight away instead of each asking the server in turn
+if (fewaServer.online && fewaSession.kind === 'staff') {
+    dataReady.then(() => {
+        rememberedGet(storePath('settings')).catch(() => { });
+        rememberedGet(storePath('students')).catch(() => { });
+    });
 }

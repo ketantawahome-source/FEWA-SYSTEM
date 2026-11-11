@@ -104,8 +104,25 @@ const ROLE_OPERATIONS = [
     ['students.edit', 'Edit Students', 'Ability to change student details, status, contacts and deferrals.'],
     ['finance.add', 'Record Fee Payments', 'Ability to post student fee payments, up to the Auth Limit amount.'],
     ['documents.add', 'Upload Student Documents', 'Ability to upload documents for a student.'],
-    ['documents.view', 'View Student Documents', 'Ability to open the Student Documents screen and view documents.']
-].map(([key, name, remarks]) => ({ key, name, remarks })).sort((a, b) => a.name.localeCompare(b.name));
+    ['documents.view', 'View Student Documents', 'Ability to open the Student Documents screen and view documents.'],
+    // Added later; "from" is the right that used to cover it, so a role set up before keeps what it could do
+    ['queries.view', 'Access Student Queries', 'Ability to open the Student Queries screen.', 'students.view'],
+    ['reports.excel', 'Access Excel Reports', 'Ability to open and download the Excel Reports.', 'reports.view'],
+    ['students.applications', 'Process Online Applications', 'Ability to verify, reject and admit online applications.', 'students.edit'],
+    ['students.status', 'Activate / Deactivate Students', 'Ability to mark students inactive (archive) and reactivate them.', 'students.edit'],
+    ['students.deferrals', 'Manage Deferrals & Suspensions', 'Ability to add, change and upload deferral and suspension records.', 'students.edit'],
+    ['students.contacts', 'Edit Student Contacts', "Ability to change students' contacts (parents, guardians, next of kin).", 'students.edit'],
+    ['students.password', 'Reset Student Portal Passwords', "Ability to reset a student's portal password and send their login details.", 'students.edit'],
+    ['students.photos', 'Upload Student Photos in Bulk', 'Ability to upload many student photos at once (Student Hub > Upload Student Photos).']
+].map(([key, name, remarks, from]) => ({ key, name, remarks, from })).sort((a, b) => a.name.localeCompare(b.name));
+
+/* Whether saved rights include an operation. A role saved before an operation existed ("known" lists the operations
+   there were when it was saved) has it if it had the right that used to cover it. */
+function roleHasRight(rights, key) {
+    if (rights.assigned.includes(key)) return true;
+    const op = ROLE_OPERATIONS.find(o => o.key === key);
+    return !!(op && op.from && !(rights.known || []).includes(key) && rights.assigned.includes(op.from));
+}
 
 function getRoleOperations() {
     try {
@@ -136,7 +153,7 @@ function can(part, operation) {
     if (account.role === ROLE_ADMIN) return true;
     const rights = roleRights(account.jobTitle);
     if (!rights) return true;
-    return rights.assigned.includes(`${part}.${operation}`);
+    return roleHasRight(rights, `${part}.${operation}`);
 }
 
 // For actions: true when allowed, otherwise explains and returns false
@@ -591,14 +608,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)
     const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
-    const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'students', 'Student Documents': 'documents' };
+    const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel' };
     sidebar.querySelectorAll('.menu-list > .nav-item').forEach(item => {
         const label = item.querySelector('.nav-label');
         const part = label && menuPart[label.textContent.trim()];
         if (part && !can(part, 'view')) item.style.display = 'none';
         item.querySelectorAll('.submenu-item').forEach(sub => {
             const subPart = subItemPart[sub.textContent.trim()];
-            if (subPart && !can(subPart, 'view')) sub.style.display = 'none';
+            if (subPart && !can(...(subPart.includes('.') ? subPart.split('.') : [subPart, 'view']))) sub.style.display = 'none';
             // Backing up and restoring the whole system is for administrators only
             if (sub.textContent.trim() === 'System Data Backups' && !isAdmin()) sub.style.display = 'none';
             // ... and so is System Update (any item marked admin-only)

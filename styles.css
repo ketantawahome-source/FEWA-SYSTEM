@@ -6179,3 +6179,21 @@ body.login-page .btn-login {
     scrollbar-width: thin;
     scrollbar-color: rgba(223, 177, 91, 0.4) transparent;
 }
+
+/* ---------- Report filter page (Reports > a report): a note, the report's name and code, then one row per filter ---------- */
+.report-note { margin-bottom: 14px; }
+.report-form-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 18px; border-bottom: 1px solid #ece4f3; }
+#reportHeaderTitle { font-size: 22px; font-weight: 600; color: var(--fewa-purple, #31184d); }
+.report-code { font-size: 13px; color: #7a6b8c; }
+.report-filter-rows { display: flex; flex-direction: column; gap: 14px; max-width: 900px; }
+.report-filter-rows > .form-group { flex-direction: row; align-items: center; gap: 18px; margin: 0; }
+.report-filter-rows > .form-group > label { flex: 0 0 220px; margin: 0; font-weight: 700; font-size: 14.5px; }
+.report-filter-rows > .form-group > select,
+.report-filter-rows > .form-group > input { flex: 1 1 auto; min-width: 0; }
+.report-filter-rows > .form-group.report-s-docs { flex-direction: column; align-items: stretch; }
+.report-form-buttons { justify-content: flex-start; margin-top: 20px; padding-left: 238px; }
+@media (max-width: 768px) {
+    .report-filter-rows > .form-group { flex-direction: column; align-items: stretch; gap: 6px; }
+    .report-filter-rows > .form-group > label { flex: none; }
+    .report-form-buttons { padding-left: 0; }
+}
