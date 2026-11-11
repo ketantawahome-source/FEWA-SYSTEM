@@ -6148,22 +6148,3 @@ body.login-page .btn-login {
 @media print { .report-thumb { width: 32px; height: 32px; } }
 .report-doc-checks input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; flex: 0 0 auto; margin: 0; padding: 0; }
 .report-doc-checks label { white-space: nowrap; }
-
-/* ---------- Settings > Institution Setup > Batches (compact: labels beside the boxes) ---------- */
-.batch-note { background: #eef5fb; border: 1px solid #cfe2f3; color: #1f5f8b; border-radius: var(--fewa-radius-small, 8px); padding: 10px 14px; margin-bottom: 12px; font-size: 13px; }
-.batch-form { margin-bottom: 10px; }
-.batch-editing { font-size: 13px; margin-bottom: 8px; color: var(--fewa-ink, #24103a); }
-.batch-grid { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr) minmax(130px, 200px) minmax(0, 1fr); gap: 8px 14px; align-items: center; }
-.batch-grid > label { font-size: 13px; font-weight: 700; color: var(--fewa-ink, #24103a); margin: 0; }
-.batch-grid select, .batch-grid input { width: 100%; min-height: 32px; height: 32px; padding: 4px 10px; font-size: 13px; border: 1px solid var(--fewa-field, #d6c9e4); border-radius: 6px; background: #fff; color: var(--fewa-text, #2a1a3d); box-sizing: border-box; }
-.batch-grid select:focus, .batch-grid input:focus { outline: none; border-color: var(--fewa-gold, #dfb15b); box-shadow: var(--fewa-focus, 0 0 0 3px rgba(223,177,91,.45)); }
-.batch-grid select:disabled, .batch-grid input[readonly] { background: #f1eef4; }
-.batch-grid .field-hint { display: block; margin-top: 3px; font-size: 11.5px; color: var(--fewa-muted, #6b5a80); }
-.batch-buttons { display: flex; gap: 8px; align-items: center; }
-.batch-buttons .btn-submit, .batch-buttons .btn-secondary { min-height: 32px; padding: 6px 16px; font-size: 13px; }
-.batch-empty { font-style: italic; color: var(--fewa-muted, #6b5a80); margin: 6px 0 0; font-size: 13px; }
-@media (max-width: 768px) {
-    .batch-grid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-    .batch-grid > label { margin-top: 6px; }
-    .batch-grid > span:empty { display: none; }
-}

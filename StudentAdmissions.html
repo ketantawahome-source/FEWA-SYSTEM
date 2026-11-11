@@ -1039,22 +1039,6 @@
                 selectable: i => i.status !== 'Inactive',
                 defaults: []
             },
-            // A school's periods of study; edited on their own page (renderBatches), these fields are what it keeps.
-            // optionsFrom 'schools': renaming a school renames it on its batches too.
-            batches: {
-                title: 'Batches', singular: 'Batch',
-                fields: [
-                    { name: 'school', label: 'School', optionsFrom: 'schools' },
-                    { name: 'academicYear', label: 'Academic Year' },
-                    { name: 'startDate', label: 'Date From', type: 'date' },
-                    { name: 'endDate', label: 'Date To', type: 'date' },
-                    { name: 'succeeds', label: 'Batch Succeeds (Comes After)' },
-                    { name: 'precedes', label: 'Batch Precedes (Comes Before)' },
-                    { name: 'name', label: 'Name' }
-                ],
-                label: i => i.name,
-                defaults: []
-            },
             studentTypes: {
                 title: 'Student Types', singular: 'Student Type', studentField: 'studentType',
                 fields: [{ name: 'name', label: 'Student Type', required: true, placeholder: 'e.g. Student' }],
@@ -1180,7 +1164,7 @@
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'courses', 'enrollmentTypes', 'studySessions'] },
-            general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes', 'batches'] },
+            general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
             update: { title: 'System Update', tabs: ['systemUpdate'] }
@@ -1189,7 +1173,6 @@
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
-            batches: { title: 'Batches', render: () => renderBatches() },
             backup: { title: 'Backups', render: () => renderBackupPage() },
             systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() }
         };
@@ -1557,179 +1540,6 @@
                         </tbody>
                     </table>
                 </div>`;
-        }
-
-        /* ---------- Batches (Settings > Institution Setup > Batches) ----------
-           A batch is a school's period of study (for example a year or a term). Choose the school, then add or edit its
-           batches. The name is made from the two dates, and which batch comes before and after is worked out from the
-           dates of the school's batches whenever one is saved or deleted (kept as succeeds / precedes). */
-        let batchSchool = '';
-        let batchEditingId = null;
-        let batchDraft = null; // what was typed in the form when the school was changed, so it is not lost
-
-        // Choosing a school shows its batches and keeps the Academic Year and dates already typed
-        function changeBatchSchool(school) {
-            const form = document.getElementById('batchForm');
-            batchDraft = form ? { academicYear: form.elements.academicYear.value, startDate: form.elements.startDate.value,
-                endDate: form.elements.endDate.value } : null;
-            batchSchool = school;
-            batchEditingId = null;
-            renderBatches();
-        }
-
-        // The schools to choose from: Program Setup > Schools, or the college itself when none are set up
-        async function batchSchools() {
-            const schools = await getSettingLabels('schools');
-            return schools.length ? schools : [(await getOrganization()).collegeName].filter(Boolean);
-        }
-
-        // Academic years: from five years back to five ahead, plus any already used by a batch
-        function batchYears(items) {
-            const now = new Date().getFullYear();
-            const years = new Set(Array.from({ length: 11 }, (_, i) => String(now + 5 - i)));
-            items.forEach(i => i.academicYear && years.add(i.academicYear));
-            return [...years].sort((a, b) => b.localeCompare(a));
-        }
-
-        const batchName = (from, to) => from && to ? `${formatDate(from)} - ${formatDate(to)}` : '';
-
-        // The school's batches in date order, each with the one before (succeeds) and after (precedes) it
-        function linkBatches(items, school) {
-            const ofSchool = items.filter(i => i.school === school).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
-            ofSchool.forEach((item, n) => {
-                item.succeeds = n > 0 ? ofSchool[n - 1].name : '';
-                item.precedes = n < ofSchool.length - 1 ? ofSchool[n + 1].name : '';
-            });
-            return items;
-        }
-
-        async function renderBatches() {
-            document.getElementById('settingsBanner').innerText = 'Batches';
-            const items = await getSettingItems('batches');
-            const schools = await batchSchools();
-            if (!schools.includes(batchSchool)) batchSchool = schools.length === 1 ? schools[0] : '';
-            const editing = items.find(i => i.id === batchEditingId && i.school === batchSchool) || null;
-            // The values the boxes start with: the batch being edited, or what was typed before the school was changed
-            const start = editing || batchDraft || {};
-            batchDraft = null;
-            const ofSchool = items.filter(i => i.school === batchSchool).sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
-            const options = (list, current, placeholder) => `<option value="">${placeholder}</option>` +
-                list.map(v => `<option value="${escapeHtml(v)}"${v === current ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('');
-
-            document.getElementById('settingsContent').innerHTML = `
-                <div class="batch-note">A batch is a school's period of study (for example a year or a term). Choose the school,
-                    then add or edit its batches.</div>
-                <form id="batchForm" class="batch-form" onsubmit="saveBatch(event)">
-                    ${editing ? `<div class="batch-editing">Editing: <b>${escapeHtml(editing.name)}</b></div>` : ''}
-                    <!-- Compact: each label on the left of its box, two fields per row -->
-                    <div class="batch-grid">
-                        <label for="batchSchoolBox">School <span class="req">*</span></label>
-                        <div><select id="batchSchoolBox" name="school" required onchange="changeBatchSchool(this.value)">
-                            ${options(schools, batchSchool, schools.length ? '-- select one --' : '-- no schools yet (Program Setup > Schools) --')}
-                        </select></div>
-                        <label for="batchYearBox">Academic Year <span class="req">*</span></label>
-                        <div><select id="batchYearBox" name="academicYear" required>
-                            ${options(batchYears(items), start.academicYear || '', '-- select one --')}
-                        </select></div>
-
-                        <label for="batchFromBox">Date From <span class="req">*</span></label>
-                        <div><input id="batchFromBox" type="date" name="startDate" required value="${escapeHtml(start.startDate || '')}" oninput="previewBatch()"></div>
-                        <label for="batchToBox">Date To <span class="req">*</span></label>
-                        <div><input id="batchToBox" type="date" name="endDate" required value="${escapeHtml(start.endDate || '')}" oninput="previewBatch()"></div>
-
-                        <label for="batchAfterBox">Batch Succeeds (Comes After)</label>
-                        <div><select id="batchAfterBox" name="succeeds" disabled><option value="">-- no other batch --</option></select>
-                            <small class="field-hint">Worked out from the dates when the batch is saved.</small></div>
-                        <label for="batchBeforeBox">Batch Precedes (Comes Before)</label>
-                        <div><select id="batchBeforeBox" name="precedes" disabled><option value="">-- no other batch --</option></select>
-                            <small class="field-hint">Worked out from the dates when the batch is saved.</small></div>
-
-                        <label for="batchNameBox">Name</label>
-                        <div><input id="batchNameBox" type="text" name="name" readonly value="${escapeHtml(editing ? editing.name : '')}">
-                            <small class="field-hint">Made from the two dates.</small></div>
-                        <span></span>
-                        <div class="batch-buttons">
-                            <button type="submit" class="btn-submit"${batchSchool ? '' : ' disabled'}>${editing ? 'Save Changes' : 'Save Batch'}</button>
-                            ${editing ? '<button type="button" class="btn-secondary" onclick="batchEditingId = null; renderBatches()">Cancel</button>' : ''}
-                        </div>
-                    </div>
-                </form>
-                ${!batchSchool ? '<p class="batch-empty">Choose a school to see and add its batches.</p>'
-                    : ofSchool.length ? `
-                <div class="table-wrap">
-                    <table class="data-table">
-                        <thead><tr><th>Name</th><th>Academic Year</th><th>Date From</th><th>Date To</th>
-                            <th>Comes After</th><th>Comes Before</th><th>Actions</th></tr></thead>
-                        <tbody>${ofSchool.map(b => `
-                            <tr${b === editing ? ' class="selected"' : ''}>
-                                <td><b>${escapeHtml(b.name)}</b></td>
-                                <td>${escapeHtml(b.academicYear) || '—'}</td>
-                                <td>${b.startDate ? formatDate(b.startDate) : '—'}</td>
-                                <td>${b.endDate ? formatDate(b.endDate) : '—'}</td>
-                                <td>${escapeHtml(b.succeeds) || '—'}</td>
-                                <td>${escapeHtml(b.precedes) || '—'}</td>
-                                <td>
-                                    ${iconButton('edit', `Edit ${escapeHtml(b.name)}`, `batchEditingId = '${b.id}'; renderBatches()`)}
-                                    ${iconButton('delete', `Delete ${escapeHtml(b.name)}`, `deleteBatch('${b.id}')`)}
-                                </td>
-                            </tr>`).join('')}
-                        </tbody>
-                    </table>
-                </div>` : '<p class="batch-empty">This school has no batches yet. Add one above.</p>'}`;
-            previewBatch();
-        }
-
-        // While the dates are typed: the name, and the batches it would come after and before
-        async function previewBatch() {
-            const form = document.getElementById('batchForm');
-            if (!form) return;
-            const from = form.elements.startDate.value;
-            const to = form.elements.endDate.value;
-            const name = batchName(from, to);
-            form.elements.name.value = name;
-            const others = (await getSettingItems('batches')).filter(i => i.school === batchSchool && i.id !== batchEditingId);
-            const before = from ? others.filter(i => (i.startDate || '') < from).sort((a, b) => b.startDate.localeCompare(a.startDate))[0] : null;
-            const after = from ? others.filter(i => (i.startDate || '') > from).sort((a, b) => a.startDate.localeCompare(b.startDate))[0] : null;
-            const show = (select, batch) => select.innerHTML = `<option>${batch ? escapeHtml(batch.name) : '-- no other batch --'}</option>`;
-            show(form.elements.succeeds, before);
-            show(form.elements.precedes, after);
-        }
-
-        async function saveBatch(event) {
-            event.preventDefault();
-            if (!allowed('settings', batchEditingId ? 'edit' : 'add')) return;
-            const form = event.target;
-            const school = form.elements.school.value;
-            const academicYear = form.elements.academicYear.value;
-            const startDate = form.elements.startDate.value;
-            const endDate = form.elements.endDate.value;
-            if (!school || !academicYear || !startDate || !endDate) return alert('Please fill in School, Academic Year, Date From and Date To.');
-            if (endDate < startDate) return alert('"Date To" cannot be before "Date From".');
-
-            const items = await getSettingItems('batches');
-            const others = items.filter(i => i.school === school && i.id !== batchEditingId);
-            const overlap = others.find(i => i.startDate && i.endDate && i.startDate <= endDate && startDate <= i.endDate);
-            if (overlap) return alert(`These dates overlap the batch "${overlap.name}" of ${school}. Change the dates so batches do not overlap.`);
-
-            const name = batchName(startDate, endDate);
-            const existing = items.find(i => i.id === batchEditingId);
-            const batch = { ...(existing || {}), id: existing ? existing.id : newId(), school, academicYear, startDate, endDate, name };
-            const saved = linkBatches(existing ? items.map(i => i.id === batch.id ? batch : i) : [...items, batch], school);
-            await saveSettingItems('batches', saved);
-            showToast(`Batch "${name}" ${existing ? 'updated' : 'added'} successfully.`);
-            batchEditingId = null;
-            renderBatches();
-        }
-
-        async function deleteBatch(id) {
-            if (!allowed('settings', 'delete')) return;
-            const items = await getSettingItems('batches');
-            const batch = items.find(i => i.id === id);
-            if (!batch || !confirm(`Delete the batch "${batch.name}" of ${batch.school}?`)) return;
-            await saveSettingItems('batches', linkBatches(items.filter(i => i.id !== id), batch.school));
-            showToast(`Batch "${batch.name}" deleted.`);
-            if (batchEditingId === id) batchEditingId = null;
-            renderBatches();
         }
 
         /* ---------- Role Operations (Settings > Access Management) ----------
