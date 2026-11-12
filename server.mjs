@@ -70,8 +70,14 @@ async function serveStatic(req, res, file) {
     if (!inside || !type) return send(res, 404, 'Not found: ' + file, 'text/plain; charset=utf-8');
     try {
         const body = await readFile(full);
-        // Always check for a newer file, so changes show with a normal refresh
-        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
+        // Always check for a newer file, so changes show with a normal refresh. The file's fingerprint (ETag) lets
+        // the browser keep its copy: an unchanged file is answered with "not modified" instead of being sent again.
+        const etag = '"' + createHash('sha1').update(body).digest('base64url') + '"';
+        if (req.headers['if-none-match'] === etag) {
+            res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache' });
+            return res.end();
+        }
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache', 'ETag': etag });
         res.end(body);
     } catch {
         send(res, 404, 'Not found: ' + file, 'text/plain; charset=utf-8');
@@ -2189,4 +2195,13 @@ server.listen(port, listenAddress, () => {
         execFile('cmd', ['/c', 'start', '', `http://localhost:${port}/`], () => { });
     }
     connectDatabase();
+    // Render's free plan puts the online system to sleep after 15 minutes without visitors, and the first visit
+    // after that waits 20+ seconds. While the office computer is on, it visits the online system every 10 minutes
+    // so it stays awake.
+    if (!process.env.PORT) {
+        const keepAwake = () => fetch(PUBLIC_SITE + '/login.html', { method: 'HEAD', signal: AbortSignal.timeout(60000) })
+            .catch(() => { });
+        keepAwake();
+        setInterval(keepAwake, 10 * 60 * 1000).unref();
+    }
 });
