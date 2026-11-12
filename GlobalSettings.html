@@ -96,6 +96,10 @@
                 <div><b>Online applications</b><span>Off: the online application form says applications are closed.</span></div>
                 <label class="gs-switch"><input type="checkbox" data-control="applications"><i></i></label>
             </div>
+            <div class="gs-row">
+                <div><b>Short courses</b><span>Off hides the Short Courses tab (Settings &gt; Program Setup) and the short course choices on a course. Nothing saved is deleted: switching it on shows them again.</span></div>
+                <label class="gs-switch"><input type="checkbox" data-control="shortCourses"><i></i></label>
+            </div>
             <div id="switchSaved" class="gs-saved"></div>
         </div>
 
@@ -244,7 +248,8 @@
                 systemOpen: 'Close the whole system? Everyone is logged out and nobody can log in or apply until you open it again.',
                 staffLogins: 'Switch off staff logins? Staff who are logged in now are logged out.',
                 studentLogins: 'Switch off Student Portal logins? Students who are logged in now are logged out.',
-                applications: 'Close online applications?'
+                applications: 'Close online applications?',
+                shortCourses: 'Hide the short courses part? Staff see the change the next time they open or refresh a page.'
             }[name];
             saveControls({ [name]: box.checked }, 'switchSaved', warn);
         }));

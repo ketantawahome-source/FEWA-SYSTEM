@@ -1277,6 +1277,14 @@
             update: { title: 'System Update', tabs: ['systemUpdate'] }
         };
 
+        // Global Settings (/GLOBALSETTINGS) can hide the short courses part: the Short Courses tab and a course's
+        // "Has Short Courses" fields. What courses already have is kept (see keepWhenHidden in saveSettingsItem).
+        if (fewaSession.shortCourses === false) {
+            SETTINGS_GROUPS.setup.tabs = SETTINGS_GROUPS.setup.tabs.filter(tab => tab !== 'shortCourses');
+            SETTINGS_LISTS.courses.fields.filter(f => ['hasShortCourses', 'shortCourses'].includes(f.name))
+                .forEach(f => Object.assign(f, { hideInForm: true, keepWhenHidden: true }));
+        }
+
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
@@ -1943,6 +1951,9 @@
             list.fields.filter(f => !f.hideInForm).forEach(f => item[f.name] = f.type === 'checklist'
                 ? [...form.querySelectorAll(`input[name="${f.name}"]:checked`)].map(box => box.value).join(', ')
                 : form.elements[f.name].value.trim());
+            // Fields hidden by Global Settings keep what the item had
+            const before = items.find(i => i.id === id) || {};
+            list.fields.filter(f => f.keepWhenHidden).forEach(f => item[f.name] = before[f.name] || '');
             if (list.prepare) list.prepare(item, items);
             const label = list.label(item);
 

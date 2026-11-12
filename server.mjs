@@ -1801,12 +1801,14 @@ async function logOutEveryone() {
    The owner's switches for the whole system, behind a password of their own. The password (scrypt, as staff
    passwords) and the switches are rows of private_settings.server_keys, so no page, backup or office copy has them:
      global_settings_password  {"salt": ..., "hash": ...}
-     global_controls           {"systemOpen", "closedMessage", "staffLogins", "studentLogins", "applications"}
+     global_controls           {"systemOpen", "closedMessage", "staffLogins", "studentLogins", "applications",
+                                "shortCourses" (the Short Courses tab and a course's short course fields shown)}
    The first password can only be set by a logged-in Administrator. A forgotten password: delete the row
    'global_settings_password' in pgAdmin (Supabase), then an Administrator sets a new one. */
 const GLOBAL_COOKIE = 'fewa_global';
 const GLOBAL_MINUTES = 30;
-const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogins: true, studentLogins: true, applications: true };
+const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogins: true, studentLogins: true, applications: true,
+    shortCourses: true };
 
 async function readServerKey(name) {
     const { rows } = await pool.query(`SELECT value FROM private_settings.server_keys WHERE name = $1`, [name]);
@@ -1912,7 +1914,7 @@ async function handleGlobal(req, res, session, action, method) {
     if (method === 'PUT' && action === 'controls') {
         const current = await globalControls();
         const next = { ...current };
-        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications']) {
+        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses']) {
             if (typeof body[key] === 'boolean') next[key] = body[key];
         }
         if (body.closedMessage !== undefined) next.closedMessage = String(body.closedMessage).trim().slice(0, 500);
@@ -2088,6 +2090,8 @@ async function handleApi(req, res, parts) {
             setupNeeded: setup, setupBlocked: blocked, kind: session.kind,
             accountId: staff ? session.account.id : null, username: staff ? session.account.username : null,
             admin: !!admin, studentId: session.kind === 'student' ? session.studentId : null,
+            // Global Settings: the short courses part shown or hidden
+            shortCourses: (await globalControls().catch(() => DEFAULT_CONTROLS)).shortCourses !== false,
             resetEmail: session.kind === 'reset' ? session.email : null
         });
     }
