@@ -329,6 +329,16 @@
                 showError('The application form cannot load right now (' + err.message + '). Please try again in a minute.');
             }
             if (options.collegeName) document.getElementById('collegeName').textContent = options.collegeName.toUpperCase();
+            // Closed in Global Settings (the owner's switches)
+            if (fetchedOptions && options.closed) {
+                form.style.display = 'none';
+                const done = document.getElementById('done');
+                done.innerHTML = '<h2 style="margin-top:0">Online applications are closed</h2><p></p>';
+                done.querySelector('p').textContent = options.closedMessage ||
+                    'Please check again soon, or contact the college admissions office.';
+                done.style.display = 'block';
+                return;
+            }
             // No courses set up yet in Settings: nothing to apply for
             if (fetchedOptions && !options.courses.length) {
                 form.style.display = 'none';

@@ -326,6 +326,10 @@
                 if (login.result !== 'ok') {
                     document.getElementById('password').value = '';
                     return showError({
+                        // Global Settings (the owner's switches)
+                        closed: login.message || 'The system is closed for maintenance at the moment. Please try again later.',
+                        'staff-off': 'Staff logins are switched off at the moment. Please try again later.',
+                        'student-off': 'The Student Portal is closed at the moment. Please try again later.',
                         wrong: 'Wrong username or password.',
                         locked: 'Too many wrong tries. Wait 15 minutes, then try again.',
                         inactive: 'This account has been deactivated. Contact the college office.',
