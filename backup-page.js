@@ -144,7 +144,7 @@ async function downloadBackup(event) {
     try {
         const response = await fetch(FEWA_API + '/backups/download', {
             method: 'POST',
-            headers: { 'X-FEWA-Client': '1', 'Content-Type': 'application/json' },
+            headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': FEWA_PORTAL, 'Content-Type': 'application/json' },
             body: JSON.stringify({ include, from, to, password })
         });
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'The server could not make the backup.');

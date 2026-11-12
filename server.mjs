@@ -690,7 +690,6 @@ async function setValue(key, value) {
    Passwords set before Nov 2026 (and the very first administrator's, made by the login page) are SHA-256 of
    "salt:password"; they still work and are changed to scrypt the next time that person logs in.
    The password details (hash and salt) never leave the server, except in first-time setup. */
-const SESSION_COOKIE = 'fewa_session';
 const SESSION_HOURS = 12;
 const RESET_GRANT_MINUTES = 10;
 const LOGIN_MAX_FAILURES = 10;
@@ -738,16 +737,24 @@ const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket.remo
 const isLocalRequest = req => !req.headers['x-forwarded-for'] &&
     ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 
-function setSessionCookie(req, res, token, seconds) {
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}` +
-        (isHttps(req) ? '; Secure' : ''));
+/* Staff and students each have their own login cookie, so a staff member and a student can be logged in at the same
+   time in the same browser. Each page says which one it uses (the X-FEWA-Portal header, db.js): the Student Portal
+   'student', the staff pages 'staff', the login page 'login' (a password reset first, then staff, then student). */
+const SESSION_COOKIES = { staff: 'fewa_staff', student: 'fewa_student', reset: 'fewa_reset' };
+const PORTAL_KINDS = { staff: ['staff'], student: ['student'], login: ['reset', 'staff', 'student'] };
+
+function setSessionCookie(req, res, kind, token, seconds) {
+    const cookie = `${SESSION_COOKIES[kind]}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}` +
+        (isHttps(req) ? '; Secure' : '');
+    const earlier = res.getHeader('Set-Cookie');
+    res.setHeader('Set-Cookie', earlier ? [].concat(earlier, cookie) : cookie);
 }
 
 async function createSession(req, res, kind, subject, minutes) {
     const token = randomBytes(32).toString('hex');
     await pool.query(`INSERT INTO ${T('sessions')} (token_hash, kind, subject, expires_at, created_at)
         VALUES ($1, $2, $3, now() + make_interval(mins => $4), now())`, [sha256(token), kind, String(subject), minutes]);
-    setSessionCookie(req, res, token, minutes * 60);
+    setSessionCookie(req, res, kind, token, minutes * 60);
     // Old sessions are cleared now and then
     if (Math.random() < 0.05) pool.query(`DELETE FROM ${T('sessions')} WHERE expires_at < now()`).catch(() => { });
 }
@@ -757,9 +764,19 @@ const sessionCache = new Map();
 const SESSION_CACHE_MS = 20000;
 const forgetSessions = () => sessionCache.clear();
 
+// The session of the page asking (its portal), or of one kind ('staff', 'student', 'reset')
 // { kind: 'staff', account, admin } | { kind: 'student', studentId } | { kind: 'reset', email } | { kind: null }
-async function getSession(req) {
-    const token = parseCookies(req)[SESSION_COOKIE];
+async function getSession(req, onlyKind) {
+    const portal = String(req.headers['x-fewa-portal'] || 'login');
+    for (const kind of onlyKind ? [onlyKind] : PORTAL_KINDS[portal] || PORTAL_KINDS.login) {
+        const session = await sessionOfKind(req, kind);
+        if (session.kind) return session;
+    }
+    return { kind: null };
+}
+
+async function sessionOfKind(req, cookieKind) {
+    const token = parseCookies(req)[SESSION_COOKIES[cookieKind]];
     if (!token || !/^[0-9a-f]{64}$/.test(token)) return { kind: null };
     const tokenHash = sha256(token);
     const cached = sessionCache.get(tokenHash);
@@ -767,7 +784,8 @@ async function getSession(req) {
     let session = { kind: null };
     const { rows } = await pool.query(`SELECT kind, subject FROM ${T('sessions')} WHERE token_hash = $1 AND expires_at > now()
         AND ($2::timestamptz IS NULL OR created_at >= $2)`, [tokenHash, sessionsValidFrom]);
-    if (rows.length) {
+    // (a session only counts in its own cookie)
+    if (rows.length && rows[0].kind === cookieKind) {
         const { kind, subject } = rows[0];
         if (kind === 'staff') {
             const found = await pool.query(`SELECT * FROM ${T('staff')} WHERE id = $1`, [subject]);
@@ -787,14 +805,16 @@ async function getSession(req) {
         if (!controls.systemOpen || !controls[session.kind === 'staff' ? 'staffLogins' : 'studentLogins']) session = { kind: null };
     }
     session.tokenHash = tokenHash;
+    session.cookieKind = cookieKind;
     sessionCache.set(tokenHash, { at: Date.now(), session });
     return session;
 }
 
+// Ends this one session (logging out of the staff pages leaves a student logged in, and the other way round)
 async function endSession(req, res, session) {
     if (session.tokenHash) await pool.query(`DELETE FROM ${T('sessions')} WHERE token_hash = $1`, [session.tokenHash]);
     sessionCache.delete(session.tokenHash);
-    setSessionCookie(req, res, '', 0);
+    if (session.cookieKind) setSessionCookie(req, res, session.cookieKind, '', 0);
 }
 
 // No staff account yet: the system is being set up (counted at most every 10 seconds)
@@ -829,10 +849,8 @@ function loginFailed(req, username) {
 }
 
 // Staff log in with their email; students with their AdmNo (capital and small letters must match)
-// portal: 'staff' (Staff Portal) or 'student' (Student Portal) lets in only that kind of account. Someone with the
-// right password in the other portal is told which one to use; nothing else is said about the account.
-async function login(req, res, { username, password, portal } = {}) {
-    portal = ['staff', 'student'].includes(portal) ? portal : '';
+// Staff log in with their email, students with their AdmNo: the system knows which from the username
+async function login(req, res, { username, password } = {}) {
     username = String(username || '').trim();
     password = String(password || '');
     if (!username || !password) return { result: 'wrong' };
@@ -854,7 +872,6 @@ async function login(req, res, { username, password, portal } = {}) {
             return { result };
         }
         loginFailures.delete(clientIp(req) + '|' + lower(username));
-        if (portal === 'student') return { result: 'use-staff-portal' };
         if (passwordIsOldKind(account.hash)) {
             const { salt, hash } = await newPasswordDetails(password);
             await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2 WHERE id = $3`, [salt, hash, account.id]);
@@ -881,7 +898,6 @@ async function login(req, res, { username, password, portal } = {}) {
         return { result };
     }
     loginFailures.delete(clientIp(req) + '|' + lower(username));
-    if (portal === 'staff') return { result: 'use-student-portal' };
     if (passwordIsOldKind(student.loginHash)) {
         const { salt, hash } = await newPasswordDetails(password);
         await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2 WHERE id = $3`, [salt, hash, student.id]);
@@ -2091,7 +2107,19 @@ async function handleApi(req, res, parts) {
     /* ---------- Logging in and out, passwords ---------- */
     if (area === 'session' && method === 'GET' && !a) {
         const blocked = await setupNeeded() && !isLocalRequest(req);
+        // The login page shows who is logged in already in this browser (a staff member, a student, or both)
+        const loggedIn = { staff: null, student: null };
+        if (req.headers['x-fewa-portal'] === 'login') {
+            const staffNow = await getSession(req, 'staff');
+            if (staffNow.kind) loggedIn.staff = staffNow.account.username;
+            const studentNow = await getSession(req, 'student');
+            if (studentNow.kind) {
+                const { rows } = await pool.query(`SELECT adm_no FROM ${T('students')} WHERE id = $1`, [studentNow.studentId]);
+                loggedIn.student = rows.length ? rows[0].adm_no || 'a student' : null;
+            }
+        }
         return send(res, 200, {
+            loggedIn,
             setupNeeded: setup, setupBlocked: blocked, kind: session.kind,
             accountId: staff ? session.account.id : null, username: staff ? session.account.username : null,
             admin: !!admin, studentId: session.kind === 'student' ? session.studentId : null,
@@ -2326,11 +2354,12 @@ const handleRequest = async (req, res) => {
     }
     try {
         if (file.startsWith('/api/')) return await handleApi(req, res, file.slice(5).split('/').filter(Boolean));
-        // Short addresses: /staff and /student open the login page on that portal; /GLOBALSETTINGS is the owner's
+        // Short addresses: /staff and /student open the login page (it knows staff from students by the username);
+        // /GLOBALSETTINGS is the owner's
         // hidden page (any capitals). With a "/" at the end the page's pictures and styles would not be found.
         const short = file.replace(/\/+$/, '').toLowerCase();
         if (short === '/staff' || short === '/student') {
-            res.writeHead(302, { Location: '/login.html?portal=' + short.slice(1) });
+            res.writeHead(302, { Location: '/login.html' });
             return res.end();
         }
         if (short === '/globalsettings' && file !== '/GLOBALSETTINGS' && file.endsWith('/')) {

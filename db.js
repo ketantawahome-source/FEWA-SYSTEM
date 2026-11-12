@@ -17,12 +17,17 @@ const FEWA_API = '/api';
 const FEWA_ADDRESS = 'http://localhost:5600/';
 const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id', applications: 'id' };
 const fewaServer = { online: false, error: '' };
+/* Staff and students have separate logins, so both can be logged in in one browser. Every request says which this
+   page uses (server.mjs, getSession): the Student Portal its student's, the login page any, the rest staff. */
+const FEWA_PORTAL = /StudentPortal\.html$/i.test(location.pathname) ? 'student'
+    : /(^\/|\/login\.html)$/i.test(location.pathname) ? 'login' : 'staff';
 
 function apiSync(method, path, body) {
     if (method !== 'GET' && typeof forgetReads === 'function') forgetReads();
     const xhr = new XMLHttpRequest();
     xhr.open(method, FEWA_API + path, false);
     xhr.setRequestHeader('X-FEWA-Client', '1');
+    xhr.setRequestHeader('X-FEWA-Portal', FEWA_PORTAL);
     if (body !== undefined) xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send(body === undefined ? null : JSON.stringify(body));
     let result = null;
@@ -55,7 +60,7 @@ async function api(method, path, body) {
     try {
         response = await fetch(FEWA_API + path, {
             method,
-            headers: { 'X-FEWA-Client': '1', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+            headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': FEWA_PORTAL, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
     } catch {
@@ -152,7 +157,7 @@ async function packRecord(value) {
 function downloadFile(ref) {
     if (!fileDownloads.has(ref.__file)) {
         fileDownloads.set(ref.__file, (async () => {
-            const response = await fetch(`${FEWA_API}/files/${encodeURIComponent(ref.__file)}`, { headers: { 'X-FEWA-Client': '1' } });
+            const response = await fetch(`${FEWA_API}/files/${encodeURIComponent(ref.__file)}`, { headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': FEWA_PORTAL } });
             if (!response.ok) return null;
             const bytes = await response.blob();
             const blob = ref.name ? new File([bytes], ref.name, { type: ref.type }) : new Blob([bytes], { type: ref.type });
@@ -283,7 +288,7 @@ function showServerProblem() {
 function waitForDatabase() {
     setTimeout(async () => {
         try {
-            const response = await fetch(FEWA_API + '/session', { headers: { 'X-FEWA-Client': '1' }, cache: 'no-store' });
+            const response = await fetch(FEWA_API + '/session', { headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': FEWA_PORTAL }, cache: 'no-store' });
             if (response.ok) return location.reload();
         } catch { } // the server itself is restarting: keep waiting
         waitForDatabase();
