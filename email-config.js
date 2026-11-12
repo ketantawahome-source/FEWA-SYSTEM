@@ -38,6 +38,6 @@ async function sendStudentLoginEmail(studentId, kind, password) {
 // office computer itself)
 function studentLoginLink() {
     return /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
-        ? 'https://fewa-system.onrender.com/login.html'
-        : new URL('login.html', location.href).href.split(/[?#]/)[0];
+        ? 'https://fewa-system.onrender.com/student'
+        : new URL('/student', location.href).href;
 }

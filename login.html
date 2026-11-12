@@ -15,6 +15,19 @@
         else if (currentStudentId()) location.replace('StudentPortal.html');
     </script>
     <link rel="stylesheet" href="styles.css?v=20261112h">
+    <style>
+        /* Staff Portal / Student Portal tabs; the Student Portal card has a gold band on top */
+        .portal-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 4px 0 14px;
+            background: var(--fewa-page); border: 1px solid var(--fewa-line); border-radius: 10px; }
+        .portal-tab { border: 0; border-radius: 7px; padding: 9px 6px; background: transparent; color: var(--fewa-muted);
+            font: inherit; font-weight: 600; cursor: pointer; }
+        .portal-tab:hover { color: var(--fewa-ink); }
+        .portal-tab.active { background: var(--fewa-ink); color: #fff; box-shadow: var(--fewa-shadow); }
+        .portal-tab:focus-visible { outline: none; box-shadow: var(--fewa-focus); }
+        body.portal-student .portal-tab.active { background: var(--fewa-gold); color: var(--fewa-ink); }
+        body.login-page.portal-student .login-card { border-top: 6px solid var(--fewa-gold); }
+        body.login-page.portal-staff .login-card { border-top: 6px solid var(--fewa-ink); }
+    </style>
 </head>
 
 <body class="login-page">
@@ -37,6 +50,12 @@
         <!-- Filled in from Settings > Organisation Setup > School Setup when one has been saved -->
         <div id="loginCollegeName" class="login-college-name">FEWA Beauty &amp; Fashion College</div>
         <hr class="login-rule">
+
+        <!-- Two portals: staff log in with their email, students with their AdmNo (also /staff and /student) -->
+        <div id="portalTabs" class="portal-tabs" role="tablist" aria-label="Choose your portal">
+            <button type="button" class="portal-tab" id="tabStaff" role="tab" onclick="setPortal('staff')">Staff Portal</button>
+            <button type="button" class="portal-tab" id="tabStudent" role="tab" onclick="setPortal('student')">Student Portal</button>
+        </div>
 
         <div id="loginTitle" class="login-title">Sign In</div>
         <div id="loginSubtitle" class="login-subtitle" style="display: none;"></div>
@@ -189,6 +208,63 @@
             document.getElementById('restoreSwitch').style.display = 'block';
         }
 
+        /* ---------- Staff Portal / Student Portal ----------
+           The tab comes from the address (login.html?portal=student, or /student and /staff), else the one used last
+           on this computer, else Staff. The server lets in only that kind of account. */
+        const PORTAL_KEY = 'fewaPortal';
+        const PORTALS = {
+            staff: {
+                title: 'Staff Portal', subtitle: 'For college staff. Log in with your email address.',
+                label: 'Email', placeholder: 'Your email address', resetLabel: 'Your email address'
+            },
+            student: {
+                title: 'Student Portal', subtitle: 'For students. Log in with your Registration Number (AdmNo), exactly as given to you.',
+                label: 'Registration Number (AdmNo)', placeholder: 'Your AdmNo', resetLabel: 'Your Registration Number (AdmNo)'
+            }
+        };
+        let portal = 'staff';
+        let portalReady = false; // the first setPortal runs before the reset buttons' code below is ready
+
+        function startingPortal() {
+            const asked = new URLSearchParams(location.search).get('portal');
+            if (PORTALS[asked]) return asked;
+            try {
+                const last = localStorage.getItem(PORTAL_KEY);
+                if (PORTALS[last]) return last;
+            } catch { }
+            return 'staff';
+        }
+
+        function setPortal(next) {
+            portal = PORTALS[next] ? next : 'staff';
+            const p = PORTALS[portal];
+            document.body.classList.toggle('portal-student', portal === 'student');
+            document.body.classList.toggle('portal-staff', portal === 'staff');
+            for (const [id, name] of [['tabStaff', 'staff'], ['tabStudent', 'student']]) {
+                const tab = document.getElementById(id);
+                tab.classList.toggle('active', name === portal);
+                tab.setAttribute('aria-selected', name === portal);
+            }
+            document.querySelector('label[for=username]').innerText = p.label;
+            document.getElementById('username').placeholder = p.placeholder;
+            document.querySelector('label[for=resetEmail]').innerText = p.resetLabel;
+            document.querySelector('label[for=resetFormEmail]').innerText = p.resetLabel;
+            document.getElementById('resetFormEmail').placeholder = p.placeholder;
+            document.getElementById('loginError').style.display = 'none';
+            try { localStorage.setItem(PORTAL_KEY, portal); } catch { }
+            // Remember me: the remembered username, when it belongs to this portal (staff use an email)
+            const username = document.getElementById('username');
+            let remembered = '';
+            try { remembered = localStorage.getItem(REMEMBER_KEY) || ''; } catch { }
+            const fits = remembered && remembered.includes('@') === (portal === 'staff');
+            username.value = fits ? remembered : '';
+            document.getElementById('rememberMe').checked = !!fits;
+            document.getElementById('password').value = '';
+            showPasswordLogin();
+            (fits ? document.getElementById('password') : username).focus();
+            if (portalReady) updateResetButtons();
+        }
+
         // After the browsing data was cleared: put back everything from the backup file, then log in as before
         async function restoreFromLogin(input) {
             const file = input.files[0];
@@ -224,16 +300,11 @@
         // Remember me: keeps the username (never the password) on this computer for the next visit
         const REMEMBER_KEY = 'fewaRememberedUser';
         if (settingUp) {
+            // Creating the first administrator account: no portals yet
             document.querySelector('.remember-me').style.display = 'none';
+            document.getElementById('portalTabs').style.display = 'none';
         } else {
-            try {
-                const remembered = localStorage.getItem(REMEMBER_KEY);
-                if (remembered) {
-                    document.getElementById('username').value = remembered;
-                    document.getElementById('rememberMe').checked = true;
-                    document.getElementById('password').focus();
-                }
-            } catch { }
+            setPortal(startingPortal()); // also fills in a remembered username
         }
 
         function rememberUser(username) {
@@ -319,7 +390,7 @@
                 // The server checks the details: staff by email, students by AdmNo (capitals must match)
                 let login;
                 try {
-                    login = await serverLogin(username, password);
+                    login = await serverLogin(username, password, portal);
                 } catch (error) {
                     return showError(error.message);
                 }
@@ -330,6 +401,9 @@
                         closed: login.message || 'The system is closed for maintenance at the moment. Please try again later.',
                         'staff-off': 'Staff logins are switched off at the moment. Please try again later.',
                         'student-off': 'The Student Portal is closed at the moment. Please try again later.',
+                        // The right password, in the other portal
+                        'use-staff-portal': 'This is a staff account. Click "Staff Portal" above and log in there.',
+                        'use-student-portal': 'This is a student account. Click "Student Portal" above and log in there.',
                         wrong: 'Wrong username or password.',
                         locked: 'Too many wrong tries. Wait 15 minutes, then try again.',
                         inactive: 'This account has been deactivated. Contact the college office.',
@@ -366,7 +440,8 @@
         }
 
         function showPasswordLogin() {
-            showForm('loginForm', 'Sign In');
+            if (settingUp) return showForm('loginForm', 'Sign In');
+            showForm('loginForm', PORTALS[portal].title, PORTALS[portal].subtitle);
         }
 
         /* ---------- Forgot password ---------- */
@@ -377,7 +452,7 @@
         function updateResetButtons() {
             const forgot = document.getElementById('forgotButton');
             forgot.disabled = !hasUsername(document.getElementById('username').value);
-            forgot.title = forgot.disabled ? 'Enter your username (email, or AdmNo for students) first' : '';
+            forgot.title = forgot.disabled ? `Enter your ${settingUp ? 'email' : PORTALS[portal].label} first` : '';
             document.getElementById('resetRequestButton').disabled =
                 !hasUsername(document.getElementById('resetEmail').value);
         }
@@ -385,6 +460,7 @@
         // "change" also catches usernames filled in by the browser's saved logins
         ['input', 'change'].forEach(type => document.getElementById('username').addEventListener(type, updateResetButtons));
         updateResetButtons();
+        portalReady = true;
 
         function showMessage(boxId, message) {
             const box = document.getElementById(boxId);
@@ -525,6 +601,8 @@
         const linkParams = new URLSearchParams(location.search);
         if (linkParams.get('reset') && !settingUp) {
             history.replaceState(null, '', location.pathname);
+            // The portal of the account the link is for (staff use an email)
+            setPortal((linkParams.get('user') || '').includes('@') ? 'staff' : 'student');
             showResetForm(linkParams.get('reset'), linkParams.get('user') || '');
         }
         // Sent here after a system update (auth.js logOutAfterUpdate): just the sign-in page, with no message (the

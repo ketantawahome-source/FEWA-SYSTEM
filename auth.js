@@ -261,8 +261,9 @@ function maskEmail(email) {
    result is 'ok', 'wrong', 'locked' (too many wrong tries), or for staff 'inactive', 'reset-required'
    (reactivated; an administrator must send a reset link), 'no-password'; for students 'wrong-case',
    'wrong-password', 'inactive', 'reset-required', 'no-password'. */
-async function serverLogin(username, password) {
-    return api('POST', '/session/login', { username, password });
+// portal: 'staff' or 'student' (the tab chosen on the login page); the server lets in only that kind of account
+async function serverLogin(username, password, portal) {
+    return api('POST', '/session/login', { username, password, portal });
 }
 
 // The page keeps a note of who logged in (the server's session is what counts)
@@ -907,13 +908,13 @@ const currentStudentId = () => fewaSession.kind === 'student' ? fewaSession.stud
 
 function studentLogout() {
     endServerSession();
-    location.replace('login.html');
+    location.replace('login.html?portal=student');
 }
 
 // The Student Portal calls this first; anyone else goes to the login page
 function requireStudentLogin() {
     if (!fewaServer.online) return; // db.js is showing how to start the server
-    if (!currentStudentId()) location.replace('login.html');
+    if (!currentStudentId()) location.replace('login.html?portal=student');
 }
 
 // Pages that need a signed-in user call this first; anyone else (or a deactivated account) goes to the login page

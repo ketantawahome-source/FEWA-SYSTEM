@@ -829,7 +829,10 @@ function loginFailed(req, username) {
 }
 
 // Staff log in with their email; students with their AdmNo (capital and small letters must match)
-async function login(req, res, { username, password } = {}) {
+// portal: 'staff' (Staff Portal) or 'student' (Student Portal) lets in only that kind of account. Someone with the
+// right password in the other portal is told which one to use; nothing else is said about the account.
+async function login(req, res, { username, password, portal } = {}) {
+    portal = ['staff', 'student'].includes(portal) ? portal : '';
     username = String(username || '').trim();
     password = String(password || '');
     if (!username || !password) return { result: 'wrong' };
@@ -851,6 +854,7 @@ async function login(req, res, { username, password } = {}) {
             return { result };
         }
         loginFailures.delete(clientIp(req) + '|' + lower(username));
+        if (portal === 'student') return { result: 'use-staff-portal' };
         if (passwordIsOldKind(account.hash)) {
             const { salt, hash } = await newPasswordDetails(password);
             await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2 WHERE id = $3`, [salt, hash, account.id]);
@@ -877,6 +881,7 @@ async function login(req, res, { username, password } = {}) {
         return { result };
     }
     loginFailures.delete(clientIp(req) + '|' + lower(username));
+    if (portal === 'staff') return { result: 'use-student-portal' };
     if (passwordIsOldKind(student.loginHash)) {
         const { salt, hash } = await newPasswordDetails(password);
         await pool.query(`UPDATE ${T('students')} SET login_salt = $1, login_hash = $2 WHERE id = $3`, [salt, hash, student.id]);
@@ -1094,7 +1099,7 @@ async function sendStudentLoginEmail({ studentId, kind, password } = {}) {
     }
     const name = [student.firstName, student.middleName, student.lastName].filter(Boolean).join(' ');
     const college = ((await getRecord('settings', 'organization').catch(() => null)) || {}).collegeName || 'FEWA Beauty & Fashion College';
-    const link = PUBLIC_SITE + '/login.html';
+    const link = PUBLIC_SITE + '/student';
     const sent = await sendSystemEmail(student.email, kind === 'welcome'
         ? `Dear ${name}, welcome to ${college}! You have been admitted${student.admissionCourse ? ` to ${student.admissionCourse}` : ''}. ` +
           `Your admission number (AdmNo) is ${student.admNo}. You can log in to the Student Portal at ${link} ` +
@@ -2321,8 +2326,18 @@ const handleRequest = async (req, res) => {
     }
     try {
         if (file.startsWith('/api/')) return await handleApi(req, res, file.slice(5).split('/').filter(Boolean));
-        // The owner's hidden page: https://fewa-system.onrender.com/GLOBALSETTINGS (any capitals)
-        if (file.replace(/\/+$/, '').toLowerCase() === '/globalsettings') file = '/GlobalSettings.html';
+        // Short addresses: /staff and /student open the login page on that portal; /GLOBALSETTINGS is the owner's
+        // hidden page (any capitals). With a "/" at the end the page's pictures and styles would not be found.
+        const short = file.replace(/\/+$/, '').toLowerCase();
+        if (short === '/staff' || short === '/student') {
+            res.writeHead(302, { Location: '/login.html?portal=' + short.slice(1) });
+            return res.end();
+        }
+        if (short === '/globalsettings' && file !== '/GLOBALSETTINGS' && file.endsWith('/')) {
+            res.writeHead(302, { Location: '/GLOBALSETTINGS' });
+            return res.end();
+        }
+        if (short === '/globalsettings') file = '/GlobalSettings.html';
         await serveStatic(req, res, file);
     } catch (err) {
         if (!err.status) console.error(new Date().toLocaleString(), req.method, file, err);
