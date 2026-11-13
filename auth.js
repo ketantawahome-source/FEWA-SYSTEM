@@ -108,6 +108,11 @@ const ROLE_OPERATIONS = [
     // Added later; "from" is the right that used to cover it, so a role set up before keeps what it could do
     ['queries.view', 'Access Student Queries', 'Ability to open the Student Queries screen.', 'students.view'],
     ['reports.excel', 'Access Excel Reports', 'Ability to open and download the Excel Reports.', 'reports.view'],
+    // Each group of reports under Reports (HR & Payroll Reports stay for administrators only)
+    ['reports.standard', 'View Standard Reports', 'Ability to open the Standard Reports: student details, new admissions, directory, attendance register, course enrollment.', 'reports.view'],
+    ['reports.performance', 'View Performance Reports', 'Ability to open the Performance Reports: performance summary, class list, exam results.', 'reports.view'],
+    ['reports.students', 'View Student Reports', 'Ability to open the Student Reports: roster, demographics, active/inactive, deferrals, applications, contacts, documents and photos.', 'reports.view'],
+    ['reports.finance', 'View Finance Reports', 'Ability to open the Finance Reports: fee collection, fee balances, payment receipts.', 'reports.view'],
     ['students.applications', 'Process Online Applications', 'Ability to verify, reject and admit online applications.', 'students.edit'],
     ['students.status', 'Activate / Deactivate Students', 'Ability to mark students inactive (archive) and reactivate them.', 'students.edit'],
     ['students.deferrals', 'Manage Deferrals & Suspensions', 'Ability to add, change and upload deferral and suspension records.', 'students.edit'],
@@ -608,7 +613,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)
     const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
-    const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel' };
+    const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel',
+        'Standard Reports': 'reports.standard', 'Performance Reports': 'reports.performance', 'Student Reports': 'reports.students',
+        'Finance Reports': 'reports.finance' };
     sidebar.querySelectorAll('.menu-list > .nav-item').forEach(item => {
         const label = item.querySelector('.nav-label');
         const part = label && menuPart[label.textContent.trim()];

@@ -1239,8 +1239,11 @@ async function staffCan(session, ...rights) {
 const RIGHT_FROM = {
     'queries.view': 'students.view', 'reports.excel': 'reports.view', 'students.applications': 'students.edit',
     'students.status': 'students.edit', 'students.deferrals': 'students.edit', 'students.contacts': 'students.edit',
-    'students.password': 'students.edit'
+    'students.password': 'students.edit', 'reports.standard': 'reports.view', 'reports.performance': 'reports.view',
+    'reports.students': 'reports.view', 'reports.finance': 'reports.view'
 };
+// The rights to open groups of reports (each report is built from the student records)
+const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 'reports.performance', 'reports.students', 'reports.finance'];
 
 /* The rights that allow reading a kind of record (any one of them is enough). They include the work that needs the
    records behind the scenes: adding a student checks for duplicates, deleting one removes their documents, and
@@ -1248,11 +1251,11 @@ const RIGHT_FROM = {
 const STUDENT_WRITERS = ['students.edit', 'students.applications', 'students.status', 'students.deferrals', 'students.contacts',
     'students.password', 'students.photos'];
 const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
-    'finance.view', 'finance.add', 'reports.view', 'reports.excel', 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS];
+    'finance.view', 'finance.add', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS];
 const RIGHTS_TO_READ = {
     students: STUDENT_READERS,
     deferrals: STUDENT_READERS,
-    documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'settings.edit', 'settings.delete'],
+    documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'reports.standard', 'reports.students', 'settings.edit', 'settings.delete'],
     applications: ['students.view', 'students.add', 'students.edit', 'students.applications']
 };
 

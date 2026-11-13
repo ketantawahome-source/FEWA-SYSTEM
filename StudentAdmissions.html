@@ -2242,9 +2242,17 @@
                     stroke-linecap="round" stroke-linejoin="round">${ICON_SHAPES[shape]}</svg></span>`;
         }
 
+        // The Role Operation that opens each group of reports (Settings > Access Management > Role Operations)
+        const REPORT_RIGHTS = {
+            STUDENT_REPORTS: 'standard', ACADEMIC_REPORTS: 'performance', FINANCIAL_REPORTS: 'finance',
+            SM_REPORTS: 'students', ADM_REPORTS: 'students', CONTACT_REPORTS: 'students', DOC_REPORTS: 'students'
+        };
+        // Staff (HR) reports are for administrators only, like Staff Management
+        const mayOpenReports = category => category === 'HR_REPORTS' ? isAdmin()
+            : !REPORT_RIGHTS[category] || can('reports', REPORT_RIGHTS[category]);
+
         function renderReportGallery(reportType = 'All Reports') {
-            // Staff (HR) reports are for administrators only, like Staff Management
-            const categories = (GALLERY_CATEGORIES[reportType] || []).filter(c => c !== 'HR_REPORTS' || isAdmin());
+            const categories = (GALLERY_CATEGORIES[reportType] || []).filter(mayOpenReports);
             const tiles = category => REPORT_OPTIONS[category]
                 .filter(([value]) => !(GALLERY_ONLY[reportType] || {})[category]
                     || GALLERY_ONLY[reportType][category].includes(value))
@@ -2266,7 +2274,10 @@
                 <div class="report-gallery">
                     <div class="report-gallery-title">${escapeHtml(reportType)}</div>
                     ${groups || `<div class="form-section empty-state">${reportType === 'HR & Payroll Reports'
-                        ? 'Only administrators can see HR & Payroll reports.' : 'No reports in this section yet.'}</div>`}
+                        ? 'Only administrators can see HR & Payroll reports.'
+                        : (GALLERY_CATEGORIES[reportType] || []).length
+                            ? 'Your role does not have the right to view these reports. Ask an administrator (Settings > Access Management > Role Operations).'
+                            : 'No reports in this section yet.'}</div>`}
                 </div>`;
             showReportGallery();
         }
@@ -2277,6 +2288,10 @@
         }
 
         function openReport(category, reportKey) {
+            if (!mayOpenReports(category)) {
+                if (category === 'HR_REPORTS') return alert('Only administrators can see HR & Payroll reports.');
+                return allowed('reports', REPORT_RIGHTS[category]);
+            }
             document.getElementById('reportCategorySelect').value = category;
             updateReportOptions();
             document.getElementById('specificReportSelect').value = reportKey;
