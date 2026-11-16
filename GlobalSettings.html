@@ -58,7 +58,7 @@
                 <label for="gatePassword">Global Settings password</label>
                 <input type="password" id="gatePassword" autocomplete="current-password" required>
             </div>
-            <div class="field" id="confirmField" hidden>
+            <div class="field" id="confirmField" style="display:none">
                 <label for="gateConfirm">Type the password again</label>
                 <input type="password" id="gateConfirm" autocomplete="new-password">
             </div>
@@ -166,7 +166,8 @@
             $('panel').hidden = true;
             $('gate').hidden = false;
             mode = passwordSet ? 'login' : canSetUp ? 'setup' : 'none';
-            $('confirmField').hidden = mode !== 'setup';
+            // (style.display, not "hidden": the login page style shows every .field box)
+            $('confirmField').style.display = mode === 'setup' ? '' : 'none';
             $('gateConfirm').required = mode === 'setup';
             $('gateForm').style.display = mode === 'none' ? 'none' : '';
             $('gateText').textContent = mode === 'login' ? 'Enter the Global Settings password.'

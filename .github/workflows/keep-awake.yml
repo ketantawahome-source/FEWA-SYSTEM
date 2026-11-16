@@ -1,0 +1,26 @@
+# Keeps the online FEWA system awake.
+# Render's free plan puts the system to sleep after 15 minutes without visitors; the first visit after that shows
+# Render's black "SERVICE WAKING UP" page and waits about a minute. GitHub opens the login page every 5 minutes, day
+# and night, so the system never falls asleep. (The office computer does the same while it is on, but a laptop that
+# is asleep cannot.)
+# GitHub may start a run a few minutes late when it is busy; every 5 minutes leaves room for that.
+# Note: GitHub pauses scheduled runs in a repository with no new commits for 60 days. If that happens, the Actions
+# tab shows a button to turn this back on.
+name: Keep the system awake
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Open the login page
+        run: |
+          curl --silent --show-error --output /dev/null --max-time 120 --retry 2 \
+            --write-out "HTTP %{http_code} in %{time_total}s\n" https://fewa-system.onrender.com/login.html
