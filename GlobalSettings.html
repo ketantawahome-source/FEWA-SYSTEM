@@ -7,42 +7,57 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Global Settings - FEWA Beauty & Fashion College</title>
     <!-- The owner's hidden page, opened at /GLOBALSETTINGS (server.mjs, "Global Settings"). It is not linked from
-         any other page. Everything here is checked again by the server; the page only shows the switches. -->
+         any other page. Everything here is checked again by the server; the page only shows the settings.
+         Laid out as a settings table: SETTING_NAME | value | ticked when changed | description. -->
     <link rel="stylesheet" href="styles.css?v=20261112h">
     <style>
-        body.login-page .login-card.wide { max-width: 760px; width: calc(100% - 32px); text-align: left; }
-        .gs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-        .gs-head h1 { margin: 0; font-size: 22px; color: var(--fewa-ink); }
-        .gs-note { color: var(--fewa-muted); font-size: 14px; margin: 4px 0 0; }
-        .gs-section { border: 1px solid var(--fewa-line); border-radius: var(--fewa-radius); padding: 16px; margin-top: 16px; background: #fff; }
-        .gs-section h2 { margin: 0 0 10px; font-size: 16px; color: var(--fewa-ink); }
-        .gs-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--fewa-line); }
-        .gs-row:first-of-type { border-top: 0; }
-        .gs-row b { display: block; color: var(--fewa-text); }
-        .gs-row span { color: var(--fewa-muted); font-size: 13px; }
-        .gs-switch { position: relative; width: 52px; height: 28px; flex: none; }
-        .gs-switch input { opacity: 0; width: 0; height: 0; }
-        .gs-switch i { position: absolute; inset: 0; border-radius: 14px; background: #c9bcd8; cursor: pointer; transition: background .2s; }
-        .gs-switch i::before { content: ''; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
-        .gs-switch input:checked + i { background: #2e8b57; }
-        .gs-switch input:checked + i::before { transform: translateX(24px); }
-        .gs-switch input:focus-visible + i { box-shadow: var(--fewa-focus); }
-        .gs-state { font-size: 12px; font-weight: 700; min-width: 34px; text-align: right; }
-        .gs-on { color: #2e8b57; } .gs-off { color: #b3261e; }
-        .gs-banner { display: none; margin-top: 16px; padding: 12px 14px; border-radius: var(--fewa-radius-small); background: #fdecea; color: #8a1c14; font-weight: 600; }
-        textarea.gs-message { width: 100%; box-sizing: border-box; min-height: 60px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--fewa-field); border-radius: var(--fewa-radius-small); font: inherit; }
-        .gs-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-        .gs-btn { padding: 9px 16px; border-radius: var(--fewa-radius-small); border: 1px solid var(--fewa-field); background: #fff; color: var(--fewa-ink); font-weight: 600; cursor: pointer; }
-        .gs-btn.main { background: var(--fewa-ink); color: #fff; border-color: var(--fewa-ink); }
+        /* Once the password is right the page leaves the login look for a plain settings page */
+        body.gs-open { background: var(--fewa-page); display: block; min-height: 100vh; margin: 0; }
+        body.gs-open::before { display: none; }
+        .gs-topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            padding: 12px 20px; background: var(--fewa-purple); color: #fff; box-shadow: var(--fewa-shadow); }
+        .gs-topbar h1 { margin: 0; font-size: 18px; color: var(--fewa-gold-light); letter-spacing: .5px; margin-right: auto; }
+        .gs-search { flex: 1 1 260px; max-width: 520px; padding: 9px 14px; border: 0; border-radius: 8px; font: inherit; }
+        .gs-search:focus { outline: none; box-shadow: var(--fewa-focus); }
+        .gs-btn { padding: 9px 16px; border-radius: var(--fewa-radius-small); border: 1px solid var(--fewa-field); background: #fff;
+            color: var(--fewa-ink); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .gs-btn.main { background: var(--fewa-gold); border-color: var(--fewa-gold); color: var(--fewa-ink); }
         .gs-btn.danger { color: #b3261e; border-color: #e3a6a1; }
-        .gs-btn:disabled { opacity: .55; cursor: default; }
-        .gs-table-wrap { overflow-x: auto; }
-        table.gs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        table.gs-table th, table.gs-table td { text-align: left; padding: 7px 8px; border-top: 1px solid var(--fewa-line); white-space: nowrap; }
-        table.gs-table th { color: var(--fewa-muted); font-weight: 600; border-top: 0; }
-        .gs-saved { color: #2e8b57; font-size: 13px; min-height: 18px; margin-top: 6px; }
-        .gs-error { color: #b3261e; font-size: 13px; min-height: 18px; margin-top: 6px; }
-        @media (max-width: 520px) { .gs-row { align-items: flex-start; } }
+        .gs-btn:disabled { opacity: .5; cursor: default; }
+        .gs-page { max-width: 1250px; margin: 0 auto; padding: 18px 20px 40px; }
+        .gs-banner { display: none; margin-bottom: 14px; padding: 12px 14px; border-radius: var(--fewa-radius-small);
+            background: #fdecea; color: #8a1c14; font-weight: 600; }
+        .gs-status { min-height: 20px; margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+        .gs-status.ok { color: #2e7d32; } .gs-status.err { color: #b3261e; }
+        .gs-card { background: #fff; border: 1px solid var(--fewa-line); border-radius: var(--fewa-radius); overflow: hidden;
+            box-shadow: var(--fewa-shadow); margin-bottom: 22px; }
+        .gs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+            padding: 12px 16px; border-bottom: 1px solid var(--fewa-line); }
+        .gs-card-head h2 { margin: 0; font-size: 16px; color: var(--fewa-ink); }
+        .gs-scroll { overflow-x: auto; }
+        table.gs-table { width: 100%; border-collapse: collapse; font-size: 15px; color: var(--fewa-text); }
+        table.gs-table th { background: var(--fewa-ink); color: var(--fewa-gold-light); text-align: left; font-weight: 600;
+            padding: 11px 14px; white-space: nowrap; }
+        table.gs-table td { padding: 12px 14px; vertical-align: middle; border-top: 1px solid var(--fewa-line); }
+        table.gs-table tbody tr:nth-child(even) td { background: #f6f3fb; }
+        table.gs-table tbody tr.changed td { background: var(--fewa-gold-tint); }
+        .gs-key { font-family: inherit; letter-spacing: .3px; white-space: nowrap; }
+        .gs-value { width: 100%; min-width: 220px; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--fewa-field);
+            border-radius: 6px; font: inherit; background: #fff; color: var(--fewa-text); }
+        .gs-value:focus { outline: none; box-shadow: var(--fewa-focus); }
+        textarea.gs-value { min-height: 42px; resize: vertical; }
+        .gs-tick { width: 18px; height: 18px; accent-color: var(--fewa-ink); }
+        .gs-desc { color: var(--fewa-text); min-width: 260px; }
+        .gs-empty { padding: 14px 16px; color: var(--fewa-muted); }
+        .gs-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding: 16px; align-items: end; }
+        .gs-form label { display: grid; gap: 6px; font-weight: 600; color: var(--fewa-ink); font-size: 14px; }
+        @media (max-width: 640px) {
+            .gs-topbar { padding: 12px 16px; }
+            .gs-topbar h1 { width: 100%; }
+            .gs-search { flex: 1 1 100%; max-width: none; }
+            .gs-topbar .gs-btn { flex: 1 1 0; }
+            .gs-page { padding: 14px 16px 30px; }
+        }
     </style>
 </head>
 
@@ -58,6 +73,7 @@
                 <label for="gatePassword">Global Settings password</label>
                 <input type="password" id="gatePassword" autocomplete="current-password" required>
             </div>
+            <!-- (style.display, not "hidden": the login page style shows every .field box) -->
             <div class="field" id="confirmField" style="display:none">
                 <label for="gateConfirm">Type the password again</label>
                 <input type="password" id="gateConfirm" autocomplete="new-password">
@@ -67,83 +83,84 @@
         </form>
     </div>
 
-    <!-- 2. The switches -->
-    <div id="panel" class="login-card wide" hidden>
-        <div class="gs-head">
-            <div>
-                <h1>Global Settings</h1>
-                <p class="gs-note">Switches for the whole system. Changes work at once, online and at the office.</p>
-            </div>
+    <!-- 2. The settings table -->
+    <div id="panel" hidden>
+        <div class="gs-topbar">
+            <h1>GLOBAL SETTINGS</h1>
+            <input type="search" id="search" class="gs-search" placeholder="Search for a setting..." aria-label="Search for a setting">
+            <button class="gs-btn main" id="saveButton" disabled>Save Settings</button>
             <button class="gs-btn" id="lockButton">Lock</button>
         </div>
-        <div id="closedBanner" class="gs-banner">The system is CLOSED: nobody can log in or use it until you open it again.</div>
 
-        <div class="gs-section">
-            <h2>System activity</h2>
-            <div class="gs-row">
-                <div><b>System open</b><span>Off closes the system for everyone (staff, students and online applications) and logs everyone out.</span></div>
-                <label class="gs-switch"><input type="checkbox" data-control="systemOpen"><i></i></label>
-            </div>
-            <div class="gs-row">
-                <div><b>Staff logins</b><span>Off: staff cannot log in, and staff who are logged in are logged out.</span></div>
-                <label class="gs-switch"><input type="checkbox" data-control="staffLogins"><i></i></label>
-            </div>
-            <div class="gs-row">
-                <div><b>Student Portal logins</b><span>Off: students cannot log in to their portal.</span></div>
-                <label class="gs-switch"><input type="checkbox" data-control="studentLogins"><i></i></label>
-            </div>
-            <div class="gs-row">
-                <div><b>Online applications</b><span>Off: the online application form says applications are closed.</span></div>
-                <label class="gs-switch"><input type="checkbox" data-control="applications"><i></i></label>
-            </div>
-            <div class="gs-row">
-                <div><b>Short courses</b><span>Off hides the Short Courses tab (Settings &gt; Program Setup) and the short course choices on a course. Nothing saved is deleted: switching it on shows them again.</span></div>
-                <label class="gs-switch"><input type="checkbox" data-control="shortCourses"><i></i></label>
-            </div>
-            <div id="switchSaved" class="gs-saved"></div>
-        </div>
+        <div class="gs-page">
+            <div id="closedBanner" class="gs-banner">The system is CLOSED: nobody can log in or use it until SYSTEM_OPEN is YES again.</div>
+            <div id="status" class="gs-status" role="status" aria-live="polite"></div>
 
-        <div class="gs-section">
-            <h2>Message shown while the system is closed</h2>
-            <textarea id="closedMessage" class="gs-message" maxlength="500"
-                placeholder="The system is closed for maintenance at the moment. Please try again later."></textarea>
-            <div class="gs-buttons"><button class="gs-btn main" id="saveMessage">Save message</button></div>
-            <div id="messageSaved" class="gs-saved"></div>
-        </div>
-
-        <div class="gs-section">
-            <div class="gs-head">
-                <h2 style="margin:0">Logged in now (<span id="sessionCount">0</span>)</h2>
-                <div class="gs-buttons" style="margin:0">
-                    <button class="gs-btn" id="refreshButton">Refresh</button>
-                    <button class="gs-btn danger" id="logoutAll">Log everyone out</button>
+            <div class="gs-card">
+                <div class="gs-scroll">
+                    <table class="gs-table">
+                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th>Description</th></tr></thead>
+                        <tbody id="settingRows"></tbody>
+                    </table>
                 </div>
+                <div id="noMatch" class="gs-empty" hidden>No setting matches the search.</div>
             </div>
-            <div class="gs-table-wrap" style="margin-top:10px">
-                <table class="gs-table">
-                    <thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Logged in</th></tr></thead>
-                    <tbody id="sessionRows"></tbody>
-                </table>
-            </div>
-            <div id="sessionNote" class="gs-saved"></div>
-        </div>
 
-        <div class="gs-section">
-            <h2>Change the Global Settings password</h2>
-            <form id="passwordForm" autocomplete="off">
-                <div class="field"><label for="pwCurrent">Current password</label><input type="password" id="pwCurrent" required></div>
-                <div class="field"><label for="pwNew">New password (at least 8 characters)</label><input type="password" id="pwNew" minlength="8" required></div>
-                <div class="field"><label for="pwConfirm">Type the new password again</label><input type="password" id="pwConfirm" minlength="8" required></div>
-                <div class="gs-buttons"><button class="gs-btn main" type="submit">Change password</button></div>
-                <div id="pwSaved" class="gs-saved"></div>
-                <div id="pwError" class="gs-error"></div>
-            </form>
+            <div class="gs-card">
+                <div class="gs-card-head">
+                    <h2>Logged in now (<span id="sessionCount">0</span>)</h2>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap">
+                        <button class="gs-btn" id="refreshButton">Refresh</button>
+                        <button class="gs-btn danger" id="logoutAll">Log everyone out</button>
+                    </div>
+                </div>
+                <div class="gs-scroll">
+                    <table class="gs-table">
+                        <thead><tr><th>Name</th><th>Login</th><th>Role</th><th>Logged in</th></tr></thead>
+                        <tbody id="sessionRows"></tbody>
+                    </table>
+                </div>
+                <div id="sessionNote" class="gs-empty" hidden>Nobody is logged in right now.</div>
+            </div>
+
+            <div class="gs-card">
+                <div class="gs-card-head"><h2>Change the Global Settings password</h2></div>
+                <form id="passwordForm" class="gs-form" autocomplete="off">
+                    <label>Current password<input type="password" id="pwCurrent" class="gs-value" required></label>
+                    <label>New password (at least 8 characters)<input type="password" id="pwNew" class="gs-value" minlength="8" required></label>
+                    <label>Type the new password again<input type="password" id="pwConfirm" class="gs-value" minlength="8" required></label>
+                    <div><button class="gs-btn main" type="submit">Change password</button></div>
+                </form>
+            </div>
         </div>
     </div>
 
     <script>
         const $ = id => document.getElementById(id);
         let mode = 'login';
+        let saved = {}; // the settings as the server has them
+
+        /* The settings shown in the table: the server's name (control), the name shown, and what it does.
+           yesNo: a YES / NO choice (stored as true / false); otherwise free text. off: asked before saving NO. */
+        const SETTINGS = [
+            { control: 'systemOpen', name: 'SYSTEM_OPEN', yesNo: true,
+              description: 'YES: the system works as normal. NO: closes it for everyone (staff, students and online applications) and logs everyone out.',
+              off: 'Close the whole system? Everyone is logged out and nobody can log in or apply until SYSTEM_OPEN is YES again.' },
+            { control: 'closedMessage', name: 'SYSTEM_CLOSED_MESSAGE',
+              description: 'The message people see while the system is closed. Empty: a standard maintenance message.' },
+            { control: 'staffLogins', name: 'STAFF_LOGINS_ENABLED', yesNo: true,
+              description: 'NO: staff cannot log in, and staff who are logged in are logged out.',
+              off: 'Switch off staff logins? Staff who are logged in now are logged out.' },
+            { control: 'studentLogins', name: 'STUDENT_PORTAL_ENABLED', yesNo: true,
+              description: 'NO: students cannot log in to the Student Portal.',
+              off: 'Close the Student Portal? Students who are logged in now are logged out.' },
+            { control: 'applications', name: 'ONLINE_APPLICATIONS_ENABLED', yesNo: true,
+              description: 'NO: the online application form says applications are closed.',
+              off: 'Close online applications?' },
+            { control: 'shortCourses', name: 'SHORT_COURSES_ENABLED', yesNo: true,
+              description: 'NO hides the Short Courses tab (Settings > Program Setup) and the short course choices on a course. Nothing saved is deleted.',
+              off: 'Hide the short courses part? Staff see the change the next time they open or refresh a page.' }
+        ].sort((a, b) => a.name.localeCompare(b.name));
 
         async function call(method, path, body) {
             const response = await fetch('/api/global/' + path, {
@@ -157,16 +174,23 @@
             return data;
         }
 
+        function status(text, ok = true) {
+            $('status').textContent = text;
+            $('status').className = 'gs-status ' + (ok ? 'ok' : 'err');
+            if (text && ok) setTimeout(() => { if ($('status').textContent === text) $('status').textContent = ''; }, 3000);
+        }
+
         function gateError(text) {
             $('gateError').textContent = text;
             $('gateError').style.display = text ? 'block' : 'none';
         }
 
         function showGate(passwordSet, canSetUp) {
+            document.body.classList.remove('gs-open');
+            document.body.classList.add('login-page');
             $('panel').hidden = true;
             $('gate').hidden = false;
             mode = passwordSet ? 'login' : canSetUp ? 'setup' : 'none';
-            // (style.display, not "hidden": the login page style shows every .field box)
             $('confirmField').style.display = mode === 'setup' ? '' : 'none';
             $('gateConfirm').required = mode === 'setup';
             $('gateForm').style.display = mode === 'none' ? 'none' : '';
@@ -179,18 +203,89 @@
             if (mode !== 'none') $('gatePassword').focus();
         }
 
+        const valueText = (s, value) => s.yesNo ? (value ? 'YES' : 'NO') : String(value || '');
+
+        // One row per setting: name | value | ticked when changed | description
+        function drawSettings() {
+            $('settingRows').replaceChildren(...SETTINGS.map(s => {
+                const tr = document.createElement('tr');
+                tr.dataset.search = (s.name + ' ' + s.description).toLowerCase();
+                const name = document.createElement('td');
+                name.className = 'gs-key';
+                name.textContent = s.name;
+                const valueCell = document.createElement('td');
+                let input;
+                if (s.yesNo) {
+                    input = document.createElement('select');
+                    for (const v of ['YES', 'NO']) input.add(new Option(v, v));
+                } else {
+                    input = document.createElement('textarea');
+                    input.maxLength = 500;
+                    input.rows = 1;
+                    input.placeholder = 'The system is closed for maintenance at the moment. Please try again later.';
+                }
+                input.className = 'gs-value';
+                input.id = 'value-' + s.control;
+                input.setAttribute('aria-label', s.name);
+                input.value = valueText(s, saved[s.control]);
+                valueCell.append(input);
+                const tickCell = document.createElement('td');
+                const tick = document.createElement('input');
+                tick.type = 'checkbox';
+                tick.className = 'gs-tick';
+                tick.id = 'tick-' + s.control;
+                tick.setAttribute('aria-label', 'Save ' + s.name);
+                tickCell.append(tick);
+                const desc = document.createElement('td');
+                desc.className = 'gs-desc';
+                desc.textContent = s.description;
+                // Changing the value ticks the row; unticking puts the saved value back
+                input.addEventListener('input', () => { tick.checked = input.value !== valueText(s, saved[s.control]); markChanged(); });
+                tick.addEventListener('change', () => {
+                    if (!tick.checked) input.value = valueText(s, saved[s.control]);
+                    markChanged();
+                });
+                tr.append(name, valueCell, tickCell, desc);
+                return tr;
+            }));
+            markChanged();
+            filterRows();
+        }
+
+        function markChanged() {
+            let any = false;
+            for (const s of SETTINGS) {
+                const ticked = $('tick-' + s.control).checked;
+                $('tick-' + s.control).closest('tr').classList.toggle('changed', ticked);
+                any = any || ticked;
+            }
+            $('saveButton').disabled = !any;
+        }
+
+        function filterRows() {
+            const words = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            let shown = 0;
+            for (const tr of $('settingRows').rows) {
+                const match = words.every(w => tr.dataset.search.includes(w));
+                tr.hidden = !match;
+                if (match) shown++;
+            }
+            $('noMatch').hidden = shown > 0;
+        }
+
         function fmt(when) {
             return new Date(when).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
         }
 
-        function showPanel(status) {
+        function showPanel(state) {
             $('gate').hidden = true;
             $('panel').hidden = false;
-            const c = status.controls;
-            document.querySelectorAll('[data-control]').forEach(box => box.checked = !!c[box.dataset.control]);
-            $('closedMessage').value = c.closedMessage || '';
-            $('closedBanner').style.display = c.systemOpen ? 'none' : 'block';
-            const rows = status.signedInNow || [];
+            document.body.classList.remove('login-page');
+            document.body.classList.add('gs-open');
+            saved = state.controls;
+            $('closedBanner').style.display = saved.systemOpen ? 'none' : 'block';
+            drawSettings();
+            const rows = state.signedInNow || [];
             $('sessionCount').textContent = rows.length;
             $('sessionRows').replaceChildren(...rows.map(r => {
                 const tr = document.createElement('tr');
@@ -201,13 +296,13 @@
                 }
                 return tr;
             }));
-            $('sessionNote').textContent = rows.length ? '' : 'Nobody is logged in right now.';
+            $('sessionNote').hidden = rows.length > 0;
         }
 
         async function load() {
             try {
-                const status = await call('GET', 'status');
-                if (status.signedIn) showPanel(status); else showGate(status.passwordSet, status.canSetUp);
+                const state = await call('GET', 'status');
+                if (state.signedIn) showPanel(state); else showGate(state.passwordSet, state.canSetUp);
             } catch (err) {
                 $('gate').hidden = false;
                 gateError(err.message);
@@ -232,34 +327,31 @@
             } catch (err) { gateError(err.message); }
         });
 
-        async function saveControls(changes, note, confirmText) {
-            if (confirmText && !confirm(confirmText)) return load();
+        // Save Settings: the ticked rows only
+        $('saveButton').addEventListener('click', async () => {
+            const changes = {};
+            const warnings = [];
+            for (const s of SETTINGS) {
+                if (!$('tick-' + s.control).checked) continue;
+                const text = $('value-' + s.control).value;
+                const value = s.yesNo ? text === 'YES' : text.trim();
+                changes[s.control] = value;
+                if (s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
+            }
+            if (warnings.length && !confirm(warnings.join('\n\n'))) return;
+            $('saveButton').disabled = true;
             try {
-                const { controls } = await call('PUT', 'controls', changes);
-                $('closedBanner').style.display = controls.systemOpen ? 'none' : 'block';
-                $(note).textContent = 'Saved.';
-                setTimeout(() => $(note).textContent = '', 2500);
+                await call('PUT', 'controls', changes);
+                status(`Saved ${Object.keys(changes).length} setting${Object.keys(changes).length === 1 ? '' : 's'}.`);
                 load();
-            } catch (err) { alert(err.message); load(); }
-        }
+            } catch (err) { status(err.message, false); markChanged(); }
+        });
 
-        document.querySelectorAll('[data-control]').forEach(box => box.addEventListener('change', () => {
-            const name = box.dataset.control;
-            const warn = !box.checked && {
-                systemOpen: 'Close the whole system? Everyone is logged out and nobody can log in or apply until you open it again.',
-                staffLogins: 'Switch off staff logins? Staff who are logged in now are logged out.',
-                studentLogins: 'Switch off Student Portal logins? Students who are logged in now are logged out.',
-                applications: 'Close online applications?',
-                shortCourses: 'Hide the short courses part? Staff see the change the next time they open or refresh a page.'
-            }[name];
-            saveControls({ [name]: box.checked }, 'switchSaved', warn);
-        }));
-
-        $('saveMessage').addEventListener('click', () => saveControls({ closedMessage: $('closedMessage').value }, 'messageSaved'));
+        $('search').addEventListener('input', filterRows);
         $('refreshButton').addEventListener('click', load);
         $('logoutAll').addEventListener('click', async () => {
             if (!confirm('Log out everyone who is logged in now (staff and students)?')) return;
-            try { await call('POST', 'logout-everyone'); load(); } catch (err) { alert(err.message); }
+            try { await call('POST', 'logout-everyone'); status('Everyone has been logged out.'); load(); } catch (err) { status(err.message, false); }
         });
         $('lockButton').addEventListener('click', async () => {
             await call('POST', 'logout').catch(() => { });
@@ -268,14 +360,13 @@
 
         $('passwordForm').addEventListener('submit', async event => {
             event.preventDefault();
-            $('pwSaved').textContent = $('pwError').textContent = '';
-            if ($('pwNew').value !== $('pwConfirm').value) return $('pwError').textContent = 'The two new passwords are not the same.';
+            if ($('pwNew').value !== $('pwConfirm').value) return status('The two new passwords are not the same.', false);
             try {
                 const result = await call('POST', 'password', { current: $('pwCurrent').value, password: $('pwNew').value });
-                if (result.result !== 'ok') return $('pwError').textContent = 'The current password is wrong.';
+                if (result.result !== 'ok') return status('The current password is wrong.', false);
                 event.target.reset();
-                $('pwSaved').textContent = 'Password changed.';
-            } catch (err) { $('pwError').textContent = err.message; }
+                status('Password changed.');
+            } catch (err) { status(err.message, false); }
         });
 
         load();
