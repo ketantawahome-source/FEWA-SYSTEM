@@ -316,11 +316,11 @@
                 <!-- ===== Lecturer units (unit lecturer mapping) ===== -->
                 <div id="pane-lecturer" class="units-pane" hidden>
                     <div class="units-heading">Unit lecturer mapping</div>
-                    <div class="settings-banner info-banner">Lecturer units: choose the programme, year / semester, unit, lecturer, batch and
+                    <div class="settings-banner info-banner">Lecturer units: choose the course, year / semester, unit, lecturer, batch and
                         period, then Allocate. The list shows the allocations in the batch and period (narrowed to the lecturer
                         chosen); the pencil loads one for a change and the bin removes it.</div>
                     <div class="up-filters reg-fields lec-fields">
-                        <label for="lecProgramme">Programme <span class="req">*</span></label><select id="lecProgramme"></select>
+                        <label for="lecProgramme">Course <span class="req">*</span></label><select id="lecProgramme"></select>
                         <label for="lecStage">Year / semester</label><select id="lecStage"></select>
                         <label for="lecUnit">Unit <span class="req">*</span></label><select id="lecUnit"></select>
                         <label for="lecLecturer">Lecturer <span class="req">*</span></label><select id="lecLecturer"></select>
@@ -339,7 +339,7 @@
                     <div id="lecPanel" hidden>
                         <div class="units-count" id="lecCount"></div>
                         <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th>Unit code</th><th>Unit title</th><th>Programme</th><th>Year / semester</th><th>Lecturer</th><th>Group category</th><th class="num">Registered</th><th></th></tr></thead>
+                            <thead><tr><th>Unit code</th><th>Unit title</th><th>Course</th><th>Year / semester</th><th>Lecturer</th><th>Group category</th><th class="num">Registered</th><th></th></tr></thead>
                             <tbody id="lecRows"></tbody></table></div>
                     </div>
                 </div>
@@ -726,7 +726,7 @@
         async function allocateLecturer() {
             if (!allowed('academics', 'edit')) return;
             const v = id => $(id).value;
-            const missing = [['lecProgramme', 'programme'], ['lecUnit', 'unit'], ['lecLecturer', 'lecturer'],
+            const missing = [['lecProgramme', 'course'], ['lecUnit', 'unit'], ['lecLecturer', 'lecturer'],
                 ['lecBatch', 'batch'], ['lecTerm', 'period']].filter(([id]) => !v(id)).map(([, name]) => name);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             const lecturer = lecturers.find(l => l.username === v('lecLecturer'));
