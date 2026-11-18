@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS academics.unit_offers (
     lecturer_name  text,
     extra          jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Units on offer (unit projection) is per batch and group category (empty: every batch / all group categories)
+ALTER TABLE academics.unit_offers ADD COLUMN IF NOT EXISTS batch text;           -- the student group (Student Groups)
+ALTER TABLE academics.unit_offers ADD COLUMN IF NOT EXISTS group_category text;  -- the study session, e.g. Full Time
 CREATE INDEX IF NOT EXISTS unit_offers_term ON academics.unit_offers (term);
 
 

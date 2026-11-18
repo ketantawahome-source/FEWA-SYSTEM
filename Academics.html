@@ -65,6 +65,7 @@
         .lec-fields { grid-template-columns: 130px minmax(0, 1fr) 125px minmax(0, 1fr); column-gap: 24px; }
         .data-table tr.editing td { background: #fff8e1; }
         .data-table .unit-actions { width: 96px; white-space: nowrap; }
+        .units-muted { color: var(--fewa-muted); }
         .reg-fields .units-actions .btn-submit, .reg-fields .units-actions .btn-secondary { margin: 0; }
         .reg-reason { min-width: 150px !important; padding: 6px 8px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; }
         .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
@@ -202,29 +203,65 @@
             <div class="form-section">
                 <div id="unitsTabs" class="settings-tabs units-tabs" role="tablist"></div>
 
-                <!-- ===== Units on offer ===== -->
+                <!-- ===== Units on offer (unit projection) ===== -->
                 <div id="pane-offer" class="units-pane" hidden>
-                    <div class="units-heading">Units on offer</div>
-                    <div class="settings-banner info-banner">Units on offer: choose the term, then add units one by one, or every
-                        programme unit of a course for a year and semester at once (a course's units are set up in
-                        the Course units tab). Students can only be registered for units on
-                        offer in a term. The bin removes an offer nobody is registered for.</div>
-                    <div class="units-form" style="margin-top:14px">
-                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="offerTerm"></select></div>
-                        <div class="form-group"><label>Course</label><select id="offerCourse"></select></div>
-                        <div class="form-group"><label>Unit</label><select id="offerUnit"></select></div>
-                        <div class="units-actions"><button type="button" class="btn-submit" data-edit onclick="addOffer()">Add to offer</button></div>
+                    <div class="units-heading">Units on offer (unit projection)</div>
+                    <div class="settings-banner info-banner">Units on offer: choose the course, batch and period to list the units on
+                        offer. To add one, pick the unit and the group category (and the lecturer, if known), then Add unit on offer.
+                        The bin takes a unit off the offer.</div>
+                    <div class="up-filters reg-fields lec-fields">
+                        <label for="offerCourse">Course <span class="req">*</span></label><select id="offerCourse"></select>
+                        <label for="offerBatch">Batch <span class="req">*</span></label><select id="offerBatch"></select>
+                        <label for="offerTerm">Period <span class="req">*</span></label><select id="offerTerm"></select>
+                        <label for="offerUnit">Unit <span class="req">*</span></label><select id="offerUnit"></select>
+                        <label for="offerCategory">Group category <span class="req">*</span></label><select id="offerCategory"></select>
+                        <label for="offerLecturer">Lecturer</label><select id="offerLecturer"></select>
+                        <span></span><span></span><span></span>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" data-edit onclick="addOffer()">Add unit on offer</button>
+                            <button type="button" class="btn-secondary" onclick="clearOffer()">Clear</button>
+                        </div>
                     </div>
-                    <div class="units-form" style="margin-top:12px">
-                        <div class="form-group"><label>Year of study</label><select id="offerYear"></select></div>
-                        <div class="form-group"><label>Semester</label><select id="offerSemester"></select></div>
-                        <div class="units-actions"><button type="button" class="btn-secondary" data-edit onclick="offerProgrammeUnits()">Offer all the course's units for this year and semester</button></div>
+
+                    <div class="units-subhead">Upload units on offer</div>
+                    <div class="up-box">
+                        <div class="up-template">
+                            <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
+                            <div class="up-template-text"><b>Excel template</b>
+                                <span>Course, batch, period, group category, unit code and lecturer staff number, one unit per row.
+                                    Staff codes lists the staff numbers.</span></div>
+                            <div class="up-template-buttons">
+                                <button type="button" class="btn-secondary" onclick="downloadOfferTemplate()">Download</button>
+                                <button type="button" class="btn-secondary" onclick="toggleStaffCodes('offerStaffCodes')">Staff codes</button>
+                            </div>
+                        </div>
+                        <div id="offerStaffCodes" class="up-staff" hidden></div>
+                        <label class="up-drop" id="offerDrop" for="offerFile">
+                            <svg class="up-cloud" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor"
+                                d="M19.4 10.1A7 7 0 0 0 6.1 8.6 5.5 5.5 0 0 0 6.5 19.5h12.3a4.7 4.7 0 0 0 .6-9.4zM13 13v4h-2v-4H8l4-4 4 4z"/></svg>
+                            <span class="up-choose" id="offerChosen">Choose the filled-in file</span>
+                            <input type="file" id="offerFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                        </label>
+                        <div class="up-limits"><span>Supported formats: XLS, XLSX</span><span>Max size: 10 MB</span></div>
+                        <div class="up-submit"><button type="button" class="btn-submit" data-edit onclick="uploadOffers()">Upload units on offer</button></div>
                     </div>
-                    <div class="units-subhead">Units on offer in <span id="offerTermName">the term</span></div>
-                    <div class="units-count" id="offerCount"></div>
-                    <div class="table-wrap"><table class="data-table">
-                        <thead><tr><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Course</th><th>Lecturer</th><th class="num">Registered</th><th></th></tr></thead>
-                        <tbody id="offerRows"></tbody></table></div>
+                    <div id="offerUploadResult" hidden>
+                        <div class="units-subhead">Lines in the file</div>
+                        <div class="units-count" id="offerUploadSummary"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Row</th><th>Course</th><th>Batch</th><th>Period</th><th>Group category</th><th>Unit code</th><th>Lecturer</th><th>Result</th></tr></thead>
+                            <tbody id="offerUploadRows"></tbody></table></div>
+                    </div>
+
+                    <div class="units-subhead">Units on offer</div>
+                    <p id="offerHint" class="up-hint">Choose the course, batch and period to list the units on offer.</p>
+                    <div id="offerPanel" hidden>
+                        <div class="units-count" id="offerCount"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Group category</th><th>Lecturer</th><th class="num">Registered</th><th></th></tr></thead>
+                            <tbody id="offerRows"></tbody></table></div>
+                    </div>
                 </div>
 
                 <!-- ===== Student units upload ===== -->
@@ -592,7 +629,9 @@
         const unitByCode = code => units.find(u => same(u.code, code));
         const unitLabel = u => `${u.code} - ${u.title}`;
         const studentName = s => [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
+        const batchOf = r => r.batch || (students.find(s => s.id === r.studentId) || {}).group || '';
         const registeredCount = offer => registrations.filter(r => same(r.term, offer.term) && same(r.unitCode, offer.unitCode)
+            && (!offer.batch || batchOf(r) === offer.batch)
             && (!offer.course || studentCourse(r.studentId) === offer.course)).length;
         const studentCourse = id => (students.find(s => s.id === id) || {}).admissionCourse || '';
 
@@ -606,12 +645,10 @@
         function fillChoices() {
             const termChoices = terms.map(t => [t, t]);
             const lastTerm = terms[terms.length - 1] || '';
-            for (const id of ['offerTerm']) {
-                const select = $(id);
-                const had = select.value;
-                fill(select, termChoices, terms.length ? '-- choose a term --' : '-- no terms yet (Settings > Organisation Setup) --');
-                if (!had && lastTerm) select.value = lastTerm;
-            }
+            fill($('offerTerm'), termChoices, '-- select one --');
+            fill($('offerBatch'), groups.map(g => [g, g]), '-- select one --');
+            fill($('offerCategory'), categories.map(c => [c, c]), '-- all group categories --');
+            fill($('offerLecturer'), lecturers.map(l => [l.username, l.name]), '-- not yet known --');
             fill($('upPeriod'), termChoices, '-- select one --');
             fill($('regTerm'), termChoices, '-- select one --');
             fill($('regBatch'), groups.map(g => [g, g]), '-- select one --');
@@ -620,11 +657,8 @@
             const courseChoices = courses.map(c => [c, c]);
             fill($('regClass'), courseChoices, '-- select one --');
             fillUnitsOf();
-            fill($('offerCourse'), courseChoices, '-- any course --');
-            const unitChoices = units.map(u => [u.code, unitLabel(u)]);
-            fill($('offerUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
-            fill($('offerYear'), [1, 2, 3, 4, 5, 6].map(n => [n, 'Year ' + n]), '-- year --');
-            fill($('offerSemester'), [1, 2, 3].map(n => [n, 'Semester ' + n]), '-- semester --');
+            fill($('offerCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
+            fillOfferUnits();
             fill($('lecProgramme'), courseItems.map(c => [c.name, c.name]), '-- select one --');
             fillLecturerStages();
             fill($('lecLecturer'), lecturers.map(l => [l.username, l.name]), '-- all lecturers --');
@@ -733,64 +767,191 @@
             } catch (err) { alert('The unit could not be deleted: ' + err.message); }
         }
 
-        /* ---------- Units on offer ---------- */
-        function renderOffers() {
-            const term = $('offerTerm').value, course = $('offerCourse').value;
-            $('offerTermName').textContent = term || 'the term';
-            const rows = offers.filter(o => o.term === term && (!course || !o.course || o.course === course))
-                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode)) || String(a.course).localeCompare(String(b.course)));
-            $('offerCount').textContent = term ? `${rows.length} unit${rows.length === 1 ? '' : 's'} on offer` : '';
-            $('offerRows').innerHTML = !term ? '<tr class="empty-row"><td colspan="7">Choose a term above.</td></tr>'
-                : rows.length ? rows.map(o => {
-                    const u = unitByCode(o.unitCode) || {};
-                    return `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
-                        <td>${escapeHtml(o.course || 'Any course')}</td><td>${escapeHtml(o.lecturerName || '-')}</td>
-                        <td class="num">${registeredCount(o)}</td>
-                        <td>${mayEdit() ? iconButton('delete', 'Remove ' + escapeHtml(o.unitCode), `deleteOffer('${o.id}')`) : ''}</td></tr>`;
-                }).join('') : '<tr class="empty-row"><td colspan="7">No units on offer in this term yet.</td></tr>';
+        /* ---------- Units on offer (unit projection) ----------
+           The units taught in a period to a course's batch (table academics.unit_offers). Course = Settings > Courses;
+           Batch = Student Groups; Group category = Study Sessions (empty: all); Lecturer: an active staff member (or not
+           yet known). Older offers with no course or batch are for every course or batch, and still show. */
+        const offerFor = (o, course, batch, term) => o.term === term && (!o.course || o.course === course) && (!o.batch || o.batch === batch);
+
+        function fillOfferUnits() {
+            const course = $('offerCourse').value;
+            const codes = programmeUnits.filter(p => p.course === course && (!p.batch || !$('offerBatch').value || p.batch === $('offerBatch').value))
+                .map(p => String(p.unitCode).toUpperCase());
+            const hasUnits = programmeUnits.some(p => p.course === course);
+            const list = course && hasUnits ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
+            fill($('offerUnit'), list.map(u => [u.code, unitLabel(u)]), '');
+            renderOffers();
         }
 
-        const offerExists = (term, course, unitCode) => offers.some(o => o.term === term && (o.course || '') === (course || '') && same(o.unitCode, unitCode));
+        function renderOffers() {
+            const course = $('offerCourse').value, batch = $('offerBatch').value, term = $('offerTerm').value;
+            const ready = !!(course && batch && term);
+            $('offerHint').hidden = ready;
+            $('offerPanel').hidden = !ready;
+            if (!ready) return;
+            const rows = offers.filter(o => offerFor(o, course, batch, term))
+                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
+            $('offerCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'} on offer to ${batch} of ${course} in ${term}`;
+            $('offerRows').innerHTML = rows.length ? rows.map(o => {
+                const u = unitByCode(o.unitCode) || {};
+                const scope = [!o.course && 'every course', !o.batch && 'every batch'].filter(Boolean).join(', ');
+                return `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml(u.title || '')}${scope ? ` <small class="units-muted">(${scope})</small>` : ''}</td>
+                    <td class="num">${escapeHtml(u.creditHours ?? '')}</td><td>${escapeHtml(o.groupCategory || 'All')}</td>
+                    <td>${escapeHtml(o.lecturerName || 'Not yet known')}</td><td class="num">${registeredCount(o)}</td>
+                    <td>${mayEdit() ? iconButton('delete', 'Take ' + escapeHtml(o.unitCode) + ' off the offer', `deleteOffer('${o.id}')`) : ''}</td></tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="7">No units on offer to ${escapeHtml(batch)} of ${escapeHtml(course)} in ${escapeHtml(term)} yet.</td></tr>`;
+        }
+
+        // The same unit, course, batch, period and group category is one offer
+        const offerExists = (term, course, unitCode, batch = '', groupCategory = '') => offers.find(o => o.term === term
+            && (o.course || '') === (course || '') && (o.batch || '') === (batch || '') && (o.groupCategory || '') === (groupCategory || '')
+            && same(o.unitCode, unitCode));
 
         async function addOffer() {
             if (!allowed('academics', 'edit')) return;
-            const term = $('offerTerm').value, course = $('offerCourse').value, unitCode = $('offerUnit').value;
-            if (!term || !unitCode) return alert('Choose the term and the unit.');
-            if (offerExists(term, course, unitCode)) return alert(`${unitCode} is already on offer in ${term}${course ? ' for ' + course : ''}.`);
+            const course = $('offerCourse').value, batch = $('offerBatch').value, term = $('offerTerm').value;
+            const unitCode = $('offerUnit').value, groupCategory = $('offerCategory').value;
+            const missing = [[course, 'course'], [batch, 'batch'], [term, 'period'], [unitCode, 'unit']].filter(([v]) => !v).map(([, n]) => n);
+            if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
+            if (offerExists(term, course, unitCode, batch, groupCategory)) {
+                return alert(`${unitCode} is already on offer to ${batch} of ${course} in ${term}${groupCategory ? ' (' + groupCategory + ')' : ''}.`);
+            }
+            const lecturer = lecturers.find(l => l.username === $('offerLecturer').value);
             try {
-                await save('unit_offers', { id: newId(), term, unitCode, course, lecturer: '', lecturerName: '' });
-                showToast(`${unitCode} is on offer in ${term}.`);
+                await save('unit_offers', { id: newId(), term, unitCode: (unitByCode(unitCode) || {}).code || unitCode, course, batch, groupCategory,
+                    lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '' });
+                showToast(`${unitCode} is on offer to ${batch} of ${course} in ${term}.`);
+                $('offerUnit').value = '';
                 await loadData();
-            } catch (err) { alert('The unit could not be added: ' + err.message); }
+            } catch (err) { alert('The unit could not be put on offer: ' + err.message); await loadData(); }
         }
 
-        async function offerProgrammeUnits() {
-            if (!allowed('academics', 'edit')) return;
-            const term = $('offerTerm').value, course = $('offerCourse').value;
-            const year = Number($('offerYear').value), semester = Number($('offerSemester').value);
-            if (!term || !course || !year || !semester) return alert('Choose the term, the course, the year of study and the semester.');
-            const wanted = programmeUnits.filter(p => p.course === course && Number(p.yearOfStudy) === year && Number(p.semester) === semester)
-                .filter(p => !offerExists(term, course, p.unitCode));
-            if (!wanted.length) return alert(`${course} has no units for Year ${year}, Semester ${semester} that are not on offer already. ` +
-                'Add them first in the Course units tab.');
-            try {
-                for (const p of wanted) await save('unit_offers', { id: newId(), term, unitCode: p.unitCode, course, lecturer: '', lecturerName: '' });
-                showToast(`${wanted.length} unit${wanted.length === 1 ? '' : 's'} put on offer in ${term}.`);
-                await loadData();
-            } catch (err) { alert('Not all units could be put on offer: ' + err.message); await loadData(); }
+        function clearOffer() {
+            for (const id of ['offerCourse', 'offerBatch', 'offerCategory', 'offerLecturer']) $(id).value = '';
+            fillOfferUnits();
         }
 
         async function deleteOffer(id) {
             if (!allowed('academics', 'edit')) return;
             const o = offers.find(x => x.id === id);
             if (!o) return;
-            if (registeredCount(o)) return alert(`${o.unitCode} cannot be removed: students are registered for it in ${o.term}. ` +
+            if (registeredCount(o)) return alert(`${o.unitCode} cannot be taken off: students are registered for it in ${o.term}. ` +
                 'Remove their registrations first (Student unit registration).');
-            if (!confirm(`Remove ${o.unitCode} from the units on offer in ${o.term}?`)) return;
+            if (!confirm(`Take ${o.unitCode} off the units on offer in ${o.term}?`)) return;
             try {
                 await fewaDB.remove('unit_offers', id);
+                showToast(`${o.unitCode} taken off the offer.`);
                 await loadData();
             } catch (err) { alert('The offer could not be removed: ' + err.message); }
+        }
+
+        // ----- Upload units on offer (Excel) -----
+        const OFFER_HEADERS = ['Course', 'Batch', 'Period', 'Group category', 'Unit code', 'Lecturer staff number'];
+
+        async function downloadOfferTemplate() {
+            let XLSX;
+            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
+            const book = XLSX.utils.book_new();
+            const sheet = XLSX.utils.aoa_to_sheet([OFFER_HEADERS]);
+            sheet['!cols'] = OFFER_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
+            XLSX.utils.book_append_sheet(book, sheet, 'Units on offer');
+            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+                ['Column', 'What to type'],
+                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
+                ['Batch', 'The student group, as in Student Groups'],
+                ['Period', 'The academic term, exactly as in Settings > Organisation Setup > Academic Terms'],
+                ['Group category', 'The study session, e.g. Full Time; blank = all group categories'],
+                ['Unit code', 'The unit code, as in Manage Units > Units register'],
+                ['Lecturer staff number', "The lecturer's staff code (the Staff codes button lists them); blank = not yet known"]
+            ]), 'How to fill it in');
+            XLSX.writeFile(book, 'units-on-offer-template.xlsx');
+        }
+
+        function chosenOfferFile() {
+            const file = $('offerFile').files[0];
+            $('offerChosen').textContent = file ? file.name : 'Choose the filled-in file';
+            $('offerDrop').classList.toggle('has-file', !!file);
+            return file;
+        }
+
+        async function uploadOffers() {
+            if (!allowed('academics', 'edit')) return;
+            const file = chosenOfferFile();
+            if (!file) return alert('Choose the filled-in Excel file first.');
+            if (!/\.(xlsx?|xlsm)$/i.test(file.name)) return alert('Choose an Excel file (.xls or .xlsx).');
+            if (file.size > UPLOAD_MAX_BYTES) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try {
+                const XLSX = await loadXlsx();
+                const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
+                    .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
+            } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
+            if (rows.length < 2) return alert('The file has no rows under the headings.');
+            const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+            const col = names => header.findIndex(h => names.includes(h));
+            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(['batch', 'group', 'studentgroup']),
+                period: col(['period', 'term', 'academicterm']), category: col(['groupcategory', 'category', 'studysession', 'session']),
+                code: col(['unitcode', 'code', 'unit']),
+                lecturer: col(['lecturerstaffnumber', 'lecturerstaffcode', 'staffnumber', 'staffcode', 'lecturer']) };
+            if (at.course < 0 || at.batch < 0 || at.period < 0 || at.code < 0) {
+                return alert('The first row must hold the headings, with at least Course, Batch, Period and Unit code. Download the template to see them.');
+            }
+            const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
+            const seen = new Set();
+            const lines = rows.slice(1).map((r, i) => {
+                const courseText = cell(r, 'course'), batchText = cell(r, 'batch'), periodText = cell(r, 'period');
+                const categoryText = cell(r, 'category'), lecturerCode = cell(r, 'lecturer');
+                const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
+                const batch = groups.find(g => g === batchText) || groups.find(g => same(g, batchText));
+                const term = terms.find(x => x === periodText) || terms.find(x => same(x, periodText));
+                const category = categoryText ? categories.find(c => same(c, categoryText)) : '';
+                const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
+                const unit = unitByCode(code);
+                const lecturer = lecturerCode ? lecturerByCode(lecturerCode) : null;
+                const line = { row: i + 2, courseText, course, batchText, batch, periodText, term, categoryText, category, code, unit,
+                    lecturerCode, lecturer, problems: [] };
+                const problem = text => line.problems.push(text);
+                if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
+                if (!batch) problem(batchText ? 'Batch not in Student Groups' : 'No batch');
+                if (!term) problem(periodText ? 'Period not in Academic Terms' : 'No period');
+                if (categoryText && category === undefined) problem('Group category not in Study Sessions');
+                if (!code) problem('No unit code');
+                else if (!unit) problem('Unit not in the Units register');
+                if (lecturerCode && !lecturer) problem('Staff number not found (see Staff codes)');
+                const key = `${course}|${batch}|${term}|${category}|${code}`.toLowerCase();
+                if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
+                seen.add(key);
+                if (!line.problems.length && offerExists(term, course, code, batch, category || '')) line.already = true;
+                return line;
+            });
+            const good = lines.filter(l => !l.problems.length && !l.already);
+            const result = l => l.problems.length ? `<span class="units-result-bad">${escapeHtml(l.problems.join('; '))}</span>`
+                : l.already ? '<span class="units-result-warn">Already on offer</span>'
+                : l.done ? '<span class="units-result-ok">Added</span>' : 'Ready';
+            const show = () => {
+                $('offerUploadResult').hidden = false;
+                $('offerUploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.course || l.courseText)}</td>
+                    <td>${escapeHtml(l.batch || l.batchText)}</td><td>${escapeHtml(l.term || l.periodText)}</td>
+                    <td>${escapeHtml(l.category || l.categoryText || 'All')}</td><td>${escapeHtml(l.code)}</td>
+                    <td>${escapeHtml(l.lecturer ? l.lecturer.name : l.lecturerCode || 'Not yet known')}</td><td>${result(l)}</td></tr>`).join('');
+                const bad = lines.filter(l => l.problems.length).length, already = lines.filter(l => l.already).length;
+                $('offerUploadSummary').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}: ${good.length} to add` +
+                    (already ? `, ${already} already on offer` : '') + (bad ? `, ${bad} with a problem (not added)` : '');
+            };
+            show();
+            if (!good.length) return alert('Nothing to add: see the Result column.');
+            if (!confirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return;
+            try {
+                for (const l of good) {
+                    await save('unit_offers', { id: newId(), term: l.term, unitCode: l.unit.code, course: l.course, batch: l.batch,
+                        groupCategory: l.category || '', lecturer: l.lecturer ? l.lecturer.username : '', lecturerName: l.lecturer ? l.lecturer.name : '' });
+                    l.done = true;
+                }
+                showToast(`${good.length} unit${good.length === 1 ? '' : 's'} put on offer.`);
+            } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            await loadData();
+            show();
         }
 
         /* ---------- Lecturer units (unit lecturer mapping) ----------
@@ -1365,7 +1526,8 @@
 
         // The units a student can take in a term: on offer for their course, or for any course
         const offersFor = (student, term) => offers.filter(o => o.term === term && (!o.course || o.course === student.admissionCourse));
-        const offersForClass = (course, term) => offers.filter(o => o.term === term && (!o.course || o.course === course));
+        const offersForClass = (course, term, batch = $('regBatch').value) => offers.filter(o => o.term === term && (!o.course || o.course === course)
+            && (!o.batch || !batch || o.batch === batch));
         const programmeUnitOf = (course, code) => programmeUnits.find(p => p.course === course && same(p.unitCode, code));
 
         // "Units of class": each year and semester of the class's programme units
@@ -1542,8 +1704,8 @@
         }
 
         // The lecturers' staff codes, shown on the page (never as a file)
-        function toggleStaffCodes() {
-            const box = $('staffCodes');
+        function toggleStaffCodes(boxId = 'staffCodes') {
+            const box = $(boxId);
             box.hidden = !box.hidden;
             if (box.hidden) return;
             box.innerHTML = lecturers.length ? `<table class="data-table"><thead><tr><th>Name</th><th>Staff code</th></tr></thead><tbody>` +
@@ -1693,7 +1855,16 @@
             renderUnits();
         }
 
-        for (const id of ['offerTerm', 'offerCourse']) $(id).addEventListener('change', renderOffers);
+        for (const id of ['offerCourse', 'offerBatch']) $(id).addEventListener('change', fillOfferUnits);
+        $('offerTerm').addEventListener('change', renderOffers);
+        $('offerFile').addEventListener('change', chosenOfferFile);
+        $('offerDrop').addEventListener('dragover', event => { event.preventDefault(); $('offerDrop').classList.add('dragging'); });
+        $('offerDrop').addEventListener('dragleave', () => $('offerDrop').classList.remove('dragging'));
+        $('offerDrop').addEventListener('drop', event => {
+            event.preventDefault();
+            $('offerDrop').classList.remove('dragging');
+            if (event.dataTransfer.files.length) { $('offerFile').files = event.dataTransfer.files; chosenOfferFile(); }
+        });
         for (const id of ['upBatch', 'upPeriod']) $(id).addEventListener('change', renderRegisteredOnUnit);
         $('upUnit').addEventListener('input', renderRegisteredOnUnit);
         $('uploadFile').addEventListener('change', chosenFile);
