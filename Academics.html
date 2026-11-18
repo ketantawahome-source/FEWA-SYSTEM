@@ -207,7 +207,7 @@
                     <div class="units-heading">Units on offer</div>
                     <div class="settings-banner info-banner">Units on offer: choose the term, then add units one by one, or every
                         programme unit of a course for a year and semester at once (a course's units are set up in
-                        the Programme units tab). Students can only be registered for units on
+                        the Course units tab). Students can only be registered for units on
                         offer in a term. The bin removes an offer nobody is registered for.</div>
                     <div class="units-form" style="margin-top:14px">
                         <div class="form-group"><label>Term <span class="req">*</span></label><select id="offerTerm"></select></div>
@@ -348,7 +348,7 @@
                 <!-- ===== Programme units (unit programme mapping) ===== -->
                 <div id="pane-programme" class="units-pane" hidden>
                     <div class="units-heading">Unit programme mapping</div>
-                    <div class="settings-banner info-banner">Programme units: choose the programme and course to list the units
+                    <div class="settings-banner info-banner">Course units: choose the programme and course to list the units
                         the course takes. To add one, pick the unit from the list that appears as you type and the semester it is
                         taken in, then Add unit to course. The bin takes a unit off the course.</div>
                     <div class="up-filters reg-fields lec-fields">
@@ -541,7 +541,7 @@
         /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
         const TABS = [
             ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
-            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['units', 'Units register'], ['hours', 'Unit hours']
+            ['lecturer', 'Lecturer units'], ['programme', 'Course units'], ['units', 'Units register'], ['hours', 'Unit hours']
         ];
         const TAB_KEY = 'fewaUnitsTab';
         let activeTab = 'units';
@@ -727,7 +727,7 @@
             if (!allowed('academics', 'edit')) return;
             const u = units.find(x => x.id === id);
             if (!u) return;
-            if (unitInUse(u.code)) return alert(`${u.code} cannot be deleted: it is used by a course (Programme units), an offer ` +
+            if (unitInUse(u.code)) return alert(`${u.code} cannot be deleted: it is used by a course (Course units), an offer ` +
                 '(Units on offer) or a student registration. Remove those first.');
             if (!confirm(`Delete the unit ${u.code} - ${u.title}?`)) return;
             try {
@@ -776,7 +776,7 @@
             const wanted = programmeUnits.filter(p => p.course === course && Number(p.yearOfStudy) === year && Number(p.semester) === semester)
                 .filter(p => !offerExists(term, course, p.unitCode));
             if (!wanted.length) return alert(`${course} has no units for Year ${year}, Semester ${semester} that are not on offer already. ` +
-                'Add them first in the Programme units tab.');
+                'Add them first in the Course units tab.');
             try {
                 for (const p of wanted) await save('unit_offers', { id: newId(), term, unitCode: p.unitCode, course, lecturer: '', lecturerName: '' });
                 showToast(`${wanted.length} unit${wanted.length === 1 ? '' : 's'} put on offer in ${term}.`);
@@ -1025,7 +1025,7 @@
             const book = XLSX.utils.book_new();
             const sheet = XLSX.utils.aoa_to_sheet([MAPPING_HEADERS]);
             sheet['!cols'] = MAPPING_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
-            XLSX.utils.book_append_sheet(book, sheet, 'Programme units');
+            XLSX.utils.book_append_sheet(book, sheet, 'Course units');
             XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
                 ['Column', 'What to type'],
                 ['Programme', 'The course, exactly as in Settings > Program Setup > Courses (blank = the Course chosen on the page)'],
