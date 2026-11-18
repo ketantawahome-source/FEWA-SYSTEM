@@ -18,6 +18,8 @@
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
      settings.role_operations    the rights given to each staff role
+     academics.units, programme_units, unit_offers, unit_registrations
+                         Academic Management > Manage Units (Academics.html); one column per field, as students
      logins.sessions, logins.password_reset_codes
                          who is logged in, and emailed reset codes (hashes only) until used or expired
      files.stored_files  student photos and uploaded documents (bytes), referred to from the records
@@ -176,7 +178,10 @@ async function inTransaction(work) {
    Record field  <->  column:  admNo <-> adm_no,  firstName <-> first_name,  group <-> "group".
    The columns are read from the database itself (every 15 seconds at most), so columns added, removed or
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
-const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff'];
+// Academic Management > Manage Units (database/8-academics.sql): record stores like deferrals
+const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations'];
+const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register'];
+const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
 
@@ -195,7 +200,8 @@ const SCHEMA_OF = {
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff',
     sessions: 'logins', password_reset_codes: 'logins',
-    stored_files: 'files'
+    stored_files: 'files',
+    units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
 // A table's full name, e.g. T('courses') -> "settings"."courses"
@@ -525,7 +531,8 @@ async function moveSettingsIntoTables(client) {
 }
 
 /* ---------- Record stores: students, documents, deferrals (columns) and settings (tables above) ---------- */
-const STORES = { students: 'id', documents: 'id', deferrals: 'id', applications: 'id', settings: 'key' };
+const STORES = { students: 'id', documents: 'id', deferrals: 'id', applications: 'id', settings: 'key',
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, 'id'])) };
 const hasColumns = store => COLUMN_TABLES.includes(store);
 
 async function selectRecords(db, store, id) {
@@ -1251,12 +1258,15 @@ const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 're
 const STUDENT_WRITERS = ['students.edit', 'students.applications', 'students.status', 'students.deferrals', 'students.contacts',
     'students.password', 'students.photos'];
 const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
-    'finance.view', 'finance.add', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS];
+    'finance.view', 'finance.add', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS,
+    'academics.view', 'academics.edit', 'academics.register'];
 const RIGHTS_TO_READ = {
     students: STUDENT_READERS,
     deferrals: STUDENT_READERS,
     documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'reports.standard', 'reports.students', 'settings.edit', 'settings.delete'],
-    applications: ['students.view', 'students.add', 'students.edit', 'students.applications']
+    applications: ['students.view', 'students.add', 'students.edit', 'students.applications'],
+    // Academic Management > Manage Units
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, ACADEMIC_RIGHTS]))
 };
 
 // A stored file: someone who may read documents may open any; someone who may only read student records, not an
@@ -1269,6 +1279,8 @@ async function staffMayOpenFile(session, fileId) {
 
 // The rights that allow saving or deleting one record (any one of them is enough)
 async function rightsToWrite(store, id, method) {
+    // Manage Units: registering students is its own right; the rest (units, programme units, offers) is editing
+    if (ACADEMIC_STORES.includes(store)) return store === 'unit_registrations' ? ['academics.register'] : ['academics.edit'];
     if (method === 'DELETE') return store === 'settings' ? ['settings.delete'] : ['students.delete'];
     if (store === 'students') {
         const { rowCount } = await pool.query(`SELECT 1 FROM ${T('students')} WHERE id = $1`, [id]);
@@ -1314,6 +1326,7 @@ const tablesToSync = new Set();
 const STORE_TABLES = {
     students: ['students', 'stored_files'], documents: ['documents', 'stored_files'], deferrals: ['deferrals'],
     applications: ['applications', 'stored_files'],
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, [store]])),
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
 const valueTables = key => key === ACCOUNTS_KEY ? ['staff']

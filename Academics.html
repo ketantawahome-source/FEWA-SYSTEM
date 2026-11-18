@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Units - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="icons.js"></script>
+    <script src="notify.js"></script>
+    <script>
+        requireLogin();
+        // Academic Management > Manage Units (Role Operations: Access Manage Units, Edit Units, Register Student Units)
+        if (currentAccount() && !can('academics', 'view') && !can('academics', 'edit') && !can('academics', 'register')) {
+            location.replace('StudentAdmissions.html');
+        }
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20261112h">
+    <style>
+        .units-tabs { margin-bottom: 14px; }
+        .units-pane[hidden] { display: none; }
+        .units-heading { font-size: 22px; font-weight: 600; color: var(--fewa-ink); margin: 4px 0 14px; }
+        .units-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 18px; align-items: end; }
+        .units-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .units-actions .btn-submit, .units-actions .btn-secondary { margin: 0; }
+        .units-subhead { font-size: 18px; font-weight: 600; color: var(--fewa-ink); margin: 22px 0 10px; padding-top: 16px;
+            border-top: 1px solid var(--fewa-line); }
+        .units-count { color: var(--fewa-muted); margin: 8px 0; font-size: 14px; }
+        .units-find { display: flex; gap: 0; max-width: 620px; }
+        .units-find input { flex: 1; border-radius: 6px 0 0 6px; }
+        .units-find button { border-radius: 0 6px 6px 0; margin: 0; }
+        .units-total { font-weight: 600; color: var(--fewa-ink); margin-top: 10px; }
+        .units-result-ok { color: #2e7d32; font-weight: 600; }
+        .units-result-bad { color: #b3261e; font-weight: 600; }
+        .units-result-warn { color: #9a6700; font-weight: 600; }
+        .units-student { background: var(--fewa-gold-tint); border: 1px solid var(--fewa-line); border-radius: 8px;
+            padding: 10px 14px; margin: 12px 0; }
+        .data-table td.num, .data-table th.num { text-align: right; }
+        .data-table select { min-width: 220px; }
+        .units-readonly-note { color: var(--fewa-muted); font-size: 14px; margin-top: 8px; }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar Navigation: other sections live on StudentAdmissions.html and Staff.html -->
+    <div id="sidebar">
+        <div class="brand">FEWA BEAUTY & FASHION COLLEGE</div>
+        <ul class="menu-list">
+            <li class="nav-item"><a href="Dashboard.html">Dashboard</a></li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'studentsSubmenu')">Students Management</a>
+                <ul id="studentsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('students')">
+                        <span class="icon-circle"></span> Student Hub
+                    </li>
+                    <li class="submenu-item" onclick="openSection('documents')">
+                        <span class="icon-circle"></span> Student Documents
+                    </li>
+                    <li class="submenu-item" onclick="openSection('queries')">
+                        <span class="icon-circle"></span> Student Queries
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'financeSubmenu')">Manage Finance</a>
+                <ul id="financeSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('finance')">
+                        <span class="icon-circle"></span> Payments
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-details')">
+                        <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                </ul>
+            </li>
+            <!-- Academic Management: units, programme units, units on offer, unit registration (Academics.html) -->
+            <li class="nav-item has-submenu active">
+                <a href="#" onclick="toggleSubmenu(event, 'academicsSubmenu')">Academic Management</a>
+                <ul id="academicsSubmenu" class="submenu open">
+                    <li class="submenu-item active">
+                        <span class="icon-circle"></span> Manage Units
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">
+                    <span class="icon-bar"></span> <span style="margin-left: 6px;">Reports</span>
+                </a>
+                <ul id="reportsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('reports-all')">
+                        <span class="icon-circle"></span> All Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-standard')">
+                        <span class="icon-circle"></span> Standard Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-performance')">
+                        <span class="icon-circle"></span> Performance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-class')">
+                        <span class="icon-circle"></span> Student Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-finance')">
+                        <span class="icon-circle"></span> Finance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-hr')">
+                        <span class="icon-circle"></span> HR & Payroll Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-excel')">
+                        <span class="icon-circle"></span> Excel Reports
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
+                <ul id="staffSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="location.href = 'Staff.html'">
+                        <span class="icon-circle"></span> Staff List
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'settingsSubmenu')">Settings</a>
+                <ul id="settingsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('settings-access')">
+                        <span class="icon-circle"></span> Access Management
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'ChangePassword.html'">
+                        <span class="icon-circle"></span> Change Password
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-general')">
+                        <span class="icon-circle"></span> Institution Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-organisation')">
+                        <span class="icon-circle"></span> Organisation Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-setup')">
+                        <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-backups')">
+                        <span class="icon-circle"></span> System Data Backups
+                    </li>
+                    <li class="submenu-item admin-only" onclick="openSection('settings-update')">
+                        <svg class="submenu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg> System Update
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div id="main-wrapper">
+        <div id="topbar">
+            <div class="search-box">
+                <input type="text" placeholder="Search for a unit... (code or title)" oninput="searchFromTopbar(this.value)">
+            </div>
+            <div class="topbar-user">
+                <div class="user-info">
+                    <span id="currentUserName">Staff</span>
+                    <span id="currentUserEmail"></span>
+                </div>
+                <button type="button" class="btn-logout" onclick="confirmLogout()">Log Out</button>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <div class="form-section">
+                <div id="unitsTabs" class="settings-tabs units-tabs" role="tablist"></div>
+
+                <!-- ===== Units on offer ===== -->
+                <div id="pane-offer" class="units-pane" hidden>
+                    <div class="units-heading">Units on offer</div>
+                    <div class="settings-banner info-banner">Units on offer: choose the term, then add units one by one, or every
+                        programme unit of a course for a year and semester at once. Students can only be registered for units on
+                        offer in a term. The bin removes an offer nobody is registered for.</div>
+                    <div class="units-form" style="margin-top:14px">
+                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="offerTerm"></select></div>
+                        <div class="form-group"><label>Course</label><select id="offerCourse"></select></div>
+                        <div class="form-group"><label>Unit</label><select id="offerUnit"></select></div>
+                        <div class="units-actions"><button type="button" class="btn-submit" data-edit onclick="addOffer()">Add to offer</button></div>
+                    </div>
+                    <div class="units-form" style="margin-top:12px">
+                        <div class="form-group"><label>Year of study</label><select id="offerYear"></select></div>
+                        <div class="form-group"><label>Semester</label><select id="offerSemester"></select></div>
+                        <div class="units-actions"><button type="button" class="btn-secondary" data-edit onclick="offerProgrammeUnits()">Offer all the course's units for this year and semester</button></div>
+                    </div>
+                    <div class="units-subhead">Units on offer in <span id="offerTermName">the term</span></div>
+                    <div class="units-count" id="offerCount"></div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Course</th><th>Lecturer</th><th class="num">Registered</th><th></th></tr></thead>
+                        <tbody id="offerRows"></tbody></table></div>
+                </div>
+
+                <!-- ===== Student units upload ===== -->
+                <div id="pane-upload" class="units-pane" hidden>
+                    <div class="units-heading">Student units upload</div>
+                    <div class="settings-banner info-banner">Student units upload: register many students at once from a CSV file
+                        (in Excel: File &gt; Save As &gt; CSV). It needs the columns AdmNo and UnitCode; a Term column is
+                        optional, otherwise the term chosen here is used. Check file shows every line first; Register then
+                        registers the lines marked OK. The file itself is not kept.</div>
+                    <div class="units-form" style="margin-top:14px">
+                        <div class="form-group"><label>Term (for lines without one) <span class="req">*</span></label><select id="uploadTerm"></select></div>
+                        <div class="form-group"><label>CSV file <span class="req">*</span></label><input type="file" id="uploadFile" accept=".csv,text/csv"></div>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" data-register onclick="checkUpload()">Check file</button>
+                            <button type="button" class="btn-secondary" onclick="downloadTemplate()">Download template</button>
+                        </div>
+                    </div>
+                    <div id="uploadResult" hidden>
+                        <div class="units-subhead">Lines in the file</div>
+                        <div class="units-count" id="uploadSummary"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Line</th><th>AdmNo</th><th>Student</th><th>Unit code</th><th>Term</th><th>Result</th></tr></thead>
+                            <tbody id="uploadRows"></tbody></table></div>
+                        <div class="units-actions" style="margin-top:12px">
+                            <button type="button" class="btn-submit" id="uploadRegister" data-register onclick="registerUpload()">Register</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Student unit registration ===== -->
+                <div id="pane-register" class="units-pane" hidden>
+                    <div class="units-heading">Student unit registration</div>
+                    <div class="settings-banner info-banner">Student unit registration: find the student, choose the term, then tick
+                        the units they take and Save registration. Only units on offer in that term for the student's course
+                        (or for any course) are listed.</div>
+                    <div class="units-form" style="margin-top:14px">
+                        <div class="form-group"><label>Student (AdmNo or name) <span class="req">*</span></label>
+                            <input type="text" id="regStudent" list="studentChoices" placeholder="Type the AdmNo or name" autocomplete="off">
+                            <datalist id="studentChoices"></datalist></div>
+                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="regTerm"></select></div>
+                        <div class="units-actions"><button type="button" class="btn-submit" onclick="showRegistration()">Show units</button></div>
+                    </div>
+                    <div id="regPanel" hidden>
+                        <div class="units-student" id="regStudentInfo"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Register</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Offered to</th><th>Lecturer</th></tr></thead>
+                            <tbody id="regRows"></tbody></table></div>
+                        <div class="units-total" id="regTotal"></div>
+                        <div class="units-actions" style="margin-top:12px">
+                            <button type="button" class="btn-submit" data-register onclick="saveRegistration()">Save registration</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== Lecturer units ===== -->
+                <div id="pane-lecturer" class="units-pane" hidden>
+                    <div class="units-heading">Lecturer units</div>
+                    <div class="settings-banner info-banner">Lecturer units: choose the term, then pick the lecturer who teaches each
+                        unit on offer. It is saved as soon as you pick. "Show" narrows the list to one lecturer's units.</div>
+                    <div class="units-form" style="margin-top:14px">
+                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="lecTerm"></select></div>
+                        <div class="form-group"><label>Show</label><select id="lecFilter"></select></div>
+                    </div>
+                    <div class="units-count" id="lecCount"></div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Unit code</th><th>Unit title</th><th>Course</th><th class="num">Registered</th><th>Lecturer</th></tr></thead>
+                        <tbody id="lecRows"></tbody></table></div>
+                </div>
+
+                <!-- ===== Programme units ===== -->
+                <div id="pane-programme" class="units-pane" hidden>
+                    <div class="units-heading">Programme units</div>
+                    <div class="settings-banner info-banner">Programme units: choose a course, then add the units it is made of, with
+                        the year and semester they are taken in and whether they are Core or Elective. Courses come from
+                        Settings &gt; Program Setup &gt; Courses; units from the Units register.</div>
+                    <div class="units-form" style="margin-top:14px">
+                        <div class="form-group"><label>Course <span class="req">*</span></label><select id="progCourse"></select></div>
+                        <div class="form-group"><label>Unit <span class="req">*</span></label><select id="progUnit"></select></div>
+                        <div class="form-group"><label>Year of study <span class="req">*</span></label><select id="progYear"></select></div>
+                        <div class="form-group"><label>Semester <span class="req">*</span></label><select id="progSemester"></select></div>
+                        <div class="form-group"><label>Type</label><select id="progType"><option>Core</option><option>Elective</option></select></div>
+                        <div class="units-actions"><button type="button" class="btn-submit" data-edit onclick="addProgrammeUnit()">Add unit</button></div>
+                    </div>
+                    <div class="units-subhead">Units of <span id="progCourseName">the course</span></div>
+                    <div class="units-count" id="progCount"></div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Year</th><th>Semester</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Type</th><th></th></tr></thead>
+                        <tbody id="progRows"></tbody></table></div>
+                </div>
+
+                <!-- ===== Units register ===== -->
+                <div id="pane-units" class="units-pane" hidden>
+                    <div class="units-heading">Units register</div>
+                    <div class="settings-banner info-banner">Units register: enter the unit code, title and credit hours, then Save
+                        unit. The pencil loads a unit for a change and the bin removes one that is not used by a course, an
+                        offer or a registration. Find narrows the list by code or title.</div>
+                    <form id="unitForm" class="units-form" style="margin-top:14px" onsubmit="saveUnit(event)">
+                        <input type="hidden" name="id">
+                        <div class="form-group"><label>Unit code <span class="req">*</span></label>
+                            <input type="text" name="code" required maxlength="30" placeholder="For example HBT 101"></div>
+                        <div class="form-group"><label>Unit title <span class="req">*</span></label>
+                            <input type="text" name="title" required maxlength="200" placeholder="The title as it prints on transcripts"></div>
+                        <div class="form-group"><label>Credit hours <span class="req">*</span></label>
+                            <input type="number" name="creditHours" required min="0" max="100" step="0.5" value="3"></div>
+                        <div class="units-actions">
+                            <button type="submit" class="btn-submit" data-edit>Save unit</button>
+                            <button type="button" class="btn-secondary" onclick="clearUnitForm()">Clear</button>
+                        </div>
+                    </form>
+                    <div class="units-subhead">Units</div>
+                    <div class="units-find">
+                        <input type="text" id="unitFind" class="toolbar-search" placeholder="Part of the code or title" oninput="renderUnits()">
+                        <button type="button" class="btn-secondary" onclick="renderUnits()">Find</button>
+                    </div>
+                    <div class="units-count" id="unitCount"></div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th class="num">Courses</th><th></th></tr></thead>
+                        <tbody id="unitRows"></tbody></table></div>
+                </div>
+
+                <div id="readOnlyNote" class="units-readonly-note" hidden></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById(submenuId).classList.toggle('open');
+        }
+
+        // Opens a section of the student page (see data-open names in StudentAdmissions.html)
+        function openSection(name) {
+            location.href = 'StudentAdmissions.html?open=' + encodeURIComponent(name);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function showCurrentUser() {
+            const account = currentAccount();
+            document.getElementById('currentUserName').innerText = account ? accountName(account) : 'Staff';
+            document.getElementById('currentUserEmail').innerText = account ? account.username : '';
+        }
+
+        function confirmLogout() {
+            if (confirm('Log out of the FEWA system?')) logout();
+        }
+
+        const $ = id => document.getElementById(id);
+        const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+        const mayEdit = () => can('academics', 'edit');
+        const mayRegister = () => can('academics', 'register');
+
+        /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
+        const TABS = [
+            ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
+            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['units', 'Units register']
+        ];
+        const TAB_KEY = 'fewaUnitsTab';
+        let activeTab = 'units';
+
+        function drawTabs() {
+            $('unitsTabs').innerHTML = TABS.map(([key, title]) =>
+                `<button type="button" role="tab" class="settings-tab${key === activeTab ? ' active' : ''}"
+                    aria-selected="${key === activeTab}" onclick="showTab('${key}')">${title}</button>`).join('');
+        }
+
+        function showTab(key) {
+            activeTab = TABS.some(([k]) => k === key) ? key : 'units';
+            try { localStorage.setItem(TAB_KEY, activeTab); } catch { }
+            drawTabs();
+            for (const [k] of TABS) $('pane-' + k).hidden = k !== activeTab;
+            render();
+        }
+
+        /* ---------- Data (all in the database; read when the page opens and after each change) ---------- */
+        let units = [], programmeUnits = [], offers = [], registrations = [], students = [];
+        let courses = [], terms = [], lecturers = [];
+
+        async function settingNames(key, usable = () => true, label = i => i.name) {
+            const record = await fewaDB.getOne('settings', key).catch(() => null);
+            return record ? (record.items || []).filter(usable).map(label).filter(Boolean) : [];
+        }
+
+        async function loadData() {
+            const read = store => fewaDB.getAll(store).catch(() => []);
+            [units, programmeUnits, offers, registrations, students] = await Promise.all(
+                ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students'].map(read));
+            courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
+            terms = await settingNames('terms');
+            lecturers = getAccounts().filter(a => a.status !== 'Inactive')
+                .map(a => ({ username: a.username, name: accountName(a) })).sort((a, b) => a.name.localeCompare(b.name));
+            units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+            fillChoices();
+            render();
+        }
+
+        const unitByCode = code => units.find(u => same(u.code, code));
+        const unitLabel = u => `${u.code} - ${u.title}`;
+        const studentName = s => [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
+        const registeredCount = offer => registrations.filter(r => same(r.term, offer.term) && same(r.unitCode, offer.unitCode)
+            && (!offer.course || studentCourse(r.studentId) === offer.course)).length;
+        const studentCourse = id => (students.find(s => s.id === id) || {}).admissionCourse || '';
+
+        function fill(select, values, placeholder, keep = true) {
+            const current = select.value;
+            select.innerHTML = (placeholder !== null ? `<option value="">${escapeHtml(placeholder)}</option>` : '') +
+                values.map(([value, text]) => `<option value="${escapeHtml(value)}">${escapeHtml(text)}</option>`).join('');
+            if (keep && [...select.options].some(o => o.value === current)) select.value = current;
+        }
+
+        function fillChoices() {
+            const termChoices = terms.map(t => [t, t]);
+            const lastTerm = terms[terms.length - 1] || '';
+            for (const id of ['offerTerm', 'uploadTerm', 'regTerm', 'lecTerm']) {
+                const select = $(id);
+                const had = select.value;
+                fill(select, termChoices, terms.length ? '-- choose a term --' : '-- no terms yet (Settings > Organisation Setup) --');
+                if (!had && lastTerm) select.value = lastTerm;
+            }
+            const courseChoices = courses.map(c => [c, c]);
+            fill($('offerCourse'), courseChoices, '-- any course --');
+            fill($('progCourse'), courseChoices, courses.length ? '-- choose a course --' : '-- no courses yet (Settings > Program Setup) --');
+            const unitChoices = units.map(u => [u.code, unitLabel(u)]);
+            fill($('offerUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
+            fill($('progUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
+            for (const id of ['offerYear', 'progYear']) fill($(id), [1, 2, 3, 4, 5, 6].map(n => [n, 'Year ' + n]), id === 'offerYear' ? '-- year --' : null);
+            for (const id of ['offerSemester', 'progSemester']) fill($(id), [1, 2, 3].map(n => [n, 'Semester ' + n]), id === 'offerSemester' ? '-- semester --' : null);
+            fill($('lecFilter'), [['-', 'Units with no lecturer yet'], ...lecturers.map(l => [l.username, l.name])], 'All units');
+            $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
+                .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
+        }
+
+        // Buttons for what this role may not do are switched off (the server checks again)
+        function applyRights() {
+            document.querySelectorAll('[data-edit]').forEach(b => b.disabled = !mayEdit());
+            document.querySelectorAll('[data-register]').forEach(b => b.disabled = !mayRegister());
+            const missing = [!mayEdit() && 'Edit Units', !mayRegister() && 'Register Student Units'].filter(Boolean);
+            $('readOnlyNote').hidden = !missing.length;
+            $('readOnlyNote').textContent = missing.length ? `Your role can view these screens but does not have: ${missing.join(', ')}. ` +
+                'An administrator can assign them in Settings > Access Management > Role Operations.' : '';
+        }
+
+        function render() {
+            applyRights();
+            ({ units: renderUnits, programme: renderProgramme, offer: renderOffers, lecturer: renderLecturers,
+                register: () => { }, upload: () => { } })[activeTab]();
+        }
+
+        async function save(store, record) {
+            await fewaDB.put(store, record);
+        }
+
+        /* ---------- Units register ---------- */
+        function renderUnits() {
+            const words = $('unitFind').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const shown = units.filter(u => words.every(w => `${u.code} ${u.title}`.toLowerCase().includes(w)));
+            $('unitCount').textContent = `${units.length.toLocaleString()} unit${units.length === 1 ? '' : 's'}` +
+                (words.length ? `, ${shown.length.toLocaleString()} found` : '');
+            $('unitRows').innerHTML = shown.length ? shown.map(u => {
+                const courseCount = new Set(programmeUnits.filter(p => same(p.unitCode, u.code)).map(p => p.course)).size;
+                return `<tr><td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td class="num">${escapeHtml(u.creditHours)}</td>
+                    <td class="num">${courseCount}</td>
+                    <td>${mayEdit() ? iconButton('edit', 'Edit ' + escapeHtml(u.code), `editUnit('${u.id}')`) +
+                        iconButton('delete', 'Delete ' + escapeHtml(u.code), `deleteUnit('${u.id}')`) : ''}</td></tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="5">${units.length ? 'No unit matches.' : 'No units yet. Add the first one above.'}</td></tr>`;
+        }
+
+        const unitInUse = code => programmeUnits.some(p => same(p.unitCode, code)) || offers.some(o => same(o.unitCode, code))
+            || registrations.some(r => same(r.unitCode, code));
+
+        async function saveUnit(event) {
+            event.preventDefault();
+            if (!allowed('academics', 'edit')) return;
+            const form = event.target;
+            const id = form.elements.id.value;
+            const code = form.elements.code.value.trim().replace(/\s+/g, ' ').toUpperCase();
+            const title = form.elements.title.value.trim().replace(/\s+/g, ' ');
+            const creditHours = Number(form.elements.creditHours.value);
+            if (!code || !title || !(creditHours >= 0)) return alert('Enter the unit code, title and credit hours.');
+            if (units.some(u => u.id !== id && same(u.code, code))) return alert(`There is already a unit with the code ${code}.`);
+            const before = units.find(u => u.id === id);
+            if (before && !same(before.code, code) && unitInUse(before.code)) {
+                return alert(`${before.code} is already used by courses, offers or registrations, so its code cannot change. ` +
+                    'You can still change its title and credit hours.');
+            }
+            try {
+                await save('units', { ...(before || {}), id: id || newId(), code, title, creditHours, createdAt: before?.createdAt || new Date().toISOString() });
+                showToast(`Unit ${code} ${before ? 'updated' : 'saved'}.`);
+                clearUnitForm();
+                await loadData();
+            } catch (err) { alert('The unit could not be saved: ' + err.message); }
+        }
+
+        function editUnit(id) {
+            const u = units.find(x => x.id === id);
+            if (!u) return;
+            const form = $('unitForm');
+            form.elements.id.value = u.id;
+            form.elements.code.value = u.code;
+            form.elements.title.value = u.title;
+            form.elements.creditHours.value = u.creditHours;
+            form.elements.code.focus();
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function clearUnitForm() {
+            const form = $('unitForm');
+            form.reset();
+            form.elements.id.value = '';
+        }
+
+        async function deleteUnit(id) {
+            if (!allowed('academics', 'edit')) return;
+            const u = units.find(x => x.id === id);
+            if (!u) return;
+            if (unitInUse(u.code)) return alert(`${u.code} cannot be deleted: it is used by a course (Programme units), an offer ` +
+                '(Units on offer) or a student registration. Remove those first.');
+            if (!confirm(`Delete the unit ${u.code} - ${u.title}?`)) return;
+            try {
+                await fewaDB.remove('units', id);
+                showToast(`Unit ${u.code} deleted.`);
+                await loadData();
+            } catch (err) { alert('The unit could not be deleted: ' + err.message); }
+        }
+
+        /* ---------- Programme units ---------- */
+        function renderProgramme() {
+            const course = $('progCourse').value;
+            $('progCourseName').textContent = course || 'the course';
+            const rows = programmeUnits.filter(p => p.course === course)
+                .sort((a, b) => a.yearOfStudy - b.yearOfStudy || a.semester - b.semester || String(a.unitCode).localeCompare(String(b.unitCode)));
+            const hours = rows.reduce((sum, p) => sum + Number((unitByCode(p.unitCode) || {}).creditHours || 0), 0);
+            $('progCount').textContent = course ? `${rows.length} unit${rows.length === 1 ? '' : 's'}, ${hours} credit hours in all` : '';
+            $('progRows').innerHTML = !course ? '<tr class="empty-row"><td colspan="7">Choose a course above.</td></tr>'
+                : rows.length ? rows.map(p => {
+                    const u = unitByCode(p.unitCode) || {};
+                    return `<tr><td>Year ${escapeHtml(p.yearOfStudy)}</td><td>Semester ${escapeHtml(p.semester)}</td><td>${escapeHtml(p.unitCode)}</td>
+                        <td>${escapeHtml(u.title || '(not in the Units register)')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                        <td>${escapeHtml(p.unitType || 'Core')}</td>
+                        <td>${mayEdit() ? iconButton('delete', 'Remove ' + escapeHtml(p.unitCode), `deleteProgrammeUnit('${p.id}')`) : ''}</td></tr>`;
+                }).join('') : '<tr class="empty-row"><td colspan="7">This course has no units yet. Add them above.</td></tr>';
+        }
+
+        async function addProgrammeUnit() {
+            if (!allowed('academics', 'edit')) return;
+            const course = $('progCourse').value, unitCode = $('progUnit').value;
+            if (!course || !unitCode) return alert('Choose the course and the unit.');
+            if (programmeUnits.some(p => p.course === course && same(p.unitCode, unitCode))) return alert(`${unitCode} is already a unit of ${course}.`);
+            try {
+                await save('programme_units', { id: newId(), course, unitCode, yearOfStudy: Number($('progYear').value),
+                    semester: Number($('progSemester').value), unitType: $('progType').value });
+                showToast(`${unitCode} added to ${course}.`);
+                await loadData();
+            } catch (err) { alert('The unit could not be added: ' + err.message); }
+        }
+
+        async function deleteProgrammeUnit(id) {
+            if (!allowed('academics', 'edit')) return;
+            const p = programmeUnits.find(x => x.id === id);
+            if (!p || !confirm(`Remove ${p.unitCode} from ${p.course}? The unit stays in the Units register.`)) return;
+            try {
+                await fewaDB.remove('programme_units', id);
+                await loadData();
+            } catch (err) { alert('The unit could not be removed: ' + err.message); }
+        }
+
+        /* ---------- Units on offer ---------- */
+        function renderOffers() {
+            const term = $('offerTerm').value, course = $('offerCourse').value;
+            $('offerTermName').textContent = term || 'the term';
+            const rows = offers.filter(o => o.term === term && (!course || !o.course || o.course === course))
+                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode)) || String(a.course).localeCompare(String(b.course)));
+            $('offerCount').textContent = term ? `${rows.length} unit${rows.length === 1 ? '' : 's'} on offer` : '';
+            $('offerRows').innerHTML = !term ? '<tr class="empty-row"><td colspan="7">Choose a term above.</td></tr>'
+                : rows.length ? rows.map(o => {
+                    const u = unitByCode(o.unitCode) || {};
+                    return `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                        <td>${escapeHtml(o.course || 'Any course')}</td><td>${escapeHtml(o.lecturerName || '-')}</td>
+                        <td class="num">${registeredCount(o)}</td>
+                        <td>${mayEdit() ? iconButton('delete', 'Remove ' + escapeHtml(o.unitCode), `deleteOffer('${o.id}')`) : ''}</td></tr>`;
+                }).join('') : '<tr class="empty-row"><td colspan="7">No units on offer in this term yet.</td></tr>';
+        }
+
+        const offerExists = (term, course, unitCode) => offers.some(o => o.term === term && (o.course || '') === (course || '') && same(o.unitCode, unitCode));
+
+        async function addOffer() {
+            if (!allowed('academics', 'edit')) return;
+            const term = $('offerTerm').value, course = $('offerCourse').value, unitCode = $('offerUnit').value;
+            if (!term || !unitCode) return alert('Choose the term and the unit.');
+            if (offerExists(term, course, unitCode)) return alert(`${unitCode} is already on offer in ${term}${course ? ' for ' + course : ''}.`);
+            try {
+                await save('unit_offers', { id: newId(), term, unitCode, course, lecturer: '', lecturerName: '' });
+                showToast(`${unitCode} is on offer in ${term}.`);
+                await loadData();
+            } catch (err) { alert('The unit could not be added: ' + err.message); }
+        }
+
+        async function offerProgrammeUnits() {
+            if (!allowed('academics', 'edit')) return;
+            const term = $('offerTerm').value, course = $('offerCourse').value;
+            const year = Number($('offerYear').value), semester = Number($('offerSemester').value);
+            if (!term || !course || !year || !semester) return alert('Choose the term, the course, the year of study and the semester.');
+            const wanted = programmeUnits.filter(p => p.course === course && Number(p.yearOfStudy) === year && Number(p.semester) === semester)
+                .filter(p => !offerExists(term, course, p.unitCode));
+            if (!wanted.length) return alert(`${course} has no units for Year ${year}, Semester ${semester} that are not on offer already. ` +
+                'Add them under Programme units first.');
+            try {
+                for (const p of wanted) await save('unit_offers', { id: newId(), term, unitCode: p.unitCode, course, lecturer: '', lecturerName: '' });
+                showToast(`${wanted.length} unit${wanted.length === 1 ? '' : 's'} put on offer in ${term}.`);
+                await loadData();
+            } catch (err) { alert('Not all units could be put on offer: ' + err.message); await loadData(); }
+        }
+
+        async function deleteOffer(id) {
+            if (!allowed('academics', 'edit')) return;
+            const o = offers.find(x => x.id === id);
+            if (!o) return;
+            if (registeredCount(o)) return alert(`${o.unitCode} cannot be removed: students are registered for it in ${o.term}. ` +
+                'Remove their registrations first (Student unit registration).');
+            if (!confirm(`Remove ${o.unitCode} from the units on offer in ${o.term}?`)) return;
+            try {
+                await fewaDB.remove('unit_offers', id);
+                await loadData();
+            } catch (err) { alert('The offer could not be removed: ' + err.message); }
+        }
+
+        /* ---------- Lecturer units ---------- */
+        function renderLecturers() {
+            const term = $('lecTerm').value, show = $('lecFilter').value;
+            const rows = offers.filter(o => o.term === term && (!show || (show === '-' ? !o.lecturer : o.lecturer === show)))
+                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode)));
+            $('lecCount').textContent = term ? `${rows.length} unit${rows.length === 1 ? '' : 's'}` : '';
+            const choices = lecturer => `<option value="">-- no lecturer yet --</option>` + lecturers.map(l =>
+                `<option value="${escapeHtml(l.username)}"${l.username === lecturer ? ' selected' : ''}>${escapeHtml(l.name)}</option>`).join('');
+            $('lecRows').innerHTML = !term ? '<tr class="empty-row"><td colspan="5">Choose a term above.</td></tr>'
+                : rows.length ? rows.map(o => `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml((unitByCode(o.unitCode) || {}).title || '')}</td>
+                    <td>${escapeHtml(o.course || 'Any course')}</td><td class="num">${registeredCount(o)}</td>
+                    <td><select aria-label="Lecturer for ${escapeHtml(o.unitCode)}" ${mayEdit() ? '' : 'disabled'}
+                        onchange="setLecturer('${o.id}', this.value)">${choices(o.lecturer)}</select></td></tr>`).join('')
+                : '<tr class="empty-row"><td colspan="5">No units on offer in this term (Units on offer).</td></tr>';
+        }
+
+        async function setLecturer(id, username) {
+            if (!allowed('academics', 'edit')) return renderLecturers();
+            const o = offers.find(x => x.id === id);
+            if (!o) return;
+            const lecturer = lecturers.find(l => l.username === username);
+            try {
+                await save('unit_offers', { ...o, lecturer: username, lecturerName: lecturer ? lecturer.name : '' });
+                showToast(`${o.unitCode}: ${lecturer ? lecturer.name : 'no lecturer'}.`);
+                await loadData();
+            } catch (err) { alert('The lecturer could not be saved: ' + err.message); await loadData(); }
+        }
+
+        /* ---------- Student unit registration ---------- */
+        let regStudent = null;
+
+        function findStudent(text) {
+            const wanted = String(text || '').trim();
+            if (!wanted) return null;
+            const admNo = wanted.split(' - ')[0].trim();
+            return students.find(s => s.admNo === admNo) || students.find(s => same(s.admNo, admNo))
+                || students.find(s => same(studentName(s), wanted)) || null;
+        }
+
+        // The units a student can take in a term: on offer for their course, or for any course
+        const offersFor = (student, term) => offers.filter(o => o.term === term && (!o.course || o.course === student.admissionCourse));
+
+        function showRegistration() {
+            const student = findStudent($('regStudent').value), term = $('regTerm').value;
+            if (!student) return alert('Choose a student from the list (type their AdmNo or name).');
+            if (!term) return alert('Choose the term.');
+            regStudent = student;
+            const mine = registrations.filter(r => r.studentId === student.id && r.term === term);
+            const available = offersFor(student, term);
+            // Units the student is registered for that are no longer offered still show, so they can be removed
+            const codes = [...new Set([...available.map(o => o.unitCode), ...mine.map(r => r.unitCode)])]
+                .sort((a, b) => String(a).localeCompare(String(b)));
+            $('regStudentInfo').innerHTML = `<b>${escapeHtml(studentName(student))}</b> (${escapeHtml(student.admNo)}) &middot; ` +
+                `${escapeHtml(student.admissionCourse || 'no course')} &middot; ${escapeHtml(term)}` +
+                (student.activeStudent === 'no' ? ' &middot; <span class="units-result-bad">inactive student</span>' : '');
+            $('regRows').innerHTML = codes.length ? codes.map(code => {
+                const u = unitByCode(code) || {};
+                const offer = available.find(o => same(o.unitCode, code));
+                const ticked = mine.some(r => same(r.unitCode, code));
+                return `<tr><td><input type="checkbox" class="reg-tick" value="${escapeHtml(code)}" data-hours="${Number(u.creditHours || 0)}"
+                        ${ticked ? 'checked' : ''} onchange="updateRegTotal()" aria-label="Register ${escapeHtml(code)}"></td>
+                    <td>${escapeHtml(code)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                    <td>${offer ? escapeHtml(offer.course || 'Any course') : '<span class="units-result-warn">no longer on offer</span>'}</td>
+                    <td>${escapeHtml(offer?.lecturerName || '-')}</td></tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="6">No units are on offer in ${escapeHtml(term)} for ${escapeHtml(student.admissionCourse || 'this student')}. Add them under Units on offer.</td></tr>`;
+            $('regPanel').hidden = false;
+            updateRegTotal();
+        }
+
+        function updateRegTotal() {
+            const ticks = [...document.querySelectorAll('.reg-tick:checked')];
+            const hours = ticks.reduce((sum, t) => sum + Number(t.dataset.hours || 0), 0);
+            $('regTotal').textContent = `${ticks.length} unit${ticks.length === 1 ? '' : 's'} ticked, ${hours} credit hours`;
+        }
+
+        const registrationRecord = (student, term, unitCode) => ({ id: newId(), studentId: student.id, admNo: student.admNo, term,
+            unitCode, registeredAt: new Date().toISOString(), registeredBy: currentUser() || '' });
+
+        async function saveRegistration() {
+            if (!allowed('academics', 'register') || !regStudent) return;
+            const student = regStudent, term = $('regTerm').value;
+            const wanted = new Set([...document.querySelectorAll('.reg-tick:checked')].map(t => t.value.toLowerCase()));
+            const mine = registrations.filter(r => r.studentId === student.id && r.term === term);
+            const add = [...wanted].filter(code => !mine.some(r => same(r.unitCode, code)));
+            const remove = mine.filter(r => !wanted.has(String(r.unitCode).toLowerCase()));
+            if (!add.length && !remove.length) return showToast('Nothing has changed.', 'info');
+            if (remove.length && !confirm(`Remove ${student.admNo}'s registration for ${remove.map(r => r.unitCode).join(', ')}?`)) return;
+            try {
+                for (const code of add) await save('unit_registrations', registrationRecord(student, term, (unitByCode(code) || {}).code || code.toUpperCase()));
+                for (const r of remove) await fewaDB.remove('unit_registrations', r.id);
+                showToast(`${student.admNo}: ${add.length} unit${add.length === 1 ? '' : 's'} registered` + (remove.length ? `, ${remove.length} removed.` : '.'));
+                await loadData();
+                showRegistration();
+            } catch (err) { alert('The registration could not be saved completely: ' + err.message); await loadData(); }
+        }
+
+        /* ---------- Student units upload (CSV) ---------- */
+        let uploadLines = [];
+
+        // A CSV line split into cells: commas or semicolons, "quoted" cells may hold either
+        function parseCsv(text) {
+            const rows = [];
+            let row = [], cell = '', quoted = false;
+            const delimiter = (text.split(/\r?\n/)[0].match(/;/g) || []).length > (text.split(/\r?\n/)[0].match(/,/g) || []).length ? ';' : ',';
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (quoted) {
+                    if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+                    else if (ch === '"') quoted = false;
+                    else cell += ch;
+                } else if (ch === '"') quoted = true;
+                else if (ch === delimiter) { row.push(cell); cell = ''; }
+                else if (ch === '\n' || ch === '\r') {
+                    if (ch === '\r' && text[i + 1] === '\n') i++;
+                    row.push(cell); rows.push(row); row = []; cell = '';
+                } else cell += ch;
+            }
+            if (cell || row.length) { row.push(cell); rows.push(row); }
+            return rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
+        }
+
+        async function checkUpload() {
+            if (!allowed('academics', 'register')) return;
+            const file = $('uploadFile').files[0], defaultTerm = $('uploadTerm').value;
+            if (!file) return alert('Choose the CSV file first.');
+            if (file.size > 5 * 1024 * 1024) return alert('The file is too big (more than 5 MB).');
+            const rows = parseCsv((await file.text()).replace(/^﻿/, ''));
+            if (rows.length < 2) return alert('The file has no lines under the header.');
+            const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+            const col = names => header.findIndex(h => names.includes(h));
+            const admCol = col(['admno', 'admissionno', 'admissionnumber', 'regno', 'registrationnumber', 'registrationno']);
+            const unitCol = col(['unitcode', 'unit', 'code']);
+            const termCol = col(['term', 'academicterm']);
+            if (admCol < 0 || unitCol < 0) return alert('The first line must name the columns, with at least AdmNo and UnitCode. Download the template to see how.');
+            if (termCol < 0 && !defaultTerm) return alert('The file has no Term column: choose the term for its lines.');
+            const seen = new Set();
+            uploadLines = rows.slice(1).map((r, i) => {
+                const admNo = r[admCol] || '', code = (r[unitCol] || '').toUpperCase().replace(/\s+/g, ' '), term = (termCol >= 0 && r[termCol]) || defaultTerm;
+                const student = students.find(s => s.admNo === admNo) || students.find(s => same(s.admNo, admNo));
+                const unit = unitByCode(code);
+                const key = [student?.id, term, code].join('|').toLowerCase();
+                let result = 'ok', note = 'OK';
+                if (!student) [result, note] = ['bad', 'AdmNo not found'];
+                else if (!unit) [result, note] = ['bad', 'Unit code not in the Units register'];
+                else if (!terms.some(t => t === term)) [result, note] = ['bad', 'Term not in Settings > Academic Terms'];
+                else if (registrations.some(x => x.studentId === student.id && x.term === term && same(x.unitCode, code))) [result, note] = ['skip', 'Already registered'];
+                else if (seen.has(key)) [result, note] = ['skip', 'Repeated in the file'];
+                else if (!offersFor(student, term).some(o => same(o.unitCode, code))) [result, note] = ['bad', `Not on offer in ${term} for the student's course`];
+                if (result === 'ok') seen.add(key);
+                return { line: i + 2, admNo, student, code: unit ? unit.code : code, term, result, note };
+            });
+            const counts = { ok: 0, bad: 0, skip: 0 };
+            uploadLines.forEach(l => counts[l.result]++);
+            $('uploadSummary').textContent = `${uploadLines.length} line${uploadLines.length === 1 ? '' : 's'}: ${counts.ok} OK, ` +
+                `${counts.skip} already registered or repeated, ${counts.bad} with a problem (not registered).`;
+            $('uploadRows').innerHTML = uploadLines.map(l => `<tr><td>${l.line}</td><td>${escapeHtml(l.admNo)}</td>
+                <td>${escapeHtml(l.student ? studentName(l.student) : '')}</td><td>${escapeHtml(l.code)}</td><td>${escapeHtml(l.term)}</td>
+                <td class="${l.result === 'ok' ? 'units-result-ok' : l.result === 'skip' ? 'units-result-warn' : 'units-result-bad'}">${escapeHtml(l.note)}</td></tr>`).join('');
+            $('uploadRegister').textContent = `Register ${counts.ok} line${counts.ok === 1 ? '' : 's'}`;
+            $('uploadRegister').disabled = !counts.ok || !mayRegister();
+            $('uploadResult').hidden = false;
+        }
+
+        async function registerUpload() {
+            if (!allowed('academics', 'register')) return;
+            const ok = uploadLines.filter(l => l.result === 'ok');
+            if (!ok.length || !confirm(`Register ${ok.length} unit${ok.length === 1 ? '' : 's'}?`)) return;
+            $('uploadRegister').disabled = true;
+            let done = 0;
+            try {
+                for (const l of ok) {
+                    await save('unit_registrations', registrationRecord(l.student, l.term, l.code));
+                    done++;
+                    $('uploadRegister').textContent = `Registering... ${done} of ${ok.length}`;
+                }
+                showToast(`${done} unit registration${done === 1 ? '' : 's'} saved.`);
+            } catch (err) {
+                alert(`${done} of ${ok.length} were registered, then this went wrong: ${err.message}. Check the file again to register the rest.`);
+            }
+            $('uploadFile').value = '';
+            $('uploadResult').hidden = true;
+            uploadLines = [];
+            await loadData();
+        }
+
+        // An empty template (headers only; no college data)
+        function downloadTemplate() {
+            const blob = new Blob(['﻿AdmNo,UnitCode,Term\r\n'], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'student-units-template.csv';
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        }
+
+        /* ---------- Start ---------- */
+        function searchFromTopbar(value) {
+            if (activeTab !== 'units') showTab('units');
+            $('unitFind').value = value;
+            renderUnits();
+        }
+
+        for (const id of ['offerTerm', 'offerCourse']) $(id).addEventListener('change', renderOffers);
+        for (const id of ['lecTerm', 'lecFilter']) $(id).addEventListener('change', renderLecturers);
+        $('progCourse').addEventListener('change', renderProgramme);
+        $('regTerm').addEventListener('change', () => { if (!$('regPanel').hidden) showRegistration(); });
+
+        showCurrentUser();
+        try { activeTab = localStorage.getItem(TAB_KEY) || 'units'; } catch { }
+        showTab(activeTab);
+        loadData();
+        whenDataChanges(() => { showCurrentUser(); loadData(); });
+    </script>
+</body>
+
+</html>

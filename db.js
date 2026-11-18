@@ -15,7 +15,8 @@
    Opened as a file, or with the server stopped, the page says how to open the system instead. */
 const FEWA_API = '/api';
 const FEWA_ADDRESS = 'http://localhost:5600/';
-const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id', applications: 'id' };
+const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id', applications: 'id',
+    units: 'id', programme_units: 'id', unit_offers: 'id', unit_registrations: 'id' };
 const fewaServer = { online: false, error: '' };
 /* Staff and students have separate logins, so both can be logged in in one browser. Every request says which this
    page uses (server.mjs, getSession): the Student Portal its student's, the login page any, the rest staff. */

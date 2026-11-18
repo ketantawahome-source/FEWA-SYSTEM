@@ -118,6 +118,10 @@ const ROLE_OPERATIONS = [
     ['students.deferrals', 'Manage Deferrals & Suspensions', 'Ability to add, change and upload deferral and suspension records.', 'students.edit'],
     ['students.contacts', 'Edit Student Contacts', "Ability to change students' contacts (parents, guardians, next of kin).", 'students.edit'],
     ['students.password', 'Reset Student Portal Passwords', "Ability to reset a student's portal password and send their login details.", 'students.edit'],
+    // Academic Management > Manage Units (Academics.html)
+    ['academics.view', 'Access Manage Units', 'Ability to open Academic Management > Manage Units and see units, units on offer and registrations.'],
+    ['academics.edit', 'Edit Units', 'Ability to add, change and remove units, programme units, units on offer and lecturer units.'],
+    ['academics.register', 'Register Student Units', 'Ability to register students for units, one by one or by uploading a list.'],
     ['students.photos', 'Upload Student Photos in Bulk', 'Ability to upload many student photos at once (Student Hub > Upload Student Photos).']
 ].map(([key, name, remarks, from]) => ({ key, name, remarks, from })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -524,6 +528,8 @@ const NAV_ICONS = {
     'Dashboard': '<path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-5"/><circle cx="12" cy="15" r="1.5"/>',
     'Students Management': '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/>',
     'Manage Finance': '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',
+    // An open book
+    'Academic Management': '<path d="M2 5c3-1.3 6.5-1.3 10 1 3.5-2.3 7-2.3 10-1v14c-3-1.3-6.5-1.3-10 1-3.5-2.3-7-2.3-10-1z"/><path d="M12 6v14"/>',
     'Reports': '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
     'Staff Management': '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.7 0 4.5 2 5 5"/>',
     'Settings': '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>'
@@ -612,7 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
     search.insertBefore(menuButton, search.firstChild);
 
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)
-    const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
+    const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings', 'Academic Management': 'academics' };
     const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel',
         'Standard Reports': 'reports.standard', 'Performance Reports': 'reports.performance', 'Student Reports': 'reports.students',
         'Finance Reports': 'reports.finance' };
