@@ -61,6 +61,9 @@
         .up-choose { font-weight: 600; text-decoration: underline; color: var(--fewa-ink); word-break: break-all; }
         .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
         .up-submit { display: flex; justify-content: flex-end; margin-top: 12px; }
+        .reg-fields { grid-template-columns: 140px minmax(0, 1fr) 150px minmax(0, 1fr); }
+        .reg-fields .units-actions .btn-submit, .reg-fields .units-actions .btn-secondary { margin: 0; }
+        .reg-reason { min-width: 150px !important; padding: 6px 8px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; }
         .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
         .up-hint[hidden] { display: none; }
         .up-submit .btn-submit { margin: 0; }
@@ -278,26 +281,33 @@
 
                 <!-- ===== Student unit registration ===== -->
                 <div id="pane-register" class="units-pane" hidden>
-                    <div class="units-heading">Student unit registration</div>
-                    <div class="settings-banner info-banner">Student unit registration: find the student, choose the term, then tick
-                        the units they take and Save registration. Only units on offer in that term for the student's course
-                        (or for any course) are listed.</div>
-                    <div class="units-form" style="margin-top:14px">
-                        <div class="form-group"><label>Student (AdmNo or name) <span class="req">*</span></label>
-                            <input type="text" id="regStudent" list="studentChoices" placeholder="Type the AdmNo or name" autocomplete="off">
+                    <div class="units-heading">Unit registration by student</div>
+                    <div class="settings-banner info-banner">Unit registration: pick the student from the list that appears as you
+                        type; their class, batch and period are filled in. Tick the units they take (untick to remove), set the
+                        exam reason where it is not a first attempt, then Save registration.</div>
+                    <div class="up-filters reg-fields">
+                        <label for="regStudent">Student <span class="req">*</span></label>
+                        <div><input type="text" id="regStudent" list="studentChoices" placeholder="Start typing the student's name" autocomplete="off">
                             <datalist id="studentChoices"></datalist></div>
-                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="regTerm"></select></div>
-                        <div class="units-actions"><button type="button" class="btn-submit" onclick="showRegistration()">Show units</button></div>
+                        <label for="regClass">Registration class <span class="req">*</span></label><select id="regClass"></select>
+                        <label for="regBatch">Batch <span class="req">*</span></label><select id="regBatch"></select>
+                        <label for="regTerm">Period <span class="req">*</span></label><select id="regTerm"></select>
+                        <label for="regUnitsOf">Units of class</label><select id="regUnitsOf"></select>
+                        <span></span>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" data-register onclick="saveRegistration()">Save registration</button>
+                            <button type="button" class="btn-secondary" onclick="clearRegistration()">Clear</button>
+                        </div>
                     </div>
+
+                    <div class="units-subhead">Units</div>
+                    <p id="regHint" class="up-hint">Pick the student first.</p>
                     <div id="regPanel" hidden>
                         <div class="units-student" id="regStudentInfo"></div>
                         <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th>Register</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Offered to</th><th>Lecturer</th></tr></thead>
+                            <thead><tr><th>Register</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Year / semester</th><th>Exam reason</th><th>Lecturer</th></tr></thead>
                             <tbody id="regRows"></tbody></table></div>
                         <div class="units-total" id="regTotal"></div>
-                        <div class="units-actions" style="margin-top:12px">
-                            <button type="button" class="btn-submit" data-register onclick="saveRegistration()">Save registration</button>
-                        </div>
                     </div>
                 </div>
 
@@ -448,16 +458,20 @@
         function fillChoices() {
             const termChoices = terms.map(t => [t, t]);
             const lastTerm = terms[terms.length - 1] || '';
-            for (const id of ['offerTerm', 'regTerm', 'lecTerm']) {
+            for (const id of ['offerTerm', 'lecTerm']) {
                 const select = $(id);
                 const had = select.value;
                 fill(select, termChoices, terms.length ? '-- choose a term --' : '-- no terms yet (Settings > Organisation Setup) --');
                 if (!had && lastTerm) select.value = lastTerm;
             }
             fill($('upPeriod'), termChoices, '-- select one --');
+            fill($('regTerm'), termChoices, '-- select one --');
+            fill($('regBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('upBatch'), groups.map(g => [g, g]), '-- select one --');
             $('upUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
             const courseChoices = courses.map(c => [c, c]);
+            fill($('regClass'), courseChoices, '-- select one --');
+            fillUnitsOf();
             fill($('offerCourse'), courseChoices, '-- any course --');
             const unitChoices = units.map(u => [u.code, unitLabel(u)]);
             fill($('offerUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
@@ -481,7 +495,7 @@
         function render() {
             applyRights();
             ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers,
-                register: () => { }, upload: renderRegisteredOnUnit })[activeTab]();
+                register: showRegistration, upload: renderRegisteredOnUnit })[activeTab]();
         }
 
         async function save(store, record) {
@@ -649,7 +663,10 @@
             } catch (err) { alert('The lecturer could not be saved: ' + err.message); await loadData(); }
         }
 
-        /* ---------- Student unit registration ---------- */
+        /* ---------- Student unit registration (unit registration by student) ----------
+           Picking the student fills in their class (course), batch (group) and the latest period (term). The units
+           listed are those on offer in the period for the class (or for any course), plus any the student is already
+           registered for; "Units of class" narrows them to one year and semester of the class's programme units. */
         let regStudent = null;
 
         function findStudent(text) {
@@ -662,31 +679,68 @@
 
         // The units a student can take in a term: on offer for their course, or for any course
         const offersFor = (student, term) => offers.filter(o => o.term === term && (!o.course || o.course === student.admissionCourse));
+        const offersForClass = (course, term) => offers.filter(o => o.term === term && (!o.course || o.course === course));
+        const programmeUnitOf = (course, code) => programmeUnits.find(p => p.course === course && same(p.unitCode, code));
+
+        // "Units of class": each year and semester of the class's programme units
+        function fillUnitsOf() {
+            const course = $('regClass').value;
+            const stages = [...new Set(programmeUnits.filter(p => p.course === course)
+                .map(p => `${p.yearOfStudy}|${p.semester}`))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+            fill($('regUnitsOf'), stages.map(k => { const [y, s] = k.split('|'); return [k, `Year ${y}, Semester ${s}`]; }), '-- select one --');
+        }
+
+        // Picking a student fills in their class, batch and period
+        function pickStudent() {
+            const student = findStudent($('regStudent').value);
+            if (!student || student === regStudent) return;
+            regStudent = student;
+            if (student.admissionCourse && ![...$('regClass').options].some(o => o.value === student.admissionCourse)) {
+                $('regClass').add(new Option(student.admissionCourse, student.admissionCourse));
+            }
+            $('regClass').value = student.admissionCourse || '';
+            if (student.group && ![...$('regBatch').options].some(o => o.value === student.group)) $('regBatch').add(new Option(student.group, student.group));
+            $('regBatch').value = student.group || '';
+            // The latest period the student is registered in, else the latest term
+            const theirs = registrations.filter(r => r.studentId === student.id).map(r => r.term);
+            $('regTerm').value = [...terms].reverse().find(t => theirs.includes(t)) || terms[terms.length - 1] || '';
+            fillUnitsOf();
+            showRegistration();
+        }
 
         function showRegistration() {
-            const student = findStudent($('regStudent').value), term = $('regTerm').value;
-            if (!student) return alert('Choose a student from the list (type their AdmNo or name).');
-            if (!term) return alert('Choose the term.');
-            regStudent = student;
+            const student = regStudent, course = $('regClass').value, term = $('regTerm').value, stage = $('regUnitsOf').value;
+            const ready = !!(student && course && term);
+            $('regHint').hidden = ready;
+            $('regPanel').hidden = !ready;
+            if (!ready) {
+                $('regHint').textContent = !student ? 'Pick the student first.' : !course ? 'Choose the registration class.' : 'Choose the period.';
+                return;
+            }
             const mine = registrations.filter(r => r.studentId === student.id && r.term === term);
-            const available = offersFor(student, term);
-            // Units the student is registered for that are no longer offered still show, so they can be removed
-            const codes = [...new Set([...available.map(o => o.unitCode), ...mine.map(r => r.unitCode)])]
-                .sort((a, b) => String(a).localeCompare(String(b)));
+            const available = offersForClass(course, term);
+            let codes = [...new Set([...available.map(o => o.unitCode), ...mine.map(r => r.unitCode)].map(c => String(c).toUpperCase()))];
+            if (stage) {
+                const [y, s] = stage.split('|').map(Number);
+                codes = codes.filter(code => { const p = programmeUnitOf(course, code); return p && Number(p.yearOfStudy) === y && Number(p.semester) === s; });
+            }
+            codes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
             $('regStudentInfo').innerHTML = `<b>${escapeHtml(studentName(student))}</b> (${escapeHtml(student.admNo)}) &middot; ` +
-                `${escapeHtml(student.admissionCourse || 'no course')} &middot; ${escapeHtml(term)}` +
+                `${escapeHtml(course)} &middot; ${escapeHtml($('regBatch').value || 'no batch')} &middot; ${escapeHtml(term)}` +
                 (student.activeStudent === 'no' ? ' &middot; <span class="units-result-bad">inactive student</span>' : '');
+            const reasons = current => EXAM_REASONS.map(r => `<option${r === (current || 'First attempt') ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('');
             $('regRows').innerHTML = codes.length ? codes.map(code => {
                 const u = unitByCode(code) || {};
                 const offer = available.find(o => same(o.unitCode, code));
-                const ticked = mine.some(r => same(r.unitCode, code));
+                const reg = mine.find(r => same(r.unitCode, code));
+                const p = programmeUnitOf(course, code);
                 return `<tr><td><input type="checkbox" class="reg-tick" value="${escapeHtml(code)}" data-hours="${Number(u.creditHours || 0)}"
-                        ${ticked ? 'checked' : ''} onchange="updateRegTotal()" aria-label="Register ${escapeHtml(code)}"></td>
-                    <td>${escapeHtml(code)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
-                    <td>${offer ? escapeHtml(offer.course || 'Any course') : '<span class="units-result-warn">no longer on offer</span>'}</td>
-                    <td>${escapeHtml(offer?.lecturerName || '-')}</td></tr>`;
-            }).join('') : `<tr class="empty-row"><td colspan="6">No units are on offer in ${escapeHtml(term)} for ${escapeHtml(student.admissionCourse || 'this student')}. Add them under Units on offer.</td></tr>`;
-            $('regPanel').hidden = false;
+                        ${reg ? 'checked' : ''} onchange="updateRegTotal()" aria-label="Register ${escapeHtml(code)}"></td>
+                    <td>${escapeHtml(u.code || code)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                    <td>${p ? `Year ${escapeHtml(p.yearOfStudy)}, Sem. ${escapeHtml(p.semester)}` : '-'}</td>
+                    <td><select class="reg-reason" data-code="${escapeHtml(code)}" aria-label="Exam reason for ${escapeHtml(code)}">${reasons(reg && reg.examReason)}</select></td>
+                    <td>${offer ? escapeHtml(offer.lecturerName || reg?.lecturerName || '-') : '<span class="units-result-warn">no longer on offer</span>'}</td></tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="7">No units on offer in ${escapeHtml(term)} for ${escapeHtml(course)}${stage ? ' in this year and semester' : ''}. Add them under Units on offer.</td></tr>`;
             updateRegTotal();
         }
 
@@ -696,25 +750,47 @@
             $('regTotal').textContent = `${ticks.length} unit${ticks.length === 1 ? '' : 's'} ticked, ${hours} credit hours`;
         }
 
+        function clearRegistration() {
+            regStudent = null;
+            $('regStudent').value = '';
+            $('regClass').value = '';
+            $('regBatch').value = '';
+            fillUnitsOf();
+            showRegistration();
+            $('regStudent').focus();
+        }
+
         const registrationRecord = (student, term, unitCode) => ({ id: newId(), studentId: student.id, admNo: student.admNo, term,
             unitCode, registeredAt: new Date().toISOString(), registeredBy: currentUser() || '' });
 
         async function saveRegistration() {
-            if (!allowed('academics', 'register') || !regStudent) return;
-            const student = regStudent, term = $('regTerm').value;
-            const wanted = new Set([...document.querySelectorAll('.reg-tick:checked')].map(t => t.value.toLowerCase()));
+            if (!allowed('academics', 'register')) return;
+            const student = regStudent, course = $('regClass').value, batch = $('regBatch').value, term = $('regTerm').value;
+            if (!student) return alert('Pick the student from the list (start typing their name or AdmNo).');
+            if (!course || !batch || !term) return alert('Choose the registration class, batch and period.');
+            const reasonOf = code => (document.querySelector(`.reg-reason[data-code="${CSS.escape(code)}"]`) || {}).value || 'First attempt';
+            const shown = [...document.querySelectorAll('.reg-tick')];
+            const wanted = shown.filter(t => t.checked).map(t => t.value);
             const mine = registrations.filter(r => r.studentId === student.id && r.term === term);
-            const add = [...wanted].filter(code => !mine.some(r => same(r.unitCode, code)));
-            const remove = mine.filter(r => !wanted.has(String(r.unitCode).toLowerCase()));
-            if (!add.length && !remove.length) return showToast('Nothing has changed.', 'info');
+            const add = wanted.filter(code => !mine.some(r => same(r.unitCode, code)));
+            // Only the units listed on screen can be removed or changed (another year or semester stays as it is)
+            const listed = code => shown.some(t => same(t.value, code));
+            const remove = mine.filter(r => listed(r.unitCode) && !wanted.some(code => same(code, r.unitCode)));
+            const change = mine.filter(r => wanted.some(code => same(code, r.unitCode)) && (r.examReason || 'First attempt') !== reasonOf(String(r.unitCode).toUpperCase()));
+            if (!add.length && !remove.length && !change.length) return showToast('Nothing has changed.', 'info');
             if (remove.length && !confirm(`Remove ${student.admNo}'s registration for ${remove.map(r => r.unitCode).join(', ')}?`)) return;
             try {
-                for (const code of add) await save('unit_registrations', registrationRecord(student, term, (unitByCode(code) || {}).code || code.toUpperCase()));
+                for (const code of add) {
+                    const offer = offersForClass(course, term).find(o => same(o.unitCode, code)) || {};
+                    await save('unit_registrations', { ...registrationRecord(student, term, (unitByCode(code) || {}).code || code), examReason: reasonOf(code),
+                        lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: course, batch });
+                }
+                for (const r of change) await save('unit_registrations', { ...r, examReason: reasonOf(String(r.unitCode).toUpperCase()) });
                 for (const r of remove) await fewaDB.remove('unit_registrations', r.id);
-                showToast(`${student.admNo}: ${add.length} unit${add.length === 1 ? '' : 's'} registered` + (remove.length ? `, ${remove.length} removed.` : '.'));
+                showToast(`${student.admNo}: ${add.length} registered` + (change.length ? `, ${change.length} changed` : '') + (remove.length ? `, ${remove.length} removed.` : '.'));
                 await loadData();
                 showRegistration();
-            } catch (err) { alert('The registration could not be saved completely: ' + err.message); await loadData(); }
+            } catch (err) { alert('The registration could not be saved completely: ' + err.message); await loadData(); showRegistration(); }
         }
 
         /* ---------- Student units upload (an Excel file: XLS or XLSX) ----------
@@ -944,7 +1020,9 @@
             if (event.dataTransfer.files.length) { $('uploadFile').files = event.dataTransfer.files; chosenFile(); }
         });
         for (const id of ['lecTerm', 'lecFilter']) $(id).addEventListener('change', renderLecturers);
-        $('regTerm').addEventListener('change', () => { if (!$('regPanel').hidden) showRegistration(); });
+        for (const type of ['input', 'change']) $('regStudent').addEventListener(type, pickStudent);
+        $('regClass').addEventListener('change', () => { fillUnitsOf(); showRegistration(); });
+        for (const id of ['regBatch', 'regTerm', 'regUnitsOf']) $(id).addEventListener('change', showRegistration);
 
         showCurrentUser();
         try { activeTab = localStorage.getItem(TAB_KEY) || 'units'; } catch { }
