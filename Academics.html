@@ -39,6 +39,30 @@
             padding: 10px 14px; margin: 12px 0; }
         .data-table td.num, .data-table th.num { text-align: right; }
         .data-table select { min-width: 220px; }
+        /* Student units upload, laid out like a settings screen: filters, the template card, the drop box */
+        .up-filters { display: grid; grid-template-columns: 70px minmax(0, 1fr) 70px minmax(0, 1fr); gap: 12px 16px; align-items: center; margin: 16px 0 4px; }
+        .up-filters label { font-weight: 600; color: var(--fewa-ink); }
+        .up-filters select, .up-filters input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; background: #fff; }
+        .up-filters .btn-secondary { margin: 0; }
+        .up-box { max-width: 680px; }
+        .up-template { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #eef4fb; border-radius: 10px 10px 0 0; }
+        .up-excel { width: 34px; height: 34px; color: #1d6f42; flex: none; }
+        .up-template-text { flex: 1; font-size: 14px; color: var(--fewa-text); }
+        .up-template-text b { display: block; font-weight: 600; margin-bottom: 2px; }
+        .up-template-text span { color: var(--fewa-muted); font-size: 13px; }
+        .up-template-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .up-template-buttons .btn-secondary { margin: 0; }
+        .up-staff { margin: 10px 0; max-height: 260px; overflow: auto; }
+        .up-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 150px;
+            border: 2px dashed #c7cfdb; border-radius: 0 0 10px 10px; background: #f6f9fd; cursor: pointer; text-align: center; padding: 16px; }
+        .up-drop:hover, .up-drop.dragging { border-color: var(--fewa-ink); background: var(--fewa-gold-tint); }
+        .up-drop.has-file { border-style: solid; border-color: #1d6f42; }
+        .up-cloud { width: 48px; height: 48px; color: #3a7bbf; }
+        .up-choose { font-weight: 600; text-decoration: underline; color: var(--fewa-ink); word-break: break-all; }
+        .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
+        .up-submit { display: flex; justify-content: flex-end; margin-top: 12px; }
+        .up-submit .btn-submit { margin: 0; }
+        @media (max-width: 700px) { .up-filters { grid-template-columns: 1fr; } .up-template { flex-wrap: wrap; } }
         .units-readonly-note { color: var(--fewa-muted); font-size: 14px; margin-top: 8px; }
     </style>
 </head>
@@ -198,28 +222,55 @@
                 <!-- ===== Student units upload ===== -->
                 <div id="pane-upload" class="units-pane" hidden>
                     <div class="units-heading">Student units upload</div>
-                    <div class="settings-banner info-banner">Student units upload: register many students at once from a CSV file
-                        (in Excel: File &gt; Save As &gt; CSV). It needs the columns AdmNo and UnitCode; a Term column is
-                        optional, otherwise the term chosen here is used. Check file shows every line first; Register then
-                        registers the lines marked OK. The file itself is not kept.</div>
-                    <div class="units-form" style="margin-top:14px">
-                        <div class="form-group"><label>Term (for lines without one) <span class="req">*</span></label><select id="uploadTerm"></select></div>
-                        <div class="form-group"><label>CSV file <span class="req">*</span></label><input type="file" id="uploadFile" accept=".csv,text/csv"></div>
-                        <div class="units-actions">
-                            <button type="button" class="btn-submit" data-register onclick="checkUpload()">Check file</button>
-                            <button type="button" class="btn-secondary" onclick="downloadTemplate()">Download template</button>
-                        </div>
+                    <div class="settings-banner info-banner">Student units upload: fill the Excel template (batch, period, unit code,
+                        registration number, exam reason and the lecturer's staff code) and upload it. Choose a batch, period and
+                        unit below to see who is registered.</div>
+                    <div class="up-filters">
+                        <label for="upBatch">Batch</label><select id="upBatch"></select>
+                        <label for="upPeriod">Period</label><select id="upPeriod"></select>
+                        <label for="upUnit">Unit</label>
+                        <input type="text" id="upUnit" list="upUnitChoices" placeholder="Start typing the unit code or title" autocomplete="off">
+                        <datalist id="upUnitChoices"></datalist>
+                        <span></span><div><button type="button" class="btn-secondary" onclick="clearUploadFilters()">Clear</button></div>
                     </div>
+
+                    <div class="units-subhead">Upload student units</div>
+                    <div class="up-box">
+                        <div class="up-template">
+                            <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
+                            <div class="up-template-text"><b>Excel template</b>
+                                <span>Batch, period, unit code, registration number, exam reason (blank = first attempt) and the
+                                    lecturer's staff code, one registration per row.</span></div>
+                            <div class="up-template-buttons">
+                                <button type="button" class="btn-secondary" onclick="downloadTemplate()">Download</button>
+                                <button type="button" class="btn-secondary" onclick="toggleStaffCodes()">Staff codes</button>
+                            </div>
+                        </div>
+                        <div id="staffCodes" class="up-staff" hidden></div>
+                        <label class="up-drop" id="upDrop" for="uploadFile">
+                            <svg class="up-cloud" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor"
+                                d="M19.4 10.1A7 7 0 0 0 6.1 8.6 5.5 5.5 0 0 0 6.5 19.5h12.3a4.7 4.7 0 0 0 .6-9.4zM13 13v4h-2v-4H8l4-4 4 4z"/></svg>
+                            <span class="up-choose" id="upChosen">Choose the filled-in file</span>
+                            <input type="file" id="uploadFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                        </label>
+                        <div class="up-limits"><span>Supported formats: XLS, XLSX</span><span>Max size: 10 MB</span></div>
+                        <div class="up-submit"><button type="button" class="btn-submit" data-register onclick="uploadStudentUnits()">Upload student units</button></div>
+                    </div>
+
                     <div id="uploadResult" hidden>
                         <div class="units-subhead">Lines in the file</div>
                         <div class="units-count" id="uploadSummary"></div>
                         <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th>Line</th><th>AdmNo</th><th>Student</th><th>Unit code</th><th>Term</th><th>Result</th></tr></thead>
+                            <thead><tr><th>Row</th><th>Registration number</th><th>Student</th><th>Batch</th><th>Period</th><th>Unit code</th><th>Exam reason</th><th>Lecturer</th><th>Result</th></tr></thead>
                             <tbody id="uploadRows"></tbody></table></div>
-                        <div class="units-actions" style="margin-top:12px">
-                            <button type="button" class="btn-submit" id="uploadRegister" data-register onclick="registerUpload()">Register</button>
-                        </div>
                     </div>
+
+                    <div class="units-subhead">Students registered on the unit</div>
+                    <div class="units-count" id="upRegisteredCount"></div>
+                    <div class="table-wrap"><table class="data-table">
+                        <thead><tr><th>Registration number</th><th>Student</th><th>Batch</th><th>Course</th><th>Exam reason</th><th>Lecturer</th><th>Registered</th></tr></thead>
+                        <tbody id="upRegisteredRows"></tbody></table></div>
                 </div>
 
                 <!-- ===== Student unit registration ===== -->
@@ -355,7 +406,7 @@
 
         /* ---------- Data (all in the database; read when the page opens and after each change) ---------- */
         let units = [], programmeUnits = [], offers = [], registrations = [], students = [];
-        let courses = [], terms = [], lecturers = [];
+        let courses = [], terms = [], lecturers = [], groups = [];
 
         async function settingNames(key, usable = () => true, label = i => i.name) {
             const record = await fewaDB.getOne('settings', key).catch(() => null);
@@ -368,6 +419,8 @@
                 ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students'].map(read));
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
             terms = await settingNames('terms');
+            // Batches: the Student Groups, and any group students already have
+            groups = [...new Set([...(await settingNames('groups')), ...students.map(s => s.group).filter(Boolean)])].sort();
             lecturers = getAccounts().filter(a => a.status !== 'Inactive')
                 .map(a => ({ username: a.username, name: accountName(a) })).sort((a, b) => a.name.localeCompare(b.name));
             units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
@@ -392,12 +445,15 @@
         function fillChoices() {
             const termChoices = terms.map(t => [t, t]);
             const lastTerm = terms[terms.length - 1] || '';
-            for (const id of ['offerTerm', 'uploadTerm', 'regTerm', 'lecTerm']) {
+            for (const id of ['offerTerm', 'regTerm', 'lecTerm']) {
                 const select = $(id);
                 const had = select.value;
                 fill(select, termChoices, terms.length ? '-- choose a term --' : '-- no terms yet (Settings > Organisation Setup) --');
                 if (!had && lastTerm) select.value = lastTerm;
             }
+            fill($('upPeriod'), termChoices, '-- select one --');
+            fill($('upBatch'), groups.map(g => [g, g]), '-- select one --');
+            $('upUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
             const courseChoices = courses.map(c => [c, c]);
             fill($('offerCourse'), courseChoices, '-- any course --');
             const unitChoices = units.map(u => [u.code, unitLabel(u)]);
@@ -422,7 +478,7 @@
         function render() {
             applyRights();
             ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers,
-                register: () => { }, upload: () => { } })[activeTab]();
+                register: () => { }, upload: renderRegisteredOnUnit })[activeTab]();
         }
 
         async function save(store, record) {
@@ -658,103 +714,207 @@
             } catch (err) { alert('The registration could not be saved completely: ' + err.message); await loadData(); }
         }
 
-        /* ---------- Student units upload (CSV) ---------- */
-        let uploadLines = [];
+        /* ---------- Student units upload (an Excel file: XLS or XLSX) ----------
+           Read in this page with SheetJS (vendor/xlsx.full.min.js, loaded only when needed); the file itself is never
+           kept. Batch is the student's Group (Settings > Institution Setup > Student Groups), Period an Academic Term,
+           and the lecturer's staff code their login email (the Staff codes button lists them). */
+        const EXAM_REASONS = ['First attempt', 'Retake', 'Supplementary', 'Special'];
+        const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+        const UPLOAD_HEADERS = ['Batch', 'Period', 'Unit code', 'Registration number', 'Exam reason', 'Lecturer staff code'];
+        let xlsxReady = null;
 
-        // A CSV line split into cells: commas or semicolons, "quoted" cells may hold either
-        function parseCsv(text) {
-            const rows = [];
-            let row = [], cell = '', quoted = false;
-            const delimiter = (text.split(/\r?\n/)[0].match(/;/g) || []).length > (text.split(/\r?\n/)[0].match(/,/g) || []).length ? ';' : ',';
-            for (let i = 0; i < text.length; i++) {
-                const ch = text[i];
-                if (quoted) {
-                    if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-                    else if (ch === '"') quoted = false;
-                    else cell += ch;
-                } else if (ch === '"') quoted = true;
-                else if (ch === delimiter) { row.push(cell); cell = ''; }
-                else if (ch === '\n' || ch === '\r') {
-                    if (ch === '\r' && text[i + 1] === '\n') i++;
-                    row.push(cell); rows.push(row); row = []; cell = '';
-                } else cell += ch;
-            }
-            if (cell || row.length) { row.push(cell); rows.push(row); }
-            return rows.map(r => r.map(c => c.trim())).filter(r => r.some(Boolean));
+        // SheetJS is big, so it is loaded the first time a template is downloaded or a file uploaded
+        function loadXlsx() {
+            if (window.XLSX) return Promise.resolve(window.XLSX);
+            xlsxReady = xlsxReady || new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'vendor/xlsx.full.min.js';
+                script.onload = () => resolve(window.XLSX);
+                script.onerror = () => { xlsxReady = null; reject(new Error('The Excel reader could not be loaded. Check the connection and try again.')); };
+                document.head.append(script);
+            });
+            return xlsxReady;
         }
 
-        async function checkUpload() {
+        const lecturerByCode = code => lecturers.find(l => same(l.username, code)) || lecturers.find(l => same(l.name, code));
+        const examReasonOf = text => !String(text || '').trim() ? 'First attempt' : EXAM_REASONS.find(r => same(r, text));
+
+        // The upload tab's lower table: who is registered for the chosen period and unit (and batch)
+        function renderRegisteredOnUnit() {
+            const batch = $('upBatch').value, period = $('upPeriod').value, unit = unitFromText($('upUnit').value);
+            if (!period || !unit) {
+                $('upRegisteredCount').textContent = '';
+                $('upRegisteredRows').innerHTML = '<tr class="empty-row"><td colspan="7">Choose a period and a unit above to see who is registered.</td></tr>';
+                return;
+            }
+            const rows = registrations.filter(r => r.term === period && same(r.unitCode, unit.code))
+                .map(r => ({ r, s: students.find(x => x.id === r.studentId) || {} }))
+                .filter(({ s }) => !batch || s.group === batch)
+                .sort((a, b) => String(a.s.admNo || a.r.admNo).localeCompare(String(b.s.admNo || b.r.admNo), undefined, { numeric: true }));
+            $('upRegisteredCount').textContent = `${unit.code} - ${unit.title}, ${period}${batch ? ', ' + batch : ''}: ${rows.length} student${rows.length === 1 ? '' : 's'}`;
+            $('upRegisteredRows').innerHTML = rows.length ? rows.map(({ r, s }) => `<tr><td>${escapeHtml(s.admNo || r.admNo)}</td>
+                <td>${escapeHtml(studentName(s))}</td><td>${escapeHtml(s.group || '')}</td><td>${escapeHtml(s.admissionCourse || '')}</td>
+                <td>${escapeHtml(r.examReason || 'First attempt')}</td><td>${escapeHtml(r.lecturerName || '-')}</td>
+                <td>${r.registeredAt ? escapeHtml(new Date(r.registeredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : ''}</td></tr>`).join('')
+                : '<tr class="empty-row"><td colspan="7">Nobody is registered for this unit in this period yet.</td></tr>';
+        }
+
+        // "HBT 101 - Hair Basics", "HBT 101" or the exact title
+        function unitFromText(text) {
+            const value = String(text || '').trim();
+            if (!value) return null;
+            return unitByCode(value.split(' - ')[0]) || units.find(u => same(u.title, value)) || null;
+        }
+
+        function clearUploadFilters() {
+            $('upBatch').value = '';
+            $('upPeriod').value = '';
+            $('upUnit').value = '';
+            renderRegisteredOnUnit();
+        }
+
+        // The lecturers' staff codes, shown on the page (never as a file)
+        function toggleStaffCodes() {
+            const box = $('staffCodes');
+            box.hidden = !box.hidden;
+            if (box.hidden) return;
+            box.innerHTML = lecturers.length ? `<table class="data-table"><thead><tr><th>Name</th><th>Staff code</th></tr></thead><tbody>` +
+                lecturers.map(l => `<tr><td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.username)}</td></tr>`).join('') + '</tbody></table>'
+                : '<div class="empty-state">No active staff yet (Staff Management).</div>';
+        }
+
+        // An empty template: the column headings, and a second sheet explaining them (no college data)
+        async function downloadTemplate() {
+            let XLSX;
+            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
+            const book = XLSX.utils.book_new();
+            const sheet = XLSX.utils.aoa_to_sheet([UPLOAD_HEADERS]);
+            sheet['!cols'] = UPLOAD_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
+            XLSX.utils.book_append_sheet(book, sheet, 'Student units');
+            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+                ['Column', 'What to type'],
+                ['Batch', "The student's group, as in Settings > Institution Setup > Student Groups (may be left blank)"],
+                ['Period', 'The academic term, exactly as in Settings > Organisation Setup > Academic Terms'],
+                ['Unit code', 'The unit code, as in Manage Units > Units register'],
+                ['Registration number', "The student's AdmNo, with the same capital and small letters"],
+                ['Exam reason', 'Blank = First attempt; or ' + EXAM_REASONS.slice(1).join(', ')],
+                ['Lecturer staff code', "The lecturer's staff code (Manage Units > Student units upload > Staff codes); may be left blank"]
+            ]), 'How to fill it in');
+            XLSX.writeFile(book, 'student-units-template.xlsx');
+        }
+
+        function chosenFile() {
+            const file = $('uploadFile').files[0];
+            $('upChosen').textContent = file ? file.name : 'Choose the filled-in file';
+            $('upDrop').classList.toggle('has-file', !!file);
+            return file;
+        }
+
+        async function uploadStudentUnits() {
             if (!allowed('academics', 'register')) return;
-            const file = $('uploadFile').files[0], defaultTerm = $('uploadTerm').value;
-            if (!file) return alert('Choose the CSV file first.');
-            if (file.size > 5 * 1024 * 1024) return alert('The file is too big (more than 5 MB).');
-            const rows = parseCsv((await file.text()).replace(/^﻿/, ''));
-            if (rows.length < 2) return alert('The file has no lines under the header.');
+            const file = chosenFile();
+            if (!file) return alert('Choose the filled-in Excel file first.');
+            if (!/\.(xlsx?|xlsm)$/i.test(file.name)) return alert('Choose an Excel file (.xls or .xlsx).');
+            if (file.size > UPLOAD_MAX_BYTES) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try {
+                const XLSX = await loadXlsx();
+                const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
+                    .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
+            } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
+            if (rows.length < 2) return alert('The file has no rows under the headings.');
+
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
-            const admCol = col(['admno', 'admissionno', 'admissionnumber', 'regno', 'registrationnumber', 'registrationno']);
-            const unitCol = col(['unitcode', 'unit', 'code']);
-            const termCol = col(['term', 'academicterm']);
-            if (admCol < 0 || unitCol < 0) return alert('The first line must name the columns, with at least AdmNo and UnitCode. Download the template to see how.');
-            if (termCol < 0 && !defaultTerm) return alert('The file has no Term column: choose the term for its lines.');
+            const at = {
+                batch: col(['batch', 'group', 'studentgroup']),
+                period: col(['period', 'term', 'academicterm']),
+                unit: col(['unitcode', 'unit', 'code']),
+                admNo: col(['registrationnumber', 'registrationno', 'regno', 'admno', 'admissionnumber', 'admissionno']),
+                reason: col(['examreason', 'reason']),
+                lecturer: col(['lecturerstaffcode', 'lecturerstaffnumber', 'staffcode', 'staffnumber', 'lecturer'])
+            };
+            if (at.period < 0 || at.unit < 0 || at.admNo < 0) {
+                return alert('The first row must hold the headings, with at least Period, Unit code and Registration number. Download the template to see them.');
+            }
+            const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
-            uploadLines = rows.slice(1).map((r, i) => {
-                const admNo = r[admCol] || '', code = (r[unitCol] || '').toUpperCase().replace(/\s+/g, ' '), term = (termCol >= 0 && r[termCol]) || defaultTerm;
+            const lines = rows.slice(1).map((r, i) => {
+                const admNo = cell(r, 'admNo'), batch = cell(r, 'batch'), period = cell(r, 'period');
+                const code = cell(r, 'unit').toUpperCase().replace(/\s+/g, ' ');
                 const student = students.find(s => s.admNo === admNo) || students.find(s => same(s.admNo, admNo));
                 const unit = unitByCode(code);
-                const key = [student?.id, term, code].join('|').toLowerCase();
+                const reason = examReasonOf(cell(r, 'reason'));
+                const lecturerCode = cell(r, 'lecturer');
+                const lecturer = lecturerCode ? lecturerByCode(lecturerCode) : null;
+                const term = terms.find(t => same(t, period));
                 let result = 'ok', note = 'OK';
-                if (!student) [result, note] = ['bad', 'AdmNo not found'];
-                else if (!unit) [result, note] = ['bad', 'Unit code not in the Units register'];
-                else if (!terms.some(t => t === term)) [result, note] = ['bad', 'Term not in Settings > Academic Terms'];
-                else if (registrations.some(x => x.studentId === student.id && x.term === term && same(x.unitCode, code))) [result, note] = ['skip', 'Already registered'];
-                else if (seen.has(key)) [result, note] = ['skip', 'Repeated in the file'];
-                else if (!offersFor(student, term).some(o => same(o.unitCode, code))) [result, note] = ['bad', `Not on offer in ${term} for the student's course`];
-                if (result === 'ok') seen.add(key);
-                return { line: i + 2, admNo, student, code: unit ? unit.code : code, term, result, note };
+                const problem = text => { if (result === 'ok') [result, note] = ['bad', text]; };
+                if (!student) problem('Registration number not found');
+                else if (batch && !same(student.group, batch)) problem(`The student's batch is ${student.group || 'not set'}`);
+                if (!term) problem('Period not in Settings > Academic Terms');
+                if (!unit) problem('Unit code not in the Units register');
+                if (!reason) problem('Exam reason must be blank, ' + EXAM_REASONS.slice(1).join(', '));
+                if (lecturerCode && !lecturer) problem('Staff code not found (see Staff codes)');
+                const key = [student?.id, term, unit?.code].join('|').toLowerCase();
+                if (result === 'ok' && registrations.some(x => x.studentId === student.id && x.term === term && same(x.unitCode, unit.code))) [result, note] = ['skip', 'Already registered'];
+                else if (result === 'ok' && seen.has(key)) [result, note] = ['skip', 'Repeated in the file'];
+                if (result === 'ok') {
+                    seen.add(key);
+                    if (!offersFor(student, term).some(o => same(o.unitCode, unit.code))) note = 'OK (will be put on offer)';
+                }
+                return { row: i + 2, admNo, batch: student?.group || batch, student, term: term || period, unit, code: unit ? unit.code : code,
+                    reason: reason || cell(r, 'reason'), lecturer, lecturerCode, result, note };
             });
             const counts = { ok: 0, bad: 0, skip: 0 };
-            uploadLines.forEach(l => counts[l.result]++);
-            $('uploadSummary').textContent = `${uploadLines.length} line${uploadLines.length === 1 ? '' : 's'}: ${counts.ok} OK, ` +
-                `${counts.skip} already registered or repeated, ${counts.bad} with a problem (not registered).`;
-            $('uploadRows').innerHTML = uploadLines.map(l => `<tr><td>${l.line}</td><td>${escapeHtml(l.admNo)}</td>
-                <td>${escapeHtml(l.student ? studentName(l.student) : '')}</td><td>${escapeHtml(l.code)}</td><td>${escapeHtml(l.term)}</td>
-                <td class="${l.result === 'ok' ? 'units-result-ok' : l.result === 'skip' ? 'units-result-warn' : 'units-result-bad'}">${escapeHtml(l.note)}</td></tr>`).join('');
-            $('uploadRegister').textContent = `Register ${counts.ok} line${counts.ok === 1 ? '' : 's'}`;
-            $('uploadRegister').disabled = !counts.ok || !mayRegister();
-            $('uploadResult').hidden = false;
-        }
+            lines.forEach(l => counts[l.result]++);
+            const showLines = () => {
+                $('uploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.admNo)}</td>
+                    <td>${escapeHtml(l.student ? studentName(l.student) : '')}</td><td>${escapeHtml(l.batch)}</td><td>${escapeHtml(l.term)}</td>
+                    <td>${escapeHtml(l.code)}</td><td>${escapeHtml(l.reason)}</td><td>${escapeHtml(l.lecturer ? l.lecturer.name : l.lecturerCode || '-')}</td>
+                    <td class="${l.result === 'ok' || l.result === 'done' ? 'units-result-ok' : l.result === 'skip' ? 'units-result-warn' : 'units-result-bad'}">${escapeHtml(l.note)}</td></tr>`).join('');
+                $('uploadResult').hidden = false;
+            };
+            $('uploadSummary').textContent = `${lines.length} row${lines.length === 1 ? '' : 's'}: ${counts.ok} ready, ` +
+                `${counts.skip} already registered or repeated, ${counts.bad} with a problem (shown in red, not registered).`;
+            showLines();
+            if (!counts.ok) return alert('No row can be registered. The table shows why for each row.');
+            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?` + (counts.bad ? `\n\n${counts.bad} row${counts.bad === 1 ? ' has a' : 's have'} a problem and will be left out.` : ''))) return;
 
-        async function registerUpload() {
-            if (!allowed('academics', 'register')) return;
-            const ok = uploadLines.filter(l => l.result === 'ok');
-            if (!ok.length || !confirm(`Register ${ok.length} unit${ok.length === 1 ? '' : 's'}?`)) return;
-            $('uploadRegister').disabled = true;
             let done = 0;
             try {
-                for (const l of ok) {
-                    await save('unit_registrations', registrationRecord(l.student, l.term, l.code));
+                for (const l of lines.filter(x => x.result === 'ok')) {
+                    // A unit not on offer yet in that period is put on offer for the student's course, with this lecturer
+                    if (!offersFor(l.student, l.term).some(o => same(o.unitCode, l.code))) {
+                        const offer = { id: newId(), term: l.term, unitCode: l.code, course: l.student.admissionCourse || '',
+                            lecturer: l.lecturer ? l.lecturer.username : '', lecturerName: l.lecturer ? l.lecturer.name : '' };
+                        await save('unit_offers', offer);
+                        offers.push(offer);
+                    }
+                    await save('unit_registrations', { ...registrationRecord(l.student, l.term, l.code), examReason: l.reason,
+                        lecturer: l.lecturer ? l.lecturer.username : '', lecturerName: l.lecturer ? l.lecturer.name : '' });
+                    l.result = 'done';
+                    l.note = 'Registered';
                     done++;
-                    $('uploadRegister').textContent = `Registering... ${done} of ${ok.length}`;
+                    $('uploadSummary').textContent = `Registering... ${done} of ${counts.ok}`;
                 }
-                showToast(`${done} unit registration${done === 1 ? '' : 's'} saved.`);
+                $('uploadSummary').textContent = `${done} registration${done === 1 ? '' : 's'} saved` +
+                    (counts.skip ? `, ${counts.skip} already registered or repeated` : '') + (counts.bad ? `, ${counts.bad} with a problem (not registered).` : '.');
+                showToast(`${done} student unit registration${done === 1 ? '' : 's'} saved.`);
             } catch (err) {
-                alert(`${done} of ${ok.length} were registered, then this went wrong: ${err.message}. Check the file again to register the rest.`);
+                $('uploadSummary').textContent = `${done} of ${counts.ok} were registered, then this went wrong: ${err.message}. Upload the file again to register the rest.`;
             }
+            showLines();
             $('uploadFile').value = '';
-            $('uploadResult').hidden = true;
-            uploadLines = [];
+            chosenFile();
+            // Show who is now registered for the file's first period and unit
+            const first = lines.find(l => l.result === 'done');
+            if (first) {
+                $('upPeriod').value = first.term;
+                $('upUnit').value = unitLabel(first.unit);
+            }
             await loadData();
-        }
-
-        // An empty template (headers only; no college data)
-        function downloadTemplate() {
-            const blob = new Blob(['﻿AdmNo,UnitCode,Term\r\n'], { type: 'text/csv' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'student-units-template.csv';
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(link.href), 10000);
         }
 
         /* ---------- Start ---------- */
@@ -765,6 +925,17 @@
         }
 
         for (const id of ['offerTerm', 'offerCourse']) $(id).addEventListener('change', renderOffers);
+        for (const id of ['upBatch', 'upPeriod']) $(id).addEventListener('change', renderRegisteredOnUnit);
+        $('upUnit').addEventListener('input', renderRegisteredOnUnit);
+        $('uploadFile').addEventListener('change', chosenFile);
+        // A file can also be dragged onto the box
+        $('upDrop').addEventListener('dragover', event => { event.preventDefault(); $('upDrop').classList.add('dragging'); });
+        $('upDrop').addEventListener('dragleave', () => $('upDrop').classList.remove('dragging'));
+        $('upDrop').addEventListener('drop', event => {
+            event.preventDefault();
+            $('upDrop').classList.remove('dragging');
+            if (event.dataTransfer.files.length) { $('uploadFile').files = event.dataTransfer.files; chosenFile(); }
+        });
         for (const id of ['lecTerm', 'lecFilter']) $(id).addEventListener('change', renderLecturers);
         $('regTerm').addEventListener('change', () => { if (!$('regPanel').hidden) showRegistration(); });
 
