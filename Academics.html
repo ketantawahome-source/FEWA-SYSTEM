@@ -64,6 +64,7 @@
         .reg-fields { grid-template-columns: 140px minmax(0, 1fr) 150px minmax(0, 1fr); }
         .lec-fields { grid-template-columns: 130px minmax(0, 1fr) 125px minmax(0, 1fr); column-gap: 24px; }
         .data-table tr.editing td { background: #fff8e1; }
+        .data-table .unit-actions { width: 96px; white-space: nowrap; }
         .reg-fields .units-actions .btn-submit, .reg-fields .units-actions .btn-secondary { margin: 0; }
         .reg-reason { min-width: 150px !important; padding: 6px 8px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; }
         .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
@@ -344,33 +345,96 @@
                     </div>
                 </div>
 
+                <!-- ===== Programme units (unit programme mapping) ===== -->
+                <div id="pane-programme" class="units-pane" hidden>
+                    <div class="units-heading">Unit programme mapping</div>
+                    <div class="settings-banner info-banner">Programme units: choose the programme, course and batch to list the units
+                        the course takes. To add one, pick the unit from the list that appears as you type and the semester it is
+                        taken in, then Add unit to course. The bin takes a unit off the course.</div>
+                    <div class="up-filters reg-fields lec-fields">
+                        <label for="pmProgramme">Programme <span class="req">*</span></label><select id="pmProgramme"></select>
+                        <label for="pmCourse">Course <span class="req">*</span></label><select id="pmCourse"></select>
+                        <label for="pmBatch">Batch <span class="req">*</span></label><select id="pmBatch"></select>
+                        <label for="pmSemester">Semester <span class="req">*</span></label><select id="pmSemester"></select>
+                        <label for="pmUnit">Unit <span class="req">*</span></label>
+                        <input type="text" id="pmUnit" list="pmUnitChoices" placeholder="Start typing the unit code or title" autocomplete="off">
+                        <label for="pmCluster">Cluster group</label><select id="pmCluster"></select>
+                        <span></span>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" data-edit onclick="addUnitToCourse()">Add unit to course</button>
+                            <button type="button" class="btn-secondary" onclick="clearProgrammeMapping()">Clear</button>
+                        </div>
+                    </div>
+                    <datalist id="pmUnitChoices"></datalist>
+
+                    <div class="units-subhead">Units of the course</div>
+                    <p id="pmHint" class="up-hint">Choose the programme, course and batch to list the units the course takes.</p>
+                    <div id="pmPanel" hidden>
+                        <div class="units-count" id="pmCount"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Semester</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Batch</th><th>Cluster group</th><th></th></tr></thead>
+                            <tbody id="pmRows"></tbody></table></div>
+                    </div>
+
+                    <div class="units-subhead">Upload units and programme mapping</div>
+                    <div class="up-box">
+                        <div class="up-template">
+                            <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
+                            <div class="up-template-text"><b>Excel template</b>
+                                <span>Course, batch, year of study, semester, unit code, unit title, credit hours and cluster group,
+                                    one unit per row. A unit not yet in the Units register is added to it.</span></div>
+                            <div class="up-template-buttons">
+                                <button type="button" class="btn-secondary" onclick="downloadMappingTemplate()">Download</button>
+                            </div>
+                        </div>
+                        <label class="up-drop" id="pmDrop" for="pmFile">
+                            <svg class="up-cloud" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor"
+                                d="M19.4 10.1A7 7 0 0 0 6.1 8.6 5.5 5.5 0 0 0 6.5 19.5h12.3a4.7 4.7 0 0 0 .6-9.4zM13 13v4h-2v-4H8l4-4 4 4z"/></svg>
+                            <span class="up-choose" id="pmChosen">Choose the filled-in file</span>
+                            <input type="file" id="pmFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                        </label>
+                        <div class="up-limits"><span>Supported formats: XLS, XLSX</span><span>Max size: 10 MB</span></div>
+                        <div class="up-submit"><button type="button" class="btn-submit" data-edit onclick="uploadProgrammeMapping()">Upload units and mapping</button></div>
+                    </div>
+                    <div id="pmUploadResult" hidden>
+                        <div class="units-subhead">Lines in the file</div>
+                        <div class="units-count" id="pmUploadSummary"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Row</th><th>Course</th><th>Batch</th><th>Semester</th><th>Unit code</th><th>Unit title</th><th>Cluster group</th><th>Result</th></tr></thead>
+                            <tbody id="pmUploadRows"></tbody></table></div>
+                    </div>
+                </div>
+
                 <!-- ===== Units register ===== -->
                 <div id="pane-units" class="units-pane" hidden>
                     <div class="units-heading">Units register</div>
                     <div class="settings-banner info-banner">Units register: enter the unit code, title and credit hours, then Save
                         unit. The pencil loads a unit for a change and the bin removes one that is not used by a course, an
                         offer or a registration. Find narrows the list by code or title.</div>
-                    <form id="unitForm" class="units-form" style="margin-top:14px" onsubmit="saveUnit(event)">
+                    <form id="unitForm" class="up-filters reg-fields lec-fields" onsubmit="saveUnit(event)">
                         <input type="hidden" name="id">
-                        <div class="form-group"><label>Unit code <span class="req">*</span></label>
-                            <input type="text" name="code" required maxlength="30" placeholder="For example HBT 101"></div>
-                        <div class="form-group"><label>Unit title <span class="req">*</span></label>
-                            <input type="text" name="title" required maxlength="200" placeholder="The title as it prints on transcripts"></div>
-                        <div class="form-group"><label>Credit hours <span class="req">*</span></label>
-                            <input type="number" name="creditHours" required min="0" max="100" step="0.5" value="3"></div>
+                        <label for="unitCode">Unit code <span class="req">*</span></label>
+                        <input type="text" id="unitCode" name="code" required maxlength="30" placeholder="For example DICT 101">
+                        <label for="unitTitle">Unit title <span class="req">*</span></label>
+                        <input type="text" id="unitTitle" name="title" required maxlength="200" placeholder="The title as it prints on transcripts">
+                        <label for="unitHours">Credit hours <span class="req">*</span></label>
+                        <input type="number" id="unitHours" name="creditHours" required min="0" max="100" step="0.5" value="3">
+                        <span></span>
                         <div class="units-actions">
                             <button type="submit" class="btn-submit" data-edit>Save unit</button>
                             <button type="button" class="btn-secondary" onclick="clearUnitForm()">Clear</button>
                         </div>
                     </form>
                     <div class="units-subhead">Units</div>
-                    <div class="units-find">
-                        <input type="text" id="unitFind" class="toolbar-search" placeholder="Part of the code or title" oninput="renderUnits()">
-                        <button type="button" class="btn-secondary" onclick="renderUnits()">Find</button>
+                    <div class="up-filters reg-fields lec-fields">
+                        <label for="unitFind">Find</label>
+                        <input type="text" id="unitFind" placeholder="Part of the code or title" oninput="renderUnits()" autocomplete="off">
+                        <span></span><div><button type="button" class="btn-secondary" onclick="renderUnits()">Find</button></div>
                     </div>
                     <div class="units-count" id="unitCount"></div>
                     <div class="table-wrap"><table class="data-table">
-                        <thead><tr><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th class="num">Courses</th><th></th></tr></thead>
+                        <thead><tr><th class="unit-actions"></th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th class="num">Courses</th></tr></thead>
                         <tbody id="unitRows"></tbody></table></div>
                 </div>
 
@@ -416,7 +480,7 @@
         /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
         const TABS = [
             ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
-            ['lecturer', 'Lecturer units'], ['units', 'Units register']
+            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['units', 'Units register']
         ];
         const TAB_KEY = 'fewaUnitsTab';
         let activeTab = 'units';
@@ -451,7 +515,8 @@
             // Programme = Settings > Program Setup > Award Types (each course says its award). Group category = study session.
             const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
             courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.enabled !== 'NO')
-                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '' }));
+                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '',
+                    duration: c.duration, durationType: c.durationType || '' }));
             programmes = await settingNames('awardTypes'); // exactly as listed in Settings > Program Setup > Award Types
             categories = await settingNames('studySessions');
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
@@ -507,6 +572,11 @@
             fill($('lecBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('lecTerm'), termChoices, '-- select one --');
             fill($('lecCategory'), categories.map(c => [c, c]), '-- all group categories --');
+            fill($('pmProgramme'), programmes.map(p => [p, p]), '-- select one --');
+            fill($('pmBatch'), groups.map(g => [g, g]), '-- select one --');
+            fill($('pmCluster'), CLUSTER_GROUPS.map(g => [g, g]), '-- select one --');
+            $('pmUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
+            fillMappingCourses();
             $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
                 .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
         }
@@ -523,7 +593,7 @@
 
         function render() {
             applyRights();
-            ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers,
+            ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers, programme: renderProgrammeMapping,
                 register: showRegistration, upload: renderRegisteredOnUnit })[activeTab]();
         }
 
@@ -539,10 +609,10 @@
                 (words.length ? `, ${shown.length.toLocaleString()} found` : '');
             $('unitRows').innerHTML = shown.length ? shown.map(u => {
                 const courseCount = new Set(programmeUnits.filter(p => same(p.unitCode, u.code)).map(p => p.course)).size;
-                return `<tr><td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td class="num">${escapeHtml(u.creditHours)}</td>
-                    <td class="num">${courseCount}</td>
-                    <td>${mayEdit() ? iconButton('edit', 'Edit ' + escapeHtml(u.code), `editUnit('${u.id}')`) +
-                        iconButton('delete', 'Delete ' + escapeHtml(u.code), `deleteUnit('${u.id}')`) : ''}</td></tr>`;
+                return `<tr><td class="unit-actions">${mayEdit() ? iconButton('edit', 'Edit ' + escapeHtml(u.code), `editUnit('${u.id}')`) +
+                        iconButton('delete', 'Delete ' + escapeHtml(u.code), `deleteUnit('${u.id}')`) : ''}</td>
+                    <td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                    <td class="num">${courseCount}</td></tr>`;
             }).join('') : `<tr class="empty-row"><td colspan="5">${units.length ? 'No unit matches.' : 'No units yet. Add the first one above.'}</td></tr>`;
         }
 
@@ -791,6 +861,214 @@
                 showToast(`${a.unitCode}: allocation removed.`);
                 await loadData();
             } catch (err) { alert('The allocation could not be removed: ' + err.message); await loadData(); }
+        }
+
+        /* ---------- Programme units (unit programme mapping) ----------
+           The units a course takes, by batch and by year and semester (table academics.programme_units, the same
+           records as Settings > Program Setup > Programme Units). Programme = Settings > Award Types; Course = the
+           Settings courses with that award; Batch = Student Groups; Cluster group = Core or Elective. A unit
+           mapped with no batch (as from Settings) is taken by every batch. */
+        const CLUSTER_GROUPS = ['Core', 'Elective'];
+        const stageOf = (y, s) => `Year ${y}, Semester ${s}`;
+
+        function fillMappingCourses() {
+            const programme = $('pmProgramme').value;
+            fill($('pmCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fillMappingSemesters();
+        }
+
+        // The years of the course (its Duration when in years; else 4), 3 semesters each
+        function fillMappingSemesters() {
+            const course = courseItems.find(c => c.name === $('pmCourse').value);
+            const years = course && /YEAR/i.test(course.durationType || 'YEARS') && Number(course.duration) > 0 ? Math.min(Number(course.duration), 8)
+                : course && course.durationType && !/YEAR/i.test(course.durationType) ? 1 : 4;
+            const choices = [];
+            for (let y = 1; y <= years; y++) for (let s = 1; s <= 3; s++) choices.push([`${y}|${s}`, stageOf(y, s)]);
+            fill($('pmSemester'), choices, '-- select one --');
+            renderProgrammeMapping();
+        }
+
+        const mappedUnits = (course, batch) => programmeUnits.filter(p => p.course === course && (!p.batch || p.batch === batch));
+
+        function renderProgrammeMapping() {
+            const course = $('pmCourse').value, batch = $('pmBatch').value;
+            const ready = !!($('pmProgramme').value && course && batch);
+            $('pmHint').hidden = ready;
+            $('pmPanel').hidden = !ready;
+            if (!ready) return;
+            const rows = mappedUnits(course, batch).sort((a, b) => a.yearOfStudy - b.yearOfStudy || a.semester - b.semester
+                || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
+            const hours = rows.reduce((sum, p) => sum + Number((unitByCode(p.unitCode) || {}).creditHours || 0), 0);
+            $('pmCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'}, ${hours} credit hours in all`;
+            $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr><td>${escapeHtml(stageOf(p.yearOfStudy, p.semester))}</td>
+                    <td>${escapeHtml(p.unitCode)}</td><td>${escapeHtml((unitByCode(p.unitCode) || {}).title || '(not in the Units register)')}</td>
+                    <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
+                    <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(p.unitType || 'Core')}</td>
+                    <td>${mayEdit() ? iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units for ${escapeHtml(batch)} yet. Add them above.</td></tr>`;
+        }
+
+        // "HBT 101 - Hair Basics", "HBT 101" or the title, as typed
+        function unitFromTyped(text) {
+            const t = String(text || '').trim();
+            if (!t) return null;
+            return unitByCode(t.split(' - ')[0].trim()) || units.find(u => same(unitLabel(u), t)) || units.find(u => same(u.title, t)) || null;
+        }
+
+        async function addUnitToCourse() {
+            if (!allowed('academics', 'edit')) return;
+            const course = $('pmCourse').value, batch = $('pmBatch').value, stage = $('pmSemester').value;
+            const missing = [['pmProgramme', 'programme'], ['pmCourse', 'course'], ['pmBatch', 'batch'], ['pmSemester', 'semester']]
+                .filter(([id]) => !$(id).value).map(([, name]) => name);
+            if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
+            const unit = unitFromTyped($('pmUnit').value);
+            if (!unit) return alert('Pick the unit from the list that appears as you type (units come from the Units register).');
+            const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code));
+            if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageOf(already.yearOfStudy, already.semester)}).`);
+            const [yearOfStudy, semester] = stage.split('|').map(Number);
+            try {
+                await save('programme_units', { id: newId(), course, unitCode: unit.code, yearOfStudy, semester, batch,
+                    unitType: $('pmCluster').value || 'Core' });
+                showToast(`${unit.code} added to ${course} (${batch}, ${stageOf(yearOfStudy, semester)}).`);
+                $('pmUnit').value = '';
+                await loadData();
+                $('pmUnit').focus();
+            } catch (err) { alert('The unit could not be added: ' + err.message); await loadData(); }
+        }
+
+        async function removeUnitFromCourse(id) {
+            if (!allowed('academics', 'edit')) return;
+            const p = programmeUnits.find(x => x.id === id);
+            if (!p || !confirm(`Take ${p.unitCode} off ${p.course}${p.batch ? ` (${p.batch})` : ' (all batches)'}?`)) return;
+            try {
+                await fewaDB.remove('programme_units', id);
+                showToast(`${p.unitCode} taken off ${p.course}.`);
+                await loadData();
+            } catch (err) { alert('The unit could not be taken off: ' + err.message); await loadData(); }
+        }
+
+        function clearProgrammeMapping() {
+            for (const id of ['pmProgramme', 'pmBatch', 'pmCluster']) $(id).value = '';
+            $('pmUnit').value = '';
+            fillMappingCourses();
+        }
+
+        // ----- Upload units and programme mapping (Excel) -----
+        const MAPPING_HEADERS = ['Course', 'Batch', 'Year of study', 'Semester', 'Unit code', 'Unit title', 'Credit hours', 'Cluster group'];
+
+        async function downloadMappingTemplate() {
+            let XLSX;
+            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
+            const book = XLSX.utils.book_new();
+            const sheet = XLSX.utils.aoa_to_sheet([MAPPING_HEADERS]);
+            sheet['!cols'] = MAPPING_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
+            XLSX.utils.book_append_sheet(book, sheet, 'Programme units');
+            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+                ['Column', 'What to type'],
+                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
+                ['Batch', 'The student group, as in Student Groups; blank = all batches'],
+                ['Year of study', 'A number: 1, 2, 3...'],
+                ['Semester', 'A number: 1, 2 or 3'],
+                ['Unit code', 'The unit code, e.g. HBT 101'],
+                ['Unit title', 'Needed only for a unit not yet in Manage Units > Units register (it is then added there)'],
+                ['Credit hours', 'For a new unit; may be left blank'],
+                ['Cluster group', 'Core or Elective; blank = Core']
+            ]), 'How to fill it in');
+            XLSX.writeFile(book, 'programme-units-template.xlsx');
+        }
+
+        function chosenMappingFile() {
+            const file = $('pmFile').files[0];
+            $('pmChosen').textContent = file ? file.name : 'Choose the filled-in file';
+            $('pmDrop').classList.toggle('has-file', !!file);
+            return file;
+        }
+
+        async function uploadProgrammeMapping() {
+            if (!allowed('academics', 'edit')) return;
+            const file = chosenMappingFile();
+            if (!file) return alert('Choose the filled-in Excel file first.');
+            if (!/\.(xlsx?|xlsm)$/i.test(file.name)) return alert('Choose an Excel file (.xls or .xlsx).');
+            if (file.size > UPLOAD_MAX_BYTES) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try {
+                const XLSX = await loadXlsx();
+                const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
+                    .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
+            } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
+            if (rows.length < 2) return alert('The file has no rows under the headings.');
+            const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+            const col = names => header.findIndex(h => names.includes(h));
+            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(['batch', 'group', 'studentgroup']),
+                year: col(['yearofstudy', 'year', 'yearofstudies']), semester: col(['semester', 'sem']),
+                code: col(['unitcode', 'code', 'unit']), title: col(['unittitle', 'title', 'unitname']),
+                hours: col(['credithours', 'credits', 'hours']), cluster: col(['clustergroup', 'cluster', 'type', 'unittype']) };
+            if (at.course < 0 || at.code < 0 || at.year < 0 || at.semester < 0) {
+                return alert('The first row must hold the headings, with at least Course, Year of study, Semester and Unit code. Download the template to see them.');
+            }
+            const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
+            const seen = new Set();
+            const lines = rows.slice(1).map((r, i) => {
+                const courseText = cell(r, 'course'), batch = cell(r, 'batch');
+                const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
+                const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
+                const unit = unitByCode(code);
+                const year = Number(cell(r, 'year')), semester = Number(cell(r, 'semester'));
+                const clusterText = cell(r, 'cluster');
+                const cluster = clusterText ? CLUSTER_GROUPS.find(g => same(g, clusterText)) : 'Core';
+                const group = batch ? groups.find(g => same(g, batch)) : '';
+                const line = { row: i + 2, courseText, course, batch: group ?? batch, code, title: cell(r, 'title') || (unit || {}).title || '',
+                    hours: cell(r, 'hours'), year, semester, cluster: cluster || clusterText, unit, problems: [] };
+                const problem = text => line.problems.push(text);
+                if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
+                if (batch && !group) problem('Batch not in Student Groups');
+                if (!code) problem('No unit code');
+                else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
+                if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
+                if (![1, 2, 3].includes(semester)) problem('Semester must be 1, 2 or 3');
+                if (!cluster) problem('Cluster group must be Core or Elective');
+                const key = `${course}|${line.batch}|${code}`.toLowerCase();
+                if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
+                seen.add(key);
+                if (!line.problems.length && mappedUnits(course, line.batch).some(p => same(p.unitCode, code) && (p.batch || '') === (line.batch || ''))) line.already = true;
+                return line;
+            });
+            const good = lines.filter(l => !l.problems.length && !l.already);
+            const result = l => l.problems.length ? `<span class="units-result-bad">${escapeHtml(l.problems.join('; '))}</span>`
+                : l.already ? '<span class="units-result-warn">Already on the course</span>'
+                : l.done ? `<span class="units-result-ok">${l.unit ? 'Added' : 'Added (new unit)'}</span>` : 'Ready';
+            const show = () => {
+                $('pmUploadResult').hidden = false;
+                $('pmUploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.course || l.courseText)}</td>
+                    <td>${escapeHtml(l.batch || 'All batches')}</td><td>${l.year && l.semester ? escapeHtml(stageOf(l.year, l.semester)) : ''}</td>
+                    <td>${escapeHtml(l.code)}</td><td>${escapeHtml(l.title)}</td><td>${escapeHtml(l.cluster)}</td><td>${result(l)}</td></tr>`).join('');
+                const bad = lines.filter(l => l.problems.length).length, already = lines.filter(l => l.already).length;
+                $('pmUploadSummary').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}: ${good.length} to add` +
+                    (already ? `, ${already} already on the course` : '') + (bad ? `, ${bad} with a problem (not added)` : '');
+            };
+            show();
+            if (!good.length) return alert('Nothing to add: see the Result column.');
+            const newUnits = [...new Set(good.filter(l => !l.unit).map(l => l.code))];
+            if (!confirm(`Add ${good.length} unit${good.length === 1 ? '' : 's'} to the courses` +
+                (newUnits.length ? ` (and ${newUnits.length} new unit${newUnits.length === 1 ? '' : 's'} to the Units register)` : '') + '?')) return;
+            try {
+                const created = new Map();
+                for (const l of good) {
+                    if (!l.unit && !created.has(l.code)) {
+                        const u = { id: newId(), code: l.code, title: l.title, creditHours: l.hours === '' ? null : Number(l.hours) || null,
+                            createdAt: new Date().toISOString() };
+                        await save('units', u);
+                        created.set(l.code, u);
+                    }
+                    await save('programme_units', { id: newId(), course: l.course, unitCode: l.code, yearOfStudy: l.year, semester: l.semester,
+                        batch: l.batch || '', unitType: l.cluster });
+                    l.done = true;
+                }
+                showToast(`${good.length} unit${good.length === 1 ? '' : 's'} added to the courses.`);
+            } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            await loadData();
+            show();
         }
 
         /* ---------- Student unit registration (unit registration by student) ----------
@@ -1152,6 +1430,17 @@
         $('lecProgramme').addEventListener('change', fillLecturerStages);
         $('lecStage').addEventListener('change', fillLecturerUnits);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
+        $('pmProgramme').addEventListener('change', fillMappingCourses);
+        $('pmCourse').addEventListener('change', fillMappingSemesters);
+        $('pmBatch').addEventListener('change', renderProgrammeMapping);
+        $('pmFile').addEventListener('change', chosenMappingFile);
+        $('pmDrop').addEventListener('dragover', event => { event.preventDefault(); $('pmDrop').classList.add('dragging'); });
+        $('pmDrop').addEventListener('dragleave', () => $('pmDrop').classList.remove('dragging'));
+        $('pmDrop').addEventListener('drop', event => {
+            event.preventDefault();
+            $('pmDrop').classList.remove('dragging');
+            if (event.dataTransfer.files.length) { $('pmFile').files = event.dataTransfer.files; chosenMappingFile(); }
+        });
         for (const type of ['input', 'change']) $('regStudent').addEventListener(type, pickStudent);
         $('regClass').addEventListener('change', () => { fillUnitsOf(); showRegistration(); });
         for (const id of ['regBatch', 'regTerm', 'regUnitsOf']) $(id).addEventListener('change', showRegistration);
