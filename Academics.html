@@ -448,11 +448,11 @@
             const read = store => fewaDB.getAll(store).catch(() => []);
             [units, programmeUnits, offers, registrations, students, allocations] = await Promise.all(
                 ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students', 'unit_lecturers'].map(read));
-            // Programme = the award type (Certificate, Diploma...); each course says its award. Group category = study session.
+            // Programme = Settings > Program Setup > Award Types (each course says its award). Group category = study session.
             const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
             courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.enabled !== 'NO')
                 .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '' }));
-            programmes = [...new Set([...(await settingNames('awardTypes')), ...courseItems.map(c => c.award).filter(Boolean)])];
+            programmes = await settingNames('awardTypes'); // exactly as listed in Settings > Program Setup > Award Types
             categories = await settingNames('studySessions');
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
             terms = await settingNames('terms');
