@@ -91,7 +91,24 @@ ALTER TABLE academics.unit_lecturers ADD COLUMN IF NOT EXISTS semester integer;
 COMMENT ON COLUMN academics.unit_lecturers.programme IS 'the award of the course (Certificate, Diploma...)';
 CREATE INDEX IF NOT EXISTS unit_lecturers_term ON academics.unit_lecturers (term, batch);
 
+-- ---------- Unit hours: the theory and practical hours of a unit on a course (Manage Units > Unit hours) ----------
+CREATE TABLE IF NOT EXISTS academics.unit_hours (
+    id               text PRIMARY KEY,
+    programme        text,                -- the award type (Settings > Program Setup > Award Types)
+    course           text,                -- the course as named in Settings > Program Setup > Courses
+    unit_code        text,                -- academics.units.code
+    certificate      text,                -- e.g. Diploma
+    year_of_study    integer,
+    theory_hours     numeric,
+    practical_hours  numeric,
+    updated_at       timestamptz,
+    updated_by       text,                -- the staff login that saved it
+    extra            jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS unit_hours_course ON academics.unit_hours (course);
+
 -- Row level security with no policies: only the system (the owner) reads or changes these, never Supabase's web API
+ALTER TABLE academics.unit_hours ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.unit_lecturers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.programme_units ENABLE ROW LEVEL SECURITY;

@@ -406,6 +406,67 @@
                     </div>
                 </div>
 
+                <!-- ===== Unit hours ===== -->
+                <div id="pane-hours" class="units-pane" hidden>
+                    <div class="units-heading">Unit hours</div>
+                    <div class="settings-banner info-banner">Unit hours: choose the programme and course, pick the unit, enter the
+                        certificate and the theory and practical hours, then Save hours. The pencil loads a row for a change and the
+                        bin removes it.</div>
+                    <div class="up-filters reg-fields lec-fields">
+                        <label for="uhProgramme">Programme <span class="req">*</span></label><select id="uhProgramme"></select>
+                        <label for="uhCourse">Course <span class="req">*</span></label><select id="uhCourse"></select>
+                        <label for="uhUnit">Unit <span class="req">*</span></label><select id="uhUnit"></select>
+                        <label for="uhCertificate">Certificate</label>
+                        <input type="text" id="uhCertificate" maxlength="100" placeholder="For example Diploma" autocomplete="off">
+                        <label for="uhTheory">Theory hours <span class="req">*</span></label>
+                        <input type="number" id="uhTheory" min="0" max="10000" step="0.5" placeholder="0 for none">
+                        <label for="uhPractical">Practical hours <span class="req">*</span></label>
+                        <input type="number" id="uhPractical" min="0" max="10000" step="0.5" placeholder="0 for none">
+                        <span></span>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" id="uhSave" data-edit onclick="saveUnitHours()">Save hours</button>
+                            <button type="button" class="btn-secondary" onclick="clearUnitHours()">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="units-subhead">Upload unit hours</div>
+                    <div class="up-box">
+                        <div class="up-template">
+                            <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
+                            <div class="up-template-text"><b>Excel template</b>
+                                <span>Course, certificate, year, unit title, unit code, theory hours and practical hours, one unit per row.</span></div>
+                            <div class="up-template-buttons">
+                                <button type="button" class="btn-secondary" onclick="downloadHoursTemplate()">Download</button>
+                            </div>
+                        </div>
+                        <label class="up-drop" id="uhDrop" for="uhFile">
+                            <svg class="up-cloud" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor"
+                                d="M19.4 10.1A7 7 0 0 0 6.1 8.6 5.5 5.5 0 0 0 6.5 19.5h12.3a4.7 4.7 0 0 0 .6-9.4zM13 13v4h-2v-4H8l4-4 4 4z"/></svg>
+                            <span class="up-choose" id="uhChosen">Choose the filled-in file</span>
+                            <input type="file" id="uhFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                        </label>
+                        <div class="up-limits"><span>Supported formats: XLS, XLSX</span><span>Max size: 10 MB</span></div>
+                        <div class="up-submit"><button type="button" class="btn-submit" data-edit onclick="uploadUnitHours()">Upload unit hours</button></div>
+                    </div>
+                    <div id="uhUploadResult" hidden>
+                        <div class="units-subhead">Lines in the file</div>
+                        <div class="units-count" id="uhUploadSummary"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Row</th><th>Course</th><th>Certificate</th><th>Year</th><th>Unit code</th><th>Unit title</th><th class="num">Theory</th><th class="num">Practical</th><th>Result</th></tr></thead>
+                            <tbody id="uhUploadRows"></tbody></table></div>
+                    </div>
+
+                    <div class="units-subhead">Unit hours</div>
+                    <p id="uhHint" class="up-hint">Choose the programme to list its unit hours.</p>
+                    <div id="uhPanel" hidden>
+                        <div class="units-count" id="uhCount"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th class="unit-actions"></th><th>Course</th><th>Year</th><th>Unit code</th><th>Unit title</th><th>Certificate</th><th class="num">Theory hours</th><th class="num">Practical hours</th><th class="num">Total</th></tr></thead>
+                            <tbody id="uhRows"></tbody></table></div>
+                    </div>
+                </div>
+
                 <!-- ===== Units register ===== -->
                 <div id="pane-units" class="units-pane" hidden>
                     <div class="units-heading">Units register</div>
@@ -480,7 +541,7 @@
         /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
         const TABS = [
             ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
-            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['units', 'Units register']
+            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['hours', 'Unit hours'], ['units', 'Units register']
         ];
         const TAB_KEY = 'fewaUnitsTab';
         let activeTab = 'units';
@@ -510,8 +571,8 @@
 
         async function loadData() {
             const read = store => fewaDB.getAll(store).catch(() => []);
-            [units, programmeUnits, offers, registrations, students, allocations] = await Promise.all(
-                ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students', 'unit_lecturers'].map(read));
+            [units, programmeUnits, offers, registrations, students, allocations, unitHours] = await Promise.all(
+                ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students', 'unit_lecturers', 'unit_hours'].map(read));
             // Programme = Settings > Program Setup > Award Types (each course says its award). Group category = study session.
             const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
             courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.enabled !== 'NO')
@@ -577,6 +638,8 @@
             fill($('pmCluster'), CLUSTER_GROUPS.map(g => [g, g]), '-- select one --');
             $('pmUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
             fillMappingCourses();
+            fill($('uhProgramme'), programmes.map(p => [p, p]), '-- select one --');
+            fillHoursCourses();
             $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
                 .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
         }
@@ -593,7 +656,7 @@
 
         function render() {
             applyRights();
-            ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers, programme: renderProgrammeMapping,
+            ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers, programme: renderProgrammeMapping, hours: renderUnitHours,
                 register: showRegistration, upload: renderRegisteredOnUnit })[activeTab]();
         }
 
@@ -1071,6 +1134,229 @@
             show();
         }
 
+        /* ---------- Unit hours ----------
+           The theory and practical hours of a unit on a course (table academics.unit_hours), one row per course and
+           unit. Programme = Settings > Award Types; Course = the courses with that award; Unit = the course's programme
+           units (every unit while it has none). The year comes from the course's programme units, or the upload. */
+        let unitHours = [], editingHours = null;
+
+        function fillHoursCourses() {
+            const programme = $('uhProgramme').value;
+            fill($('uhCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fillHoursUnits();
+        }
+
+        function fillHoursUnits() {
+            const course = $('uhCourse').value;
+            const codes = programmeUnits.filter(p => p.course === course).map(p => String(p.unitCode).toUpperCase());
+            const list = course && codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
+            fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]), '');
+            // The programme's award as the certificate, until one is typed
+            if (!$('uhCertificate').value && $('uhProgramme').value) $('uhCertificate').placeholder = 'For example ' + $('uhProgramme').value;
+            renderUnitHours();
+        }
+
+        const hoursText = n => n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString();
+
+        function renderUnitHours() {
+            const programme = $('uhProgramme').value, course = $('uhCourse').value;
+            $('uhHint').hidden = !!programme;
+            $('uhPanel').hidden = !programme;
+            if (!programme) return;
+            // The programme's courses (or the one chosen)
+            const ofProgramme = new Set(courseItems.filter(c => c.award === programme).map(c => c.name));
+            const rows = unitHours.filter(h => course ? h.course === course : (h.programme === programme || ofProgramme.has(h.course)))
+                .sort((a, b) => String(a.course).localeCompare(String(b.course)) || (a.yearOfStudy || 0) - (b.yearOfStudy || 0)
+                    || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
+            const sum = key => rows.reduce((s, h) => s + Number(h[key] || 0), 0);
+            $('uhCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'}: ${hoursText(sum('theoryHours'))} theory and ` +
+                `${hoursText(sum('practicalHours'))} practical hours`;
+            $('uhRows').innerHTML = rows.length ? rows.map(h => `<tr${h.id === editingHours ? ' class="editing"' : ''}>
+                    <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(h.unitCode), `editUnitHours('${h.id}')`) +
+                        iconButton('delete', 'Remove ' + escapeHtml(h.unitCode), `deleteUnitHours('${h.id}')`) : ''}</td>
+                    <td>${escapeHtml(h.course)}</td><td>${h.yearOfStudy ? 'Year ' + escapeHtml(h.yearOfStudy) : '-'}</td>
+                    <td>${escapeHtml(h.unitCode)}</td><td>${escapeHtml((unitByCode(h.unitCode) || {}).title || '')}</td>
+                    <td>${escapeHtml(h.certificate || '')}</td><td class="num">${hoursText(h.theoryHours)}</td>
+                    <td class="num">${hoursText(h.practicalHours)}</td>
+                    <td class="num">${hoursText(Number(h.theoryHours || 0) + Number(h.practicalHours || 0))}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="9">No unit hours for ${escapeHtml(course || programme)} yet.</td></tr>`;
+        }
+
+        const validHours = v => v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
+        const yearOfUnit = (course, code) => (programmeUnits.find(p => p.course === course && same(p.unitCode, code)) || {}).yearOfStudy || null;
+
+        async function saveUnitHours() {
+            if (!allowed('academics', 'edit')) return;
+            const programme = $('uhProgramme').value, course = $('uhCourse').value, code = $('uhUnit').value;
+            const theory = $('uhTheory').value.trim(), practical = $('uhPractical').value.trim();
+            const missing = [[programme, 'programme'], [course, 'course'], [code, 'unit']].filter(([v]) => !v).map(([, n]) => n);
+            if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
+            if (!validHours(theory) || !validHours(practical)) return alert('Enter the theory and practical hours (0 for none).');
+            const unit = unitByCode(code) || { code };
+            // One row per course and unit: saving again changes it
+            const existing = unitHours.find(h => h.id !== editingHours && h.course === course && same(h.unitCode, unit.code));
+            if (existing && !confirm(`${unit.code} already has hours on ${course}. Replace them?`)) return;
+            const old = unitHours.find(h => h.id === editingHours);
+            const base = existing || old || {};
+            const record = { ...base, id: base.id || newId(), programme, course, unitCode: unit.code,
+                certificate: $('uhCertificate').value.trim(), yearOfStudy: base.yearOfStudy || yearOfUnit(course, unit.code),
+                theoryHours: Number(theory), practicalHours: Number(practical),
+                updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' };
+            try {
+                await save('unit_hours', record);
+                if (existing && old && existing.id !== old.id) await fewaDB.remove('unit_hours', old.id);
+                showToast(`${unit.code}: ${record.theoryHours} theory, ${record.practicalHours} practical hours.`);
+                editingHours = null;
+                $('uhSave').textContent = 'Save hours';
+                for (const id of ['uhTheory', 'uhPractical']) $(id).value = '';
+                await loadData();
+            } catch (err) { alert('The hours could not be saved: ' + err.message); await loadData(); }
+        }
+
+        function editUnitHours(id) {
+            const h = unitHours.find(x => x.id === id);
+            if (!h) return;
+            editingHours = id;
+            const pick = (sel, value) => {
+                if (value && ![...$(sel).options].some(o => o.value === value)) $(sel).add(new Option(value, value));
+                $(sel).value = value || '';
+            };
+            pick('uhProgramme', h.programme || courseAward(h.course)); fillHoursCourses();
+            pick('uhCourse', h.course); fillHoursUnits();
+            pick('uhUnit', String(h.unitCode));
+            $('uhCertificate').value = h.certificate || '';
+            $('uhTheory').value = h.theoryHours ?? '';
+            $('uhPractical').value = h.practicalHours ?? '';
+            $('uhSave').textContent = 'Save change';
+            renderUnitHours();
+            $('uhTheory').focus();
+        }
+
+        function clearUnitHours() {
+            editingHours = null;
+            $('uhSave').textContent = 'Save hours';
+            for (const id of ['uhProgramme', 'uhCertificate', 'uhTheory', 'uhPractical']) $(id).value = '';
+            fillHoursCourses();
+        }
+
+        async function deleteUnitHours(id) {
+            if (!allowed('academics', 'edit')) return;
+            const h = unitHours.find(x => x.id === id);
+            if (!h || !confirm(`Remove the hours of ${h.unitCode} on ${h.course}?`)) return;
+            try {
+                await fewaDB.remove('unit_hours', id);
+                if (editingHours === id) clearUnitHours();
+                showToast(`${h.unitCode}: hours removed.`);
+                await loadData();
+            } catch (err) { alert('The hours could not be removed: ' + err.message); await loadData(); }
+        }
+
+        // ----- Upload unit hours (Excel) -----
+        const HOURS_HEADERS = ['Course', 'Certificate', 'Year', 'Unit title', 'Unit code', 'Theory hours', 'Practical hours'];
+
+        async function downloadHoursTemplate() {
+            let XLSX;
+            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
+            const book = XLSX.utils.book_new();
+            const sheet = XLSX.utils.aoa_to_sheet([HOURS_HEADERS]);
+            sheet['!cols'] = HOURS_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
+            XLSX.utils.book_append_sheet(book, sheet, 'Unit hours');
+            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+                ['Column', 'What to type'],
+                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
+                ['Certificate', 'For example Diploma; may be left blank'],
+                ['Year', 'The year of study, a number (1, 2, 3...); may be left blank'],
+                ['Unit title', 'For your reading only; the unit code decides the unit'],
+                ['Unit code', 'The unit code, as in Manage Units > Units register'],
+                ['Theory hours', 'A number; 0 for none'],
+                ['Practical hours', 'A number; 0 for none']
+            ]), 'How to fill it in');
+            XLSX.writeFile(book, 'unit-hours-template.xlsx');
+        }
+
+        function chosenHoursFile() {
+            const file = $('uhFile').files[0];
+            $('uhChosen').textContent = file ? file.name : 'Choose the filled-in file';
+            $('uhDrop').classList.toggle('has-file', !!file);
+            return file;
+        }
+
+        async function uploadUnitHours() {
+            if (!allowed('academics', 'edit')) return;
+            const file = chosenHoursFile();
+            if (!file) return alert('Choose the filled-in Excel file first.');
+            if (!/\.(xlsx?|xlsm)$/i.test(file.name)) return alert('Choose an Excel file (.xls or .xlsx).');
+            if (file.size > UPLOAD_MAX_BYTES) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try {
+                const XLSX = await loadXlsx();
+                const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
+                    .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
+            } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
+            if (rows.length < 2) return alert('The file has no rows under the headings.');
+            const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+            const col = names => header.findIndex(h => names.includes(h));
+            const at = { course: col(['course', 'programme', 'program', 'class']), certificate: col(['certificate', 'award']),
+                year: col(['year', 'yearofstudy']), title: col(['unittitle', 'title', 'unitname']), code: col(['unitcode', 'code', 'unit']),
+                theory: col(['theoryhours', 'theory']), practical: col(['practicalhours', 'practical']) };
+            if (at.course < 0 || at.code < 0 || at.theory < 0 || at.practical < 0) {
+                return alert('The first row must hold the headings, with at least Course, Unit code, Theory hours and Practical hours. Download the template to see them.');
+            }
+            const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
+            const seen = new Set();
+            const lines = rows.slice(1).map((r, i) => {
+                const courseText = cell(r, 'course');
+                const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
+                const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
+                const unit = unitByCode(code);
+                const yearText = cell(r, 'year'), year = yearText === '' ? null : Number(yearText);
+                const line = { row: i + 2, courseText, course, code, unit, title: (unit || {}).title || cell(r, 'title'),
+                    certificate: cell(r, 'certificate'), year, theory: cell(r, 'theory'), practical: cell(r, 'practical'), problems: [] };
+                const problem = text => line.problems.push(text);
+                if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
+                if (!code) problem('No unit code');
+                else if (!unit) problem('Unit not in the Units register');
+                if (year !== null && !(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year must be 1 to 8');
+                if (!validHours(line.theory)) problem('Theory hours must be a number (0 for none)');
+                if (!validHours(line.practical)) problem('Practical hours must be a number (0 for none)');
+                const key = `${course}|${code}`.toLowerCase();
+                if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
+                seen.add(key);
+                line.existing = line.problems.length ? null : unitHours.find(h => h.course === course && same(h.unitCode, code));
+                return line;
+            });
+            const good = lines.filter(l => !l.problems.length);
+            const result = l => l.problems.length ? `<span class="units-result-bad">${escapeHtml(l.problems.join('; '))}</span>`
+                : l.done ? `<span class="units-result-ok">${l.existing ? 'Changed' : 'Added'}</span>`
+                : l.existing ? '<span class="units-result-warn">Will replace the hours saved</span>' : 'Ready';
+            const show = () => {
+                $('uhUploadResult').hidden = false;
+                $('uhUploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.course || l.courseText)}</td>
+                    <td>${escapeHtml(l.certificate)}</td><td>${l.year ? 'Year ' + escapeHtml(l.year) : ''}</td><td>${escapeHtml(l.code)}</td>
+                    <td>${escapeHtml(l.title)}</td><td class="num">${escapeHtml(l.theory)}</td><td class="num">${escapeHtml(l.practical)}</td>
+                    <td>${result(l)}</td></tr>`).join('');
+                const bad = lines.length - good.length, replace = good.filter(l => l.existing).length;
+                $('uhUploadSummary').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}: ${good.length} to save` +
+                    (replace ? ` (${replace} replacing hours already saved)` : '') + (bad ? `, ${bad} with a problem (not saved)` : '');
+            };
+            show();
+            if (!good.length) return alert('Nothing to save: see the Result column.');
+            if (!confirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return;
+            try {
+                for (const l of good) {
+                    await save('unit_hours', { ...(l.existing || {}), id: (l.existing || {}).id || newId(), course: l.course,
+                        programme: courseAward(l.course), unitCode: l.unit.code, certificate: l.certificate,
+                        yearOfStudy: l.year || yearOfUnit(l.course, l.unit.code), theoryHours: Number(l.theory), practicalHours: Number(l.practical),
+                        updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
+                    l.done = true;
+                }
+                showToast(`Hours saved for ${good.length} unit${good.length === 1 ? '' : 's'}.`);
+            } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            await loadData();
+            show();
+        }
+
         /* ---------- Student unit registration (unit registration by student) ----------
            Picking the student fills in their class (course), batch (group) and the latest period (term). The units
            listed are those on offer in the period for the class (or for any course), plus any the student is already
@@ -1431,6 +1717,16 @@
         $('lecStage').addEventListener('change', fillLecturerUnits);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
         $('pmProgramme').addEventListener('change', fillMappingCourses);
+        $('uhProgramme').addEventListener('change', fillHoursCourses);
+        $('uhCourse').addEventListener('change', fillHoursUnits);
+        $('uhFile').addEventListener('change', chosenHoursFile);
+        $('uhDrop').addEventListener('dragover', event => { event.preventDefault(); $('uhDrop').classList.add('dragging'); });
+        $('uhDrop').addEventListener('dragleave', () => $('uhDrop').classList.remove('dragging'));
+        $('uhDrop').addEventListener('drop', event => {
+            event.preventDefault();
+            $('uhDrop').classList.remove('dragging');
+            if (event.dataTransfer.files.length) { $('uhFile').files = event.dataTransfer.files; chosenHoursFile(); }
+        });
         $('pmCourse').addEventListener('change', fillMappingSemesters);
         $('pmBatch').addEventListener('change', renderProgrammeMapping);
         $('pmFile').addEventListener('change', chosenMappingFile);
