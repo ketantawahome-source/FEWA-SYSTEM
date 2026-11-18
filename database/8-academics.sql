@@ -1,5 +1,5 @@
 -- =====================================================================================================
--- FEWA system - schema "academics": units, programme units, units on offer and student unit registrations
+-- FEWA system - schema "academics": units, programme units, units on offer, unit lecturers and student unit registrations
 -- =====================================================================================================
 -- Run by server.mjs each time it starts (see 1-students.sql). Safe to run more than once.
 -- Used by Academic Management > Manage Units (Academics.html). Fields without a column of their own are kept
@@ -67,7 +67,25 @@ ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS lecturer_name 
 CREATE INDEX IF NOT EXISTS unit_registrations_student ON academics.unit_registrations (student_id);
 CREATE INDEX IF NOT EXISTS unit_registrations_term ON academics.unit_registrations (term);
 
+-- ---------- Unit lecturer mapping: which lecturer teaches a unit to a batch in a period (Manage Units > Lecturer units) ----------
+CREATE TABLE IF NOT EXISTS academics.unit_lecturers (
+    id              text PRIMARY KEY,
+    programme       text,                 -- the award type, e.g. Diploma (Settings > Program Setup > Award Types)
+    course          text,                 -- the course as named in Settings > Program Setup > Courses
+    unit_code       text,                 -- academics.units.code
+    lecturer        text,                 -- the lecturer's login (staff email)
+    lecturer_name   text,
+    batch           text,                 -- the student group (Student Groups)
+    term            text,                 -- the period (Academic Terms)
+    group_category  text,                 -- the study session, e.g. Full Time (empty: all)
+    allocated_at    timestamptz,
+    allocated_by    text,                 -- the staff login that allocated it
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS unit_lecturers_term ON academics.unit_lecturers (term, batch);
+
 -- Row level security with no policies: only the system (the owner) reads or changes these, never Supabase's web API
+ALTER TABLE academics.unit_lecturers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.programme_units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.unit_offers ENABLE ROW LEVEL SECURITY;

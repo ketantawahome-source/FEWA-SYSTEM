@@ -62,6 +62,8 @@
         .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
         .up-submit { display: flex; justify-content: flex-end; margin-top: 12px; }
         .reg-fields { grid-template-columns: 140px minmax(0, 1fr) 150px minmax(0, 1fr); }
+        .lec-fields { grid-template-columns: 130px minmax(0, 1fr) 90px minmax(0, 1fr); column-gap: 24px; }
+        .data-table tr.editing td { background: #fff8e1; }
         .reg-fields .units-actions .btn-submit, .reg-fields .units-actions .btn-secondary { margin: 0; }
         .reg-reason { min-width: 150px !important; padding: 6px 8px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; }
         .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
@@ -311,19 +313,35 @@
                     </div>
                 </div>
 
-                <!-- ===== Lecturer units ===== -->
+                <!-- ===== Lecturer units (unit lecturer mapping) ===== -->
                 <div id="pane-lecturer" class="units-pane" hidden>
-                    <div class="units-heading">Lecturer units</div>
-                    <div class="settings-banner info-banner">Lecturer units: choose the term, then pick the lecturer who teaches each
-                        unit on offer. It is saved as soon as you pick. "Show" narrows the list to one lecturer's units.</div>
-                    <div class="units-form" style="margin-top:14px">
-                        <div class="form-group"><label>Term <span class="req">*</span></label><select id="lecTerm"></select></div>
-                        <div class="form-group"><label>Show</label><select id="lecFilter"></select></div>
+                    <div class="units-heading">Unit lecturer mapping</div>
+                    <div class="settings-banner info-banner">Lecturer units: choose the programme, course, unit, lecturer, batch and
+                        period, then Allocate. The list shows the allocations in the batch and period (narrowed to the lecturer
+                        chosen); the pencil loads one for a change and the bin removes it.</div>
+                    <div class="up-filters reg-fields lec-fields">
+                        <label for="lecProgramme">Programme <span class="req">*</span></label><select id="lecProgramme"></select>
+                        <label for="lecCourse">Course <span class="req">*</span></label><select id="lecCourse"></select>
+                        <label for="lecUnit">Unit <span class="req">*</span></label><select id="lecUnit"></select>
+                        <label for="lecLecturer">Lecturer <span class="req">*</span></label><select id="lecLecturer"></select>
+                        <label for="lecBatch">Batch <span class="req">*</span></label><select id="lecBatch"></select>
+                        <label for="lecTerm">Period <span class="req">*</span></label><select id="lecTerm"></select>
+                        <label for="lecCategory">Group category</label><select id="lecCategory"></select>
+                        <span></span>
+                        <div class="units-actions">
+                            <button type="button" class="btn-submit" id="lecAllocate" data-edit onclick="allocateLecturer()">Allocate</button>
+                            <button type="button" class="btn-secondary" onclick="clearAllocation()">Clear</button>
+                        </div>
                     </div>
-                    <div class="units-count" id="lecCount"></div>
-                    <div class="table-wrap"><table class="data-table">
-                        <thead><tr><th>Unit code</th><th>Unit title</th><th>Course</th><th class="num">Registered</th><th>Lecturer</th></tr></thead>
-                        <tbody id="lecRows"></tbody></table></div>
+
+                    <div class="units-subhead">Allocations</div>
+                    <p id="lecHint" class="up-hint">Choose the batch and period to list the allocations.</p>
+                    <div id="lecPanel" hidden>
+                        <div class="units-count" id="lecCount"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Unit code</th><th>Unit title</th><th>Programme</th><th>Course</th><th>Lecturer</th><th>Group category</th><th class="num">Registered</th><th></th></tr></thead>
+                            <tbody id="lecRows"></tbody></table></div>
+                    </div>
                 </div>
 
                 <!-- ===== Units register ===== -->
@@ -418,8 +436,8 @@
         }
 
         /* ---------- Data (all in the database; read when the page opens and after each change) ---------- */
-        let units = [], programmeUnits = [], offers = [], registrations = [], students = [];
-        let courses = [], terms = [], lecturers = [], groups = [];
+        let units = [], programmeUnits = [], offers = [], registrations = [], students = [], allocations = [];
+        let courses = [], terms = [], lecturers = [], groups = [], courseItems = [], programmes = [], categories = [];
 
         async function settingNames(key, usable = () => true, label = i => i.name) {
             const record = await fewaDB.getOne('settings', key).catch(() => null);
@@ -428,8 +446,14 @@
 
         async function loadData() {
             const read = store => fewaDB.getAll(store).catch(() => []);
-            [units, programmeUnits, offers, registrations, students] = await Promise.all(
-                ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students'].map(read));
+            [units, programmeUnits, offers, registrations, students, allocations] = await Promise.all(
+                ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students', 'unit_lecturers'].map(read));
+            // Programme = the award type (Certificate, Diploma...); each course says its award. Group category = study session.
+            const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
+            courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.enabled !== 'NO')
+                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '' }));
+            programmes = [...new Set([...(await settingNames('awardTypes')), ...courseItems.map(c => c.award).filter(Boolean)])];
+            categories = await settingNames('studySessions');
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
             terms = await settingNames('terms');
             // Batches: the Student Groups, and any group students already have
@@ -458,7 +482,7 @@
         function fillChoices() {
             const termChoices = terms.map(t => [t, t]);
             const lastTerm = terms[terms.length - 1] || '';
-            for (const id of ['offerTerm', 'lecTerm']) {
+            for (const id of ['offerTerm']) {
                 const select = $(id);
                 const had = select.value;
                 fill(select, termChoices, terms.length ? '-- choose a term --' : '-- no terms yet (Settings > Organisation Setup) --');
@@ -477,7 +501,12 @@
             fill($('offerUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
             fill($('offerYear'), [1, 2, 3, 4, 5, 6].map(n => [n, 'Year ' + n]), '-- year --');
             fill($('offerSemester'), [1, 2, 3].map(n => [n, 'Semester ' + n]), '-- semester --');
-            fill($('lecFilter'), [['-', 'Units with no lecturer yet'], ...lecturers.map(l => [l.username, l.name])], 'All units');
+            fill($('lecProgramme'), programmes.map(p => [p, p]), '-- select one --');
+            fillLecturerCourses();
+            fill($('lecLecturer'), lecturers.map(l => [l.username, l.name]), '-- all lecturers --');
+            fill($('lecBatch'), groups.map(g => [g, g]), '-- select one --');
+            fill($('lecTerm'), termChoices, '-- select one --');
+            fill($('lecCategory'), categories.map(c => [c, c]), '-- all group categories --');
             $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
                 .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
         }
@@ -635,32 +664,120 @@
             } catch (err) { alert('The offer could not be removed: ' + err.message); }
         }
 
-        /* ---------- Lecturer units ---------- */
-        function renderLecturers() {
-            const term = $('lecTerm').value, show = $('lecFilter').value;
-            const rows = offers.filter(o => o.term === term && (!show || (show === '-' ? !o.lecturer : o.lecturer === show)))
-                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode)));
-            $('lecCount').textContent = term ? `${rows.length} unit${rows.length === 1 ? '' : 's'}` : '';
-            const choices = lecturer => `<option value="">-- no lecturer yet --</option>` + lecturers.map(l =>
-                `<option value="${escapeHtml(l.username)}"${l.username === lecturer ? ' selected' : ''}>${escapeHtml(l.name)}</option>`).join('');
-            $('lecRows').innerHTML = !term ? '<tr class="empty-row"><td colspan="5">Choose a term above.</td></tr>'
-                : rows.length ? rows.map(o => `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml((unitByCode(o.unitCode) || {}).title || '')}</td>
-                    <td>${escapeHtml(o.course || 'Any course')}</td><td class="num">${registeredCount(o)}</td>
-                    <td><select aria-label="Lecturer for ${escapeHtml(o.unitCode)}" ${mayEdit() ? '' : 'disabled'}
-                        onchange="setLecturer('${o.id}', this.value)">${choices(o.lecturer)}</select></td></tr>`).join('')
-                : '<tr class="empty-row"><td colspan="5">No units on offer in this term (Units on offer).</td></tr>';
+        /* ---------- Lecturer units (unit lecturer mapping) ----------
+           An allocation says which lecturer teaches a unit to a batch in a period. The units offered to the course in
+           that period take the lecturer too, so registrations made afterwards show (and keep) the lecturer. */
+        let editingAllocation = null;
+
+        // The courses of the programme chosen, and the units of the course chosen (its programme units, else all)
+        function fillLecturerCourses() {
+            const programme = $('lecProgramme').value;
+            fill($('lecCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fillLecturerUnits();
         }
 
-        async function setLecturer(id, username) {
-            if (!allowed('academics', 'edit')) return renderLecturers();
-            const o = offers.find(x => x.id === id);
-            if (!o) return;
-            const lecturer = lecturers.find(l => l.username === username);
+        function fillLecturerUnits() {
+            const course = $('lecCourse').value;
+            const codes = programmeUnits.filter(p => p.course === course).map(p => String(p.unitCode).toUpperCase());
+            const list = course && codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
+            fill($('lecUnit'), list.map(u => [u.code, unitLabel(u)]), list.length ? '-- select one --' : '-- no units yet (Units register) --');
+        }
+
+        const allocationLecturer = (term, batch, course, code) => allocations.find(a => a.term === term && a.batch === batch
+            && a.course === course && same(a.unitCode, code));
+        const registeredOnAllocation = a => registrations.filter(r => r.term === a.term && same(r.unitCode, a.unitCode)
+            && (r.batch || (students.find(s => s.id === r.studentId) || {}).group) === a.batch).length;
+
+        function renderLecturers() {
+            const batch = $('lecBatch').value, term = $('lecTerm').value, lecturer = $('lecLecturer').value;
+            const ready = !!(batch && term);
+            $('lecHint').hidden = ready;
+            $('lecPanel').hidden = !ready;
+            if (!ready) return;
+            const rows = allocations.filter(a => a.batch === batch && a.term === term && (!lecturer || a.lecturer === lecturer))
+                .sort((a, b) => String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
+            $('lecCount').textContent = `${rows.length} allocation${rows.length === 1 ? '' : 's'} in ${batch}, ${term}`;
+            $('lecRows').innerHTML = rows.length ? rows.map(a => `<tr${a.id === editingAllocation ? ' class="editing"' : ''}>
+                    <td>${escapeHtml(a.unitCode)}</td><td>${escapeHtml((unitByCode(a.unitCode) || {}).title || '')}</td>
+                    <td>${escapeHtml(a.programme || '')}</td><td>${escapeHtml(a.course || '')}</td><td>${escapeHtml(a.lecturerName || a.lecturer || '')}</td>
+                    <td>${escapeHtml(a.groupCategory || 'All')}</td><td class="num">${registeredOnAllocation(a)}</td>
+                    <td>${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(a.unitCode), `editAllocation('${a.id}')`) +
+                        iconButton('delete', 'Remove ' + escapeHtml(a.unitCode), `deleteAllocation('${a.id}')`) : ''}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="8">No allocations in ${escapeHtml(batch)}, ${escapeHtml(term)}${lecturer ? ' for this lecturer' : ''} yet.</td></tr>`;
+        }
+
+        // The lecturer also goes onto the units offered in the period to the course (or to any course)
+        async function giveOffersLecturer(allocation) {
+            for (const o of offers.filter(o => o.term === allocation.term && same(o.unitCode, allocation.unitCode)
+                && (o.course === allocation.course || !o.course) && o.lecturer !== allocation.lecturer)) {
+                await save('unit_offers', { ...o, lecturer: allocation.lecturer, lecturerName: allocation.lecturerName });
+            }
+        }
+
+        async function allocateLecturer() {
+            if (!allowed('academics', 'edit')) return;
+            const v = id => $(id).value;
+            const missing = [['lecProgramme', 'programme'], ['lecCourse', 'course'], ['lecUnit', 'unit'], ['lecLecturer', 'lecturer'],
+                ['lecBatch', 'batch'], ['lecTerm', 'period']].filter(([id]) => !v(id)).map(([, name]) => name);
+            if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
+            const lecturer = lecturers.find(l => l.username === v('lecLecturer'));
+            const old = allocations.find(a => a.id === editingAllocation);
+            // One lecturer per unit, course, batch, period and group category
+            const clash = allocations.find(a => a.id !== editingAllocation && a.term === v('lecTerm') && a.batch === v('lecBatch')
+                && a.course === v('lecCourse') && same(a.unitCode, v('lecUnit')) && (a.groupCategory || '') === v('lecCategory'));
+            if (clash && !confirm(`${v('lecUnit')} is already allocated to ${clash.lecturerName || clash.lecturer} in ${v('lecBatch')}, ${v('lecTerm')}. Give it to ${lecturer.name} instead?`)) return;
+            const base = clash || old || {};
+            const record = { ...base, id: base.id || newId(), programme: v('lecProgramme'), course: v('lecCourse'),
+                unitCode: (unitByCode(v('lecUnit')) || {}).code || v('lecUnit'), lecturer: lecturer.username, lecturerName: lecturer.name,
+                batch: v('lecBatch'), term: v('lecTerm'), groupCategory: v('lecCategory'),
+                allocatedAt: new Date().toISOString(), allocatedBy: currentUser() || '' };
             try {
-                await save('unit_offers', { ...o, lecturer: username, lecturerName: lecturer ? lecturer.name : '' });
-                showToast(`${o.unitCode}: ${lecturer ? lecturer.name : 'no lecturer'}.`);
+                await save('unit_lecturers', record);
+                if (clash && old && clash.id !== old.id) await fewaDB.remove('unit_lecturers', old.id);
+                await giveOffersLecturer(record);
+                showToast(`${record.unitCode}: ${lecturer.name} (${record.batch}, ${record.term}).`);
+                editingAllocation = null;
+                $('lecAllocate').textContent = 'Allocate';
+                $('lecUnit').value = '';
                 await loadData();
-            } catch (err) { alert('The lecturer could not be saved: ' + err.message); await loadData(); }
+            } catch (err) { alert('The allocation could not be saved: ' + err.message); await loadData(); }
+        }
+
+        function editAllocation(id) {
+            const a = allocations.find(x => x.id === id);
+            if (!a) return;
+            editingAllocation = id;
+            const pick = (sel, value) => {
+                if (value && ![...$(sel).options].some(o => o.value === value)) $(sel).add(new Option(value, value));
+                $(sel).value = value || '';
+            };
+            pick('lecProgramme', a.programme); fillLecturerCourses();
+            pick('lecCourse', a.course); fillLecturerUnits();
+            pick('lecUnit', String(a.unitCode)); pick('lecLecturer', a.lecturer);
+            pick('lecBatch', a.batch); pick('lecTerm', a.term); pick('lecCategory', a.groupCategory);
+            $('lecAllocate').textContent = 'Save change';
+            renderLecturers();
+            $('lecProgramme').focus();
+        }
+
+        function clearAllocation() {
+            editingAllocation = null;
+            $('lecAllocate').textContent = 'Allocate';
+            for (const id of ['lecProgramme', 'lecLecturer', 'lecBatch', 'lecTerm', 'lecCategory']) $(id).value = '';
+            fillLecturerCourses();
+            renderLecturers();
+        }
+
+        async function deleteAllocation(id) {
+            if (!allowed('academics', 'edit')) return;
+            const a = allocations.find(x => x.id === id);
+            if (!a || !confirm(`Remove ${a.lecturerName || a.lecturer} from ${a.unitCode} in ${a.batch}, ${a.term}?`)) return;
+            try {
+                await fewaDB.remove('unit_lecturers', id);
+                if (editingAllocation === id) clearAllocation();
+                showToast(`${a.unitCode}: allocation removed.`);
+                await loadData();
+            } catch (err) { alert('The allocation could not be removed: ' + err.message); await loadData(); }
         }
 
         /* ---------- Student unit registration (unit registration by student) ----------
@@ -739,7 +856,7 @@
                     <td>${escapeHtml(u.code || code)}</td><td>${escapeHtml(u.title || '')}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
                     <td>${p ? `Year ${escapeHtml(p.yearOfStudy)}, Sem. ${escapeHtml(p.semester)}` : '-'}</td>
                     <td><select class="reg-reason" data-code="${escapeHtml(code)}" aria-label="Exam reason for ${escapeHtml(code)}">${reasons(reg && reg.examReason)}</select></td>
-                    <td>${offer ? escapeHtml(offer.lecturerName || reg?.lecturerName || '-') : '<span class="units-result-warn">no longer on offer</span>'}</td></tr>`;
+                    <td>${offer ? escapeHtml((allocationLecturer(term, $('regBatch').value, course, code) || {}).lecturerName || offer.lecturerName || reg?.lecturerName || '-') : '<span class="units-result-warn">no longer on offer</span>'}</td></tr>`;
             }).join('') : `<tr class="empty-row"><td colspan="7">No units on offer in ${escapeHtml(term)} for ${escapeHtml(course)}${stage ? ' in this year and semester' : ''}. Add them under Units on offer.</td></tr>`;
             updateRegTotal();
         }
@@ -781,7 +898,7 @@
             if (remove.length && !confirm(`Remove ${student.admNo}'s registration for ${remove.map(r => r.unitCode).join(', ')}?`)) return;
             try {
                 for (const code of add) {
-                    const offer = offersForClass(course, term).find(o => same(o.unitCode, code)) || {};
+                    const offer = allocationLecturer(term, batch, course, code) || offersForClass(course, term).find(o => same(o.unitCode, code)) || {};
                     await save('unit_registrations', { ...registrationRecord(student, term, (unitByCode(code) || {}).code || code), examReason: reasonOf(code),
                         lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: course, batch });
                 }
@@ -1019,7 +1136,9 @@
             $('upDrop').classList.remove('dragging');
             if (event.dataTransfer.files.length) { $('uploadFile').files = event.dataTransfer.files; chosenFile(); }
         });
-        for (const id of ['lecTerm', 'lecFilter']) $(id).addEventListener('change', renderLecturers);
+        $('lecProgramme').addEventListener('change', fillLecturerCourses);
+        $('lecCourse').addEventListener('change', fillLecturerUnits);
+        for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
         for (const type of ['input', 'change']) $('regStudent').addEventListener(type, pickStudent);
         $('regClass').addEventListener('change', () => { fillUnitsOf(); showRegistration(); });
         for (const id of ['regBatch', 'regTerm', 'regUnitsOf']) $(id).addEventListener('change', showRegistration);
