@@ -6223,3 +6223,6 @@ body.login-page .btn-login {
     .org-form-grid > .form-group { flex-direction: column; align-items: stretch; gap: 6px; }
     .org-form-grid > .form-group > label { flex: none; }
 }
+
+/* A grey hint under a settings field (e.g. Settings > Courses) */
+.form-group .field-hint { display: block; margin-top: 4px; font-size: 12px; color: var(--fewa-muted); }

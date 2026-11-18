@@ -1060,7 +1060,8 @@
                     { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Hair & Beauty Therapy' },
                     // optionsFrom: choices come from that Settings list; choicesFrom: the college name in School Setup
                     { name: 'institution', label: 'Institution Name', choicesFrom: 'organization' },
-                    { name: 'code', label: 'Code', placeholder: 'e.g. HBT01' },
+                    { name: 'code', label: 'Code', placeholder: 'e.g. HBT01',
+                        hint: 'Used for [PROG] / [CLS] in registration numbers. Blank uses the initials of the name.' },
                     { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 1',
                         listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
                     // Institute: one of the Schools saved under Program Setup > Schools
@@ -1076,11 +1077,29 @@
                     { name: 'applyExamWeight', label: 'Apply Exam Weight', options: ['YES', 'NO'], hideInList: true },
                     { name: 'enabled', label: 'Course Enabled', options: ['YES', 'NO'] },
                     { name: 'use100Conversion', label: 'Use 100% Conversion', options: ['YES', 'NO'], hideInList: true },
-                    { name: 'transcriptFile', label: 'Transcript File', hideInList: true },
+                    { name: 'transcriptFile', label: 'Transcript File', placeholder: 'e.g. rptTranscript_v2', hideInList: true,
+                        hint: 'Blank uses the default transcript.' },
                     { name: 'intake', label: 'Intakes', placeholder: 'Select',
                         options: ['January', 'May', 'September'], hideInList: true },
                     // Its admission numbers come from this sequence (Program Setup > Registration Number Sequences)
-                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true }
+                    { name: 'regSequence', label: 'Registration Number Sequence', optionsFrom: 'regSequences', hideInList: true, noAutoPick: true,
+                        hint: 'Leave blank to number this course on its own, from Start Registration No. Choose one to share numbering with other courses.' },
+                    // How its registration (admission) numbers look: prefix + number + suffix (see nextAdmissionNumber)
+                    { name: 'regStart', label: 'Start Registration No.', type: 'number', placeholder: 'e.g. 1000', hideInList: true,
+                        hint: 'The first student gets this number plus 1. Used when no sequence is chosen; blank starts at 1.' },
+                    { name: 'regPrefix', label: 'Registration No. Prefix', placeholder: 'e.g. [PROG]/', hideInList: true,
+                        hint: 'Blank means [PROG]/' },
+                    { name: 'regSuffix', label: 'Registration No. Suffix', placeholder: 'e.g. /[YYYY]', hideInList: true,
+                        hint: 'Blank means /[YYYY]. Placeholders in the prefix and suffix: [YYYY] year (2026), [YY] year (26), [MM] month (11), '
+                            + '[MMM] month name (NOV), [DD] day, [PROG] or [CLS] course code, [SCH] school code.' },
+                    { name: 'regPadding', label: 'Reg No Padding Size', type: 'number', placeholder: 'e.g. 4', hideInList: true,
+                        hint: 'Digits in the number part: 4 gives 0001. Blank means 3 (001); 0 means no padding.' },
+                    { name: 'creditHoursPerYear', label: 'Credit Hours Per Year', type: 'number', placeholder: 'e.g. 42', hideInList: true },
+                    { name: 'maxUnitsPerSemester', label: 'Max. Units Per Semester', type: 'number', placeholder: 'e.g. 8', hideInList: true,
+                        hint: 'Blank means 8.' },
+                    { name: 'meritListFile', label: 'Merit List File', placeholder: 'e.g. rptMeritList', hideInList: true,
+                        hint: 'Blank uses the default merit list.' },
+                    { name: 'feePaymentInstructions', label: 'Fee Payment Instructions', type: 'textarea', wide: true, hideInList: true }
                 ],
                 validate: i => i.hasShortCourses === 'YES' && !i.shortCourses ? 'Tick at least one short course, or set "Has Short Courses" to NO.' : '',
                 /* The same course name can be added again with another award or duration: that one is then known by
@@ -1585,8 +1604,11 @@
                             ${f.choices.map(o => `<option value="${escapeHtml(o)}"${f.choiceTags ? ` data-tag="${escapeHtml(f.choiceTags[o] || '')}"` : ''}${o === (values[f.name] ?? (f.choices.length === 1 && !f.showIf && !f.noAutoPick ? o : null))
                                 ? ' selected' : ''}>${escapeHtml(o)}</option>`).join('')}
                           </select>`
+                        : f.type === 'textarea'
+                        ? `<textarea name="${f.name}" rows="3" placeholder="${escapeHtml(f.placeholder || '')}"${f.required ? ' required' : ''}>${escapeHtml(values[f.name])}</textarea>`
                         : `<input type="${f.type || 'text'}" name="${f.name}" value="${escapeHtml(values[f.name])}"
                             placeholder="${escapeHtml(f.placeholder || '')}"${f.required ? ' required' : ''}>`}
+                    ${f.hint ? `<small class="field-hint">${escapeHtml(f.hint)}</small>` : ''}
                 </div>`).join('');
         }
 
@@ -4832,45 +4854,60 @@
                 || sequences.find(s => s.name === courseName) || null;
         }
 
+        /* A course's registration number: prefix + number + suffix. Blank prefix and suffix give the usual
+           <course code>/<number>/<year>, e.g. HD01/001/2026; the placeholders are filled in for the date of admission. */
+        const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        async function admissionFormat(courseName, year) {
+            const course = (await getSettingItems('courses')).find(c => courseLabel(c) === courseName) || {};
+            const code = await courseCode(courseName);
+            const school = (await getSettingItems('schools')).find(s => s.name === course.institute);
+            const now = new Date(), y = String(year);
+            const fillIn = text => String(text).replace(/\[(YYYY|YY|MMM|MM|DD|PROG|CLS|SCH)\]/gi, (_, p) => ({
+                YYYY: y, YY: y.slice(-2), MMM: MONTHS[now.getMonth()], MM: String(now.getMonth() + 1).padStart(2, '0'),
+                DD: String(now.getDate()).padStart(2, '0'), PROG: code, CLS: code,
+                SCH: ((school && school.code) || '').toUpperCase() })[p.toUpperCase()]);
+            const blank = v => v === undefined || v === null || String(v).trim() === '';
+            const digits = blank(course.regPadding) ? 3 : Math.max(0, parseInt(course.regPadding, 10) || 0);
+            return {
+                prefix: fillIn(blank(course.regPrefix) ? '[PROG]/' : course.regPrefix),
+                suffix: fillIn(blank(course.regSuffix) ? '/[YYYY]' : course.regSuffix),
+                digits, start: blank(course.regStart) ? 0 : Math.max(0, parseInt(course.regStart, 10) || 0)
+            };
+        }
+        const admissionText = (f, number) => f.prefix + String(number).padStart(f.digits, '0') + f.suffix;
+        // The number part of an AdmNo in this format (NaN when it is not one)
+        function admissionNumberOf(f, admNo) {
+            const a = String(admNo || '').toUpperCase(), p = f.prefix.toUpperCase(), s = f.suffix.toUpperCase();
+            if (a.length <= p.length + s.length || !a.startsWith(p) || !a.endsWith(s)) return NaN;
+            const middle = a.slice(p.length, a.length - s.length);
+            return /^\d+$/.test(middle) ? parseInt(middle, 10) : NaN;
+        }
+
         // After a student is saved: their course's sequence becomes the number they were given, when that is higher
         async function noteSequenceNumber(student) {
             const sequence = await courseSequence(student.admissionCourse);
-            const parts = (student.admNo || '').split('/');
-            const number = parts.length === 3 ? parseInt(parts[1], 10) : NaN;
-            if (!sequence || !Number.isFinite(number) || number <= (parseInt(sequence.lastNumber, 10) || 0)) return;
+            if (!sequence) return;
+            const number = admissionNumberOf(await admissionFormat(student.admissionCourse, new Date().getFullYear()), student.admNo);
+            if (!Number.isFinite(number) || number <= (parseInt(sequence.lastNumber, 10) || 0)) return;
             const items = await getSettingItems('regSequences');
             await saveSettingItems('regSequences', items.map(i => i.id === sequence.id ? { ...i, lastNumber: String(number) } : i));
         }
 
-        /* <course code>/<number>/<year>. The number: with a sequence, its last number issued + 1 (skipping any already
-           used); otherwise the next number of that course this year, starting at 001. */
+        /* The next AdmNo of a course. The number: with a sequence, its last number issued + 1; otherwise one more than
+           the highest of the course in this format (with the year in it, numbering starts again each year), and at
+           least Start Registration No. + 1. Numbers already used are skipped. */
         async function nextAdmissionNumber(courseName, year = new Date().getFullYear()) {
-            const code = await courseCode(courseName);
+            const f = await admissionFormat(courseName, year);
+            const taken = new Set((await getAll('students')).map(s => String(s.admNo || '').toUpperCase()));
             const sequence = await courseSequence(courseName);
-            if (sequence) {
-                const taken = new Set((await getAll('students')).map(s => (s.admNo || '').toUpperCase()));
-                let number = (parseInt(sequence.lastNumber, 10) || 0) + 1;
-                while (taken.has(`${code}/${String(number).padStart(3, '0')}/${year}`.toUpperCase())) number++;
-                return `${code}/${String(number).padStart(3, '0')}/${year}`;
+            let number;
+            if (sequence) number = (parseInt(sequence.lastNumber, 10) || 0) + 1;
+            else {
+                const used = [...taken].map(a => admissionNumberOf(f, a)).filter(Number.isFinite);
+                number = Math.max(f.start, ...used) + 1;
             }
-            const rule = { prefix: code, separator: '/', start: 1, digits: 3, withYear: true, yearly: true };
-            const prefix = (rule.prefix + rule.separator).toUpperCase();
-            // Which numbers are taken: this year's only when numbering starts again each year, otherwise all of them
-            const yearEnd = rule.withYear ? rule.separator + year : '';
-            const numberOf = admNo => {
-                if (!admNo.startsWith(prefix)) return NaN;
-                let rest = admNo.slice(prefix.length);
-                if (rule.withYear) {
-                    const cut = rule.separator ? rest.lastIndexOf(rule.separator) : rest.length - 4;
-                    if (cut <= 0) return NaN;
-                    if (rule.yearly && rest.slice(cut) !== yearEnd) return NaN;
-                    rest = rest.slice(0, cut);
-                }
-                return /^\d+$/.test(rest) ? parseInt(rest, 10) : NaN;
-            };
-            const used = (await getAll('students')).map(s => numberOf((s.admNo || '').toUpperCase())).filter(Number.isFinite);
-            const next = Math.max(rule.start, Math.max(0, ...used) + 1);
-            return prefix + String(next).padStart(rule.digits, '0') + yearEnd;
+            while (taken.has(admissionText(f, number).toUpperCase())) number++;
+            return admissionText(f, number);
         }
 
         // Greyed (and not typed into) until a course is chosen

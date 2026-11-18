@@ -204,6 +204,15 @@ CREATE TABLE IF NOT EXISTS settings.reg_number_sequences (
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_sequence text;   -- from settings.reg_number_sequences
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS has_short_courses text;  -- YES or NO
 ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS short_courses text;      -- the short courses ticked, e.g. "Gel Nails, Lash Extensions"
+-- Registration numbers and the rest of the Programmes screen (Settings > Program Setup > Courses)
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_start integer;                 -- Start Registration No. (the first student gets it + 1)
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_prefix text;                   -- e.g. [PROG]/ (blank: [PROG]/)
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_suffix text;                   -- e.g. /[YYYY] (blank: /[YYYY])
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS reg_padding integer;               -- digits in the number part (blank: 3)
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS credit_hours_per_year numeric;
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS max_units_per_semester integer;    -- blank: 8
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS merit_list_file text;
+ALTER TABLE settings.courses ADD COLUMN IF NOT EXISTS fee_payment_instructions text;
 
 
 -- Row level security with no policies: only the owner can read or change the rows
