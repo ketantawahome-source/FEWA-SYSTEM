@@ -348,7 +348,7 @@
                 <!-- ===== Programme units (unit programme mapping) ===== -->
                 <div id="pane-programme" class="units-pane" hidden>
                     <div class="units-heading">Unit programme mapping</div>
-                    <div class="settings-banner info-banner">Programme units: choose the programme, course and batch to list the units
+                    <div class="settings-banner info-banner">Programme units: choose the programme and course to list the units
                         the course takes. To add one, pick the unit from the list that appears as you type and the semester it is
                         taken in, then Add unit to course. The bin takes a unit off the course.</div>
                     <div class="up-filters reg-fields lec-fields">
@@ -367,23 +367,14 @@
                     </div>
                     <datalist id="pmUnitChoices"></datalist>
 
-                    <div class="units-subhead">Units of the course</div>
-                    <p id="pmHint" class="up-hint">Choose the programme, course and batch to list the units the course takes.</p>
-                    <div id="pmPanel" hidden>
-                        <div class="units-count" id="pmCount"></div>
-                        <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th>Semester</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Batch</th><th>Cluster group</th><th></th></tr></thead>
-                            <tbody id="pmRows"></tbody></table></div>
-                    </div>
-
                     <div class="units-subhead">Upload units and programme mapping</div>
                     <div class="up-box">
                         <div class="up-template">
                             <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
                             <div class="up-template-text"><b>Excel template</b>
-                                <span>Course, batch, year of study, semester, unit code, unit title, credit hours and cluster group,
-                                    one unit per row. A unit not yet in the Units register is added to it.</span></div>
+                                <span>Programme, year of study, semester number, unit code, unit title and credit hours, one unit
+                                    per row. A unit code not yet on the register is created, then mapped to the course for its current batch.</span></div>
                             <div class="up-template-buttons">
                                 <button type="button" class="btn-secondary" onclick="downloadMappingTemplate()">Download</button>
                             </div>
@@ -403,6 +394,15 @@
                         <div class="table-wrap"><table class="data-table">
                             <thead><tr><th>Row</th><th>Course</th><th>Batch</th><th>Semester</th><th>Unit code</th><th>Unit title</th><th>Cluster group</th><th>Result</th></tr></thead>
                             <tbody id="pmUploadRows"></tbody></table></div>
+                    </div>
+
+                    <div class="units-subhead">Units the course takes</div>
+                    <p id="pmHint" class="up-hint">Choose the programme and course to list the units it takes.</p>
+                    <div id="pmPanel" hidden>
+                        <div class="units-count" id="pmCount"></div>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Semester</th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th>Batch</th><th>Cluster group</th><th></th></tr></thead>
+                            <tbody id="pmRows"></tbody></table></div>
                     </div>
                 </div>
 
@@ -540,8 +540,8 @@
 
         /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
         const TABS = [
-            ['units', 'Units register'], ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
-            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['hours', 'Unit hours']
+            ['offer', 'Units on offer'], ['upload', 'Student units upload'], ['register', 'Student unit registration'],
+            ['lecturer', 'Lecturer units'], ['programme', 'Programme units'], ['units', 'Units register'], ['hours', 'Unit hours']
         ];
         const TAB_KEY = 'fewaUnitsTab';
         let activeTab = 'units';
@@ -955,11 +955,11 @@
 
         function renderProgrammeMapping() {
             const course = $('pmCourse').value, batch = $('pmBatch').value;
-            const ready = !!($('pmProgramme').value && course && batch);
+            const ready = !!($('pmProgramme').value && course);
             $('pmHint').hidden = ready;
             $('pmPanel').hidden = !ready;
             if (!ready) return;
-            const rows = mappedUnits(course, batch).sort((a, b) => a.yearOfStudy - b.yearOfStudy || a.semester - b.semester
+            const rows = (batch ? mappedUnits(course, batch) : programmeUnits.filter(p => p.course === course)).sort((a, b) => a.yearOfStudy - b.yearOfStudy || a.semester - b.semester
                 || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
             const hours = rows.reduce((sum, p) => sum + Number((unitByCode(p.unitCode) || {}).creditHours || 0), 0);
             $('pmCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'}, ${hours} credit hours in all`;
@@ -968,7 +968,7 @@
                     <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
                     <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(p.unitType || 'Core')}</td>
                     <td>${mayEdit() ? iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
-                : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units for ${escapeHtml(batch)} yet. Add them above.</td></tr>`;
+                : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units${batch ? ' for ' + escapeHtml(batch) : ''} yet. Add them above, or upload them.</td></tr>`;
         }
 
         // "HBT 101 - Hair Basics", "HBT 101" or the title, as typed
@@ -1017,7 +1017,7 @@
         }
 
         // ----- Upload units and programme mapping (Excel) -----
-        const MAPPING_HEADERS = ['Course', 'Batch', 'Year of study', 'Semester', 'Unit code', 'Unit title', 'Credit hours', 'Cluster group'];
+        const MAPPING_HEADERS = ['Programme', 'Year of study', 'Semester number', 'Unit code', 'Unit title', 'Credit hours'];
 
         async function downloadMappingTemplate() {
             let XLSX;
@@ -1028,14 +1028,13 @@
             XLSX.utils.book_append_sheet(book, sheet, 'Programme units');
             XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
                 ['Column', 'What to type'],
-                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
-                ['Batch', 'The student group, as in Student Groups; blank = all batches'],
+                ['Programme', 'The course, exactly as in Settings > Program Setup > Courses (blank = the Course chosen on the page)'],
                 ['Year of study', 'A number: 1, 2, 3...'],
-                ['Semester', 'A number: 1, 2 or 3'],
+                ['Semester number', 'A number: 1, 2 or 3'],
                 ['Unit code', 'The unit code, e.g. HBT 101'],
-                ['Unit title', 'Needed only for a unit not yet in Manage Units > Units register (it is then added there)'],
+                ['Unit title', 'Needed only for a unit code not yet on the Units register (it is then created there)'],
                 ['Credit hours', 'For a new unit; may be left blank'],
-                ['Cluster group', 'Core or Elective; blank = Core']
+                ['', 'Each unit is mapped for the Batch chosen on the page (none chosen = all batches), with the Cluster group chosen there (none = Core).']
             ]), 'How to fill it in');
             XLSX.writeFile(book, 'programme-units-template.xlsx');
         }
@@ -1064,32 +1063,34 @@
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
             const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(['batch', 'group', 'studentgroup']),
-                year: col(['yearofstudy', 'year', 'yearofstudies']), semester: col(['semester', 'sem']),
+                year: col(['yearofstudy', 'year', 'yearofstudies']), semester: col(['semesternumber', 'semesterno', 'semester', 'sem']),
                 code: col(['unitcode', 'code', 'unit']), title: col(['unittitle', 'title', 'unitname']),
                 hours: col(['credithours', 'credits', 'hours']), cluster: col(['clustergroup', 'cluster', 'type', 'unittype']) };
-            if (at.course < 0 || at.code < 0 || at.year < 0 || at.semester < 0) {
-                return alert('The first row must hold the headings, with at least Course, Year of study, Semester and Unit code. Download the template to see them.');
+            if (at.code < 0 || at.year < 0 || at.semester < 0 || (at.course < 0 && !$('pmCourse').value)) {
+                return alert('The first row must hold the headings, with at least Programme, Year of study, Semester number and Unit code. Download the template to see them.');
             }
+            // The current batch and cluster group: those chosen on the page (a column in the file, if any, wins)
+            const pageBatch = $('pmBatch').value, pageCluster = $('pmCluster').value || 'Core', pageCourse = $('pmCourse').value;
             const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
             const lines = rows.slice(1).map((r, i) => {
-                const courseText = cell(r, 'course'), batch = cell(r, 'batch');
+                const courseText = cell(r, 'course') || pageCourse, batch = cell(r, 'batch') || pageBatch;
                 const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
                 const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
                 const unit = unitByCode(code);
                 const year = Number(cell(r, 'year')), semester = Number(cell(r, 'semester'));
                 const clusterText = cell(r, 'cluster');
-                const cluster = clusterText ? CLUSTER_GROUPS.find(g => same(g, clusterText)) : 'Core';
+                const cluster = clusterText ? CLUSTER_GROUPS.find(g => same(g, clusterText)) : pageCluster;
                 const group = batch ? groups.find(g => same(g, batch)) : '';
                 const line = { row: i + 2, courseText, course, batch: group ?? batch, code, title: cell(r, 'title') || (unit || {}).title || '',
                     hours: cell(r, 'hours'), year, semester, cluster: cluster || clusterText, unit, problems: [] };
                 const problem = text => line.problems.push(text);
-                if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
+                if (!course) problem(courseText ? 'Programme not in Settings > Courses' : 'No programme');
                 if (batch && !group) problem('Batch not in Student Groups');
                 if (!code) problem('No unit code');
                 else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
                 if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
-                if (![1, 2, 3].includes(semester)) problem('Semester must be 1, 2 or 3');
+                if (![1, 2, 3].includes(semester)) problem('Semester number must be 1, 2 or 3');
                 if (!cluster) problem('Cluster group must be Core or Elective');
                 const key = `${course}|${line.batch}|${code}`.toLowerCase();
                 if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
