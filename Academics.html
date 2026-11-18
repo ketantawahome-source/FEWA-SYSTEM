@@ -670,9 +670,26 @@
         let editingAllocation = null;
 
         // The courses of the programme chosen, and the units of the course chosen (its programme units, else all)
+        // A course whose award is not (or no longer) in Award Types is never hidden: it is listed under every programme
+        // with its award in brackets, so it can still be allocated (fix its Award in Settings > Program Setup > Courses).
+        const hasKnownAward = c => programmes.includes(c.award);
+        const courseText = c => hasKnownAward(c) || !c.award || c.name.includes('(') ? c.name : `${c.name} (${c.award})`;
+
         function fillLecturerCourses() {
             const programme = $('lecProgramme').value;
-            fill($('lecCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fill($('lecCourse'), courseItems.filter(c => !programme || c.award === programme || !hasKnownAward(c))
+                .map(c => [c.name, courseText(c)]), '-- select one --');
+            fillLecturerUnits();
+        }
+
+        // Picking a course first fills in its programme
+        function pickLecturerCourse() {
+            const course = courseItems.find(c => c.name === $('lecCourse').value);
+            if (course && hasKnownAward(course) && $('lecProgramme').value !== course.award) {
+                $('lecProgramme').value = course.award;
+                fillLecturerCourses();
+                $('lecCourse').value = course.name;
+            }
             fillLecturerUnits();
         }
 
@@ -1137,7 +1154,7 @@
             if (event.dataTransfer.files.length) { $('uploadFile').files = event.dataTransfer.files; chosenFile(); }
         });
         $('lecProgramme').addEventListener('change', fillLecturerCourses);
-        $('lecCourse').addEventListener('change', fillLecturerUnits);
+        $('lecCourse').addEventListener('change', pickLecturerCourse);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
         for (const type of ['input', 'change']) $('regStudent').addEventListener(type, pickStudent);
         $('regClass').addEventListener('change', () => { fillUnitsOf(); showRegistration(); });
