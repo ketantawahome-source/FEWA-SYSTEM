@@ -58,6 +58,12 @@ CREATE TABLE IF NOT EXISTS academics.unit_registrations (
     registered_by  text,                  -- the staff login that registered it
     extra          jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Added with Unit registration by student and the Excel upload (kept in "extra" before, moved into them by the server)
+ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS exam_reason text;         -- First attempt, Retake, Supplementary, Special
+ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS registration_class text;  -- the course the unit was registered under
+ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS batch text;               -- the student's group (Student Groups)
+ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS lecturer text;            -- the lecturer's staff code (login email)
+ALTER TABLE academics.unit_registrations ADD COLUMN IF NOT EXISTS lecturer_name text;
 CREATE INDEX IF NOT EXISTS unit_registrations_student ON academics.unit_registrations (student_id);
 CREATE INDEX IF NOT EXISTS unit_registrations_term ON academics.unit_registrations (term);
 
