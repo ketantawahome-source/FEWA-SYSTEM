@@ -62,7 +62,7 @@
         .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
         .up-submit { display: flex; justify-content: flex-end; margin-top: 12px; }
         .reg-fields { grid-template-columns: 140px minmax(0, 1fr) 150px minmax(0, 1fr); }
-        .lec-fields { grid-template-columns: 130px minmax(0, 1fr) 90px minmax(0, 1fr); column-gap: 24px; }
+        .lec-fields { grid-template-columns: 130px minmax(0, 1fr) 125px minmax(0, 1fr); column-gap: 24px; }
         .data-table tr.editing td { background: #fff8e1; }
         .reg-fields .units-actions .btn-submit, .reg-fields .units-actions .btn-secondary { margin: 0; }
         .reg-reason { min-width: 150px !important; padding: 6px 8px; border: 1px solid var(--fewa-field); border-radius: 6px; font: inherit; }
@@ -316,12 +316,12 @@
                 <!-- ===== Lecturer units (unit lecturer mapping) ===== -->
                 <div id="pane-lecturer" class="units-pane" hidden>
                     <div class="units-heading">Unit lecturer mapping</div>
-                    <div class="settings-banner info-banner">Lecturer units: choose the programme, course, unit, lecturer, batch and
+                    <div class="settings-banner info-banner">Lecturer units: choose the programme, year / semester, unit, lecturer, batch and
                         period, then Allocate. The list shows the allocations in the batch and period (narrowed to the lecturer
                         chosen); the pencil loads one for a change and the bin removes it.</div>
                     <div class="up-filters reg-fields lec-fields">
                         <label for="lecProgramme">Programme <span class="req">*</span></label><select id="lecProgramme"></select>
-                        <label for="lecCourse">Course <span class="req">*</span></label><select id="lecCourse"></select>
+                        <label for="lecStage">Year / semester</label><select id="lecStage"></select>
                         <label for="lecUnit">Unit <span class="req">*</span></label><select id="lecUnit"></select>
                         <label for="lecLecturer">Lecturer <span class="req">*</span></label><select id="lecLecturer"></select>
                         <label for="lecBatch">Batch <span class="req">*</span></label><select id="lecBatch"></select>
@@ -339,7 +339,7 @@
                     <div id="lecPanel" hidden>
                         <div class="units-count" id="lecCount"></div>
                         <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th>Unit code</th><th>Unit title</th><th>Programme</th><th>Course</th><th>Lecturer</th><th>Group category</th><th class="num">Registered</th><th></th></tr></thead>
+                            <thead><tr><th>Unit code</th><th>Unit title</th><th>Programme</th><th>Year / semester</th><th>Lecturer</th><th>Group category</th><th class="num">Registered</th><th></th></tr></thead>
                             <tbody id="lecRows"></tbody></table></div>
                     </div>
                 </div>
@@ -501,8 +501,8 @@
             fill($('offerUnit'), unitChoices, units.length ? '-- choose a unit --' : '-- no units yet (Units register) --');
             fill($('offerYear'), [1, 2, 3, 4, 5, 6].map(n => [n, 'Year ' + n]), '-- year --');
             fill($('offerSemester'), [1, 2, 3].map(n => [n, 'Semester ' + n]), '-- semester --');
-            fill($('lecProgramme'), programmes.map(p => [p, p]), '-- select one --');
-            fillLecturerCourses();
+            fill($('lecProgramme'), courseItems.map(c => [c.name, c.name]), '-- select one --');
+            fillLecturerStages();
             fill($('lecLecturer'), lecturers.map(l => [l.username, l.name]), '-- all lecturers --');
             fill($('lecBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('lecTerm'), termChoices, '-- select one --');
@@ -669,32 +669,27 @@
            that period take the lecturer too, so registrations made afterwards show (and keep) the lecturer. */
         let editingAllocation = null;
 
-        // The courses of the programme chosen, and the units of the course chosen (its programme units, else all)
-        // Only what Settings > Program Setup holds: the courses whose Award is the programme chosen
-        const hasKnownAward = c => programmes.includes(c.award);
+        // The flow of Settings > Program Setup: the programme is a course (Courses); its Programme Units give the years and
+        // semesters, and the units of the one chosen (a course with no programme units yet lists every unit)
+        const stageText = (y, s) => y ? `Year ${y}, Semester ${s}` : '';
+        const courseAward = name => (courseItems.find(c => c.name === name) || {}).award || '';
 
-        function fillLecturerCourses() {
-            const programme = $('lecProgramme').value;
-            fill($('lecCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
-            fillLecturerUnits();
-        }
-
-        // Picking a course first fills in its programme
-        function pickLecturerCourse() {
-            const course = courseItems.find(c => c.name === $('lecCourse').value);
-            if (course && hasKnownAward(course) && $('lecProgramme').value !== course.award) {
-                $('lecProgramme').value = course.award;
-                fillLecturerCourses();
-                $('lecCourse').value = course.name;
-            }
+        function fillLecturerStages() {
+            const course = $('lecProgramme').value;
+            const stages = [...new Set(programmeUnits.filter(p => p.course === course && p.yearOfStudy)
+                .map(p => `${p.yearOfStudy}|${p.semester}`))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+            fill($('lecStage'), stages.map(k => [k, stageText(...k.split('|'))]), '-- select one --');
             fillLecturerUnits();
         }
 
         function fillLecturerUnits() {
-            const course = $('lecCourse').value;
-            const codes = programmeUnits.filter(p => p.course === course).map(p => String(p.unitCode).toUpperCase());
-            const list = course && codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
-            fill($('lecUnit'), list.map(u => [u.code, unitLabel(u)]), list.length ? '-- select one --' : '-- no units yet (Units register) --');
+            const course = $('lecProgramme').value, stage = $('lecStage').value;
+            const [y, s] = stage ? stage.split('|').map(Number) : [];
+            const codes = programmeUnits.filter(p => p.course === course && (!stage || (Number(p.yearOfStudy) === y && Number(p.semester) === s)))
+                .map(p => String(p.unitCode).toUpperCase());
+            const hasUnits = programmeUnits.some(p => p.course === course);
+            const list = course && hasUnits ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
+            fill($('lecUnit'), list.map(u => [u.code, unitLabel(u)]), list.length ? '-- select one --' : '-- no units yet --');
         }
 
         const allocationLecturer = (term, batch, course, code) => allocations.find(a => a.term === term && a.batch === batch
@@ -713,7 +708,7 @@
             $('lecCount').textContent = `${rows.length} allocation${rows.length === 1 ? '' : 's'} in ${batch}, ${term}`;
             $('lecRows').innerHTML = rows.length ? rows.map(a => `<tr${a.id === editingAllocation ? ' class="editing"' : ''}>
                     <td>${escapeHtml(a.unitCode)}</td><td>${escapeHtml((unitByCode(a.unitCode) || {}).title || '')}</td>
-                    <td>${escapeHtml(a.programme || '')}</td><td>${escapeHtml(a.course || '')}</td><td>${escapeHtml(a.lecturerName || a.lecturer || '')}</td>
+                    <td>${escapeHtml(a.course || '')}</td><td>${escapeHtml(stageText(a.yearOfStudy, a.semester) || '-')}</td><td>${escapeHtml(a.lecturerName || a.lecturer || '')}</td>
                     <td>${escapeHtml(a.groupCategory || 'All')}</td><td class="num">${registeredOnAllocation(a)}</td>
                     <td>${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(a.unitCode), `editAllocation('${a.id}')`) +
                         iconButton('delete', 'Remove ' + escapeHtml(a.unitCode), `deleteAllocation('${a.id}')`) : ''}</td></tr>`).join('')
@@ -731,17 +726,21 @@
         async function allocateLecturer() {
             if (!allowed('academics', 'edit')) return;
             const v = id => $(id).value;
-            const missing = [['lecProgramme', 'programme'], ['lecCourse', 'course'], ['lecUnit', 'unit'], ['lecLecturer', 'lecturer'],
+            const missing = [['lecProgramme', 'programme'], ['lecUnit', 'unit'], ['lecLecturer', 'lecturer'],
                 ['lecBatch', 'batch'], ['lecTerm', 'period']].filter(([id]) => !v(id)).map(([, name]) => name);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             const lecturer = lecturers.find(l => l.username === v('lecLecturer'));
             const old = allocations.find(a => a.id === editingAllocation);
             // One lecturer per unit, course, batch, period and group category
             const clash = allocations.find(a => a.id !== editingAllocation && a.term === v('lecTerm') && a.batch === v('lecBatch')
-                && a.course === v('lecCourse') && same(a.unitCode, v('lecUnit')) && (a.groupCategory || '') === v('lecCategory'));
+                && a.course === v('lecProgramme') && same(a.unitCode, v('lecUnit')) && (a.groupCategory || '') === v('lecCategory'));
             if (clash && !confirm(`${v('lecUnit')} is already allocated to ${clash.lecturerName || clash.lecturer} in ${v('lecBatch')}, ${v('lecTerm')}. Give it to ${lecturer.name} instead?`)) return;
             const base = clash || old || {};
-            const record = { ...base, id: base.id || newId(), programme: v('lecProgramme'), course: v('lecCourse'),
+            // The year and semester: the one chosen, else the unit's own in the course's programme units
+            const own = programmeUnits.find(p => p.course === v('lecProgramme') && same(p.unitCode, v('lecUnit'))) || {};
+            const [year, semester] = v('lecStage') ? v('lecStage').split('|').map(Number) : [own.yearOfStudy, own.semester];
+            const record = { ...base, id: base.id || newId(), course: v('lecProgramme'), programme: courseAward(v('lecProgramme')),
+                yearOfStudy: year ? Number(year) : null, semester: semester ? Number(semester) : null,
                 unitCode: (unitByCode(v('lecUnit')) || {}).code || v('lecUnit'), lecturer: lecturer.username, lecturerName: lecturer.name,
                 batch: v('lecBatch'), term: v('lecTerm'), groupCategory: v('lecCategory'),
                 allocatedAt: new Date().toISOString(), allocatedBy: currentUser() || '' };
@@ -765,8 +764,8 @@
                 if (value && ![...$(sel).options].some(o => o.value === value)) $(sel).add(new Option(value, value));
                 $(sel).value = value || '';
             };
-            pick('lecProgramme', a.programme); fillLecturerCourses();
-            pick('lecCourse', a.course); fillLecturerUnits();
+            pick('lecProgramme', a.course); fillLecturerStages();
+            if (a.yearOfStudy) pick('lecStage', `${a.yearOfStudy}|${a.semester}`); fillLecturerUnits();
             pick('lecUnit', String(a.unitCode)); pick('lecLecturer', a.lecturer);
             pick('lecBatch', a.batch); pick('lecTerm', a.term); pick('lecCategory', a.groupCategory);
             $('lecAllocate').textContent = 'Save change';
@@ -778,7 +777,7 @@
             editingAllocation = null;
             $('lecAllocate').textContent = 'Allocate';
             for (const id of ['lecProgramme', 'lecLecturer', 'lecBatch', 'lecTerm', 'lecCategory']) $(id).value = '';
-            fillLecturerCourses();
+            fillLecturerStages();
             renderLecturers();
         }
 
@@ -1150,8 +1149,8 @@
             $('upDrop').classList.remove('dragging');
             if (event.dataTransfer.files.length) { $('uploadFile').files = event.dataTransfer.files; chosenFile(); }
         });
-        $('lecProgramme').addEventListener('change', fillLecturerCourses);
-        $('lecCourse').addEventListener('change', pickLecturerCourse);
+        $('lecProgramme').addEventListener('change', fillLecturerStages);
+        $('lecStage').addEventListener('change', fillLecturerUnits);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
         for (const type of ['input', 'change']) $('regStudent').addEventListener(type, pickStudent);
         $('regClass').addEventListener('change', () => { fillUnitsOf(); showRegistration(); });

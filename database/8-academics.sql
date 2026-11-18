@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS academics.unit_lecturers (
     allocated_by    text,                 -- the staff login that allocated it
     extra           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- The programme picked on the tab is the course (Settings > Courses); its year and semester come from its Programme Units
+ALTER TABLE academics.unit_lecturers ADD COLUMN IF NOT EXISTS year_of_study integer;
+ALTER TABLE academics.unit_lecturers ADD COLUMN IF NOT EXISTS semester integer;
+COMMENT ON COLUMN academics.unit_lecturers.programme IS 'the award of the course (Certificate, Diploma...)';
 CREATE INDEX IF NOT EXISTS unit_lecturers_term ON academics.unit_lecturers (term, batch);
 
 -- Row level security with no policies: only the system (the owner) reads or changes these, never Supabase's web API
