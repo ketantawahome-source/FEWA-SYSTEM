@@ -61,6 +61,8 @@
         .up-choose { font-weight: 600; text-decoration: underline; color: var(--fewa-ink); word-break: break-all; }
         .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
         .up-submit { display: flex; justify-content: flex-end; margin-top: 12px; }
+        .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
+        .up-hint[hidden] { display: none; }
         .up-submit .btn-submit { margin: 0; }
         @media (max-width: 700px) { .up-filters { grid-template-columns: 1fr; } .up-template { flex-wrap: wrap; } }
         .units-readonly-note { color: var(--fewa-muted); font-size: 14px; margin-top: 8px; }
@@ -268,7 +270,8 @@
 
                     <div class="units-subhead">Students registered on the unit</div>
                     <div class="units-count" id="upRegisteredCount"></div>
-                    <div class="table-wrap"><table class="data-table">
+                    <p id="upRegisteredHint" class="up-hint">Choose the batch, period and unit to list the students registered on it.</p>
+                    <div class="table-wrap" id="upRegisteredTable" hidden><table class="data-table">
                         <thead><tr><th>Registration number</th><th>Student</th><th>Batch</th><th>Course</th><th>Exam reason</th><th>Lecturer</th><th>Registered</th></tr></thead>
                         <tbody id="upRegisteredRows"></tbody></table></div>
                 </div>
@@ -742,9 +745,12 @@
         // The upload tab's lower table: who is registered for the chosen period and unit (and batch)
         function renderRegisteredOnUnit() {
             const batch = $('upBatch').value, period = $('upPeriod').value, unit = unitFromText($('upUnit').value);
-            if (!period || !unit) {
+            // Until all three are chosen: only the grey note, no table
+            const ready = !!(batch && period && unit);
+            $('upRegisteredHint').hidden = ready;
+            $('upRegisteredTable').hidden = !ready;
+            if (!ready) {
                 $('upRegisteredCount').textContent = '';
-                $('upRegisteredRows').innerHTML = '<tr class="empty-row"><td colspan="7">Choose a period and a unit above to see who is registered.</td></tr>';
                 return;
             }
             const rows = registrations.filter(r => r.term === period && same(r.unitCode, unit.code))
@@ -911,6 +917,7 @@
             // Show who is now registered for the file's first period and unit
             const first = lines.find(l => l.result === 'done');
             if (first) {
+                if ([...$('upBatch').options].some(o => o.value === first.student.group)) $('upBatch').value = first.student.group;
                 $('upPeriod').value = first.term;
                 $('upUnit').value = unitLabel(first.unit);
             }
