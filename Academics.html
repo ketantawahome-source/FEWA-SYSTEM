@@ -348,11 +348,10 @@
                 <!-- ===== Programme units (unit programme mapping) ===== -->
                 <div id="pane-programme" class="units-pane" hidden>
                     <div class="units-heading">Unit programme mapping</div>
-                    <div class="settings-banner info-banner">Course units: choose the programme and course to list the units
+                    <div class="settings-banner info-banner">Course units: choose the course to list the units
                         the course takes. To add one, pick the unit from the list that appears as you type and the semester it is
                         taken in, then Add unit to course. The bin takes a unit off the course.</div>
                     <div class="up-filters reg-fields lec-fields">
-                        <label for="pmProgramme">Programme <span class="req">*</span></label><select id="pmProgramme"></select>
                         <label for="pmCourse">Course <span class="req">*</span></label><select id="pmCourse"></select>
                         <label for="pmBatch">Batch <span class="req">*</span></label><select id="pmBatch"></select>
                         <label for="pmSemester">Semester <span class="req">*</span></label><select id="pmSemester"></select>
@@ -397,7 +396,7 @@
                     </div>
 
                     <div class="units-subhead">Units the course takes</div>
-                    <p id="pmHint" class="up-hint">Choose the programme and course to list the units it takes.</p>
+                    <p id="pmHint" class="up-hint">Choose the course to list the units it takes.</p>
                     <div id="pmPanel" hidden>
                         <div class="units-count" id="pmCount"></div>
                         <div class="table-wrap"><table class="data-table">
@@ -409,11 +408,10 @@
                 <!-- ===== Unit hours ===== -->
                 <div id="pane-hours" class="units-pane" hidden>
                     <div class="units-heading">Unit hours</div>
-                    <div class="settings-banner info-banner">Unit hours: choose the programme and course, pick the unit, enter the
+                    <div class="settings-banner info-banner">Unit hours: choose the course, pick the unit, enter the
                         certificate and the theory and practical hours, then Save hours. The pencil loads a row for a change and the
                         bin removes it.</div>
                     <div class="up-filters reg-fields lec-fields">
-                        <label for="uhProgramme">Programme <span class="req">*</span></label><select id="uhProgramme"></select>
                         <label for="uhCourse">Course <span class="req">*</span></label><select id="uhCourse"></select>
                         <label for="uhUnit">Unit <span class="req">*</span></label><select id="uhUnit"></select>
                         <label for="uhCertificate">Certificate</label>
@@ -458,7 +456,7 @@
                     </div>
 
                     <div class="units-subhead">Unit hours</div>
-                    <p id="uhHint" class="up-hint">Choose the programme to list its unit hours.</p>
+                    <p id="uhHint" class="up-hint">Choose the course to list its unit hours.</p>
                     <div id="uhPanel" hidden>
                         <div class="units-count" id="uhCount"></div>
                         <div class="table-wrap"><table class="data-table">
@@ -633,12 +631,10 @@
             fill($('lecBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('lecTerm'), termChoices, '-- select one --');
             fill($('lecCategory'), categories.map(c => [c, c]), '-- all group categories --');
-            fill($('pmProgramme'), programmes.map(p => [p, p]), '-- select one --');
             fill($('pmBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('pmCluster'), CLUSTER_GROUPS.map(g => [g, g]), '-- select one --');
             $('pmUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
             fillMappingCourses();
-            fill($('uhProgramme'), programmes.map(p => [p, p]), '-- select one --');
             fillHoursCourses();
             $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
                 .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
@@ -935,8 +931,7 @@
         const stageOf = (y, s) => `Year ${y}, Semester ${s}`;
 
         function fillMappingCourses() {
-            const programme = $('pmProgramme').value;
-            fill($('pmCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fill($('pmCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
             fillMappingSemesters();
         }
 
@@ -955,7 +950,7 @@
 
         function renderProgrammeMapping() {
             const course = $('pmCourse').value, batch = $('pmBatch').value;
-            const ready = !!($('pmProgramme').value && course);
+            const ready = !!course;
             $('pmHint').hidden = ready;
             $('pmPanel').hidden = !ready;
             if (!ready) return;
@@ -981,7 +976,7 @@
         async function addUnitToCourse() {
             if (!allowed('academics', 'edit')) return;
             const course = $('pmCourse').value, batch = $('pmBatch').value, stage = $('pmSemester').value;
-            const missing = [['pmProgramme', 'programme'], ['pmCourse', 'course'], ['pmBatch', 'batch'], ['pmSemester', 'semester']]
+            const missing = [['pmCourse', 'course'], ['pmBatch', 'batch'], ['pmSemester', 'semester']]
                 .filter(([id]) => !$(id).value).map(([, name]) => name);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             const unit = unitFromTyped($('pmUnit').value);
@@ -1011,7 +1006,7 @@
         }
 
         function clearProgrammeMapping() {
-            for (const id of ['pmProgramme', 'pmBatch', 'pmCluster']) $(id).value = '';
+            for (const id of ['pmCourse', 'pmBatch', 'pmCluster']) $(id).value = '';
             $('pmUnit').value = '';
             fillMappingCourses();
         }
@@ -1142,8 +1137,7 @@
         let unitHours = [], editingHours = null;
 
         function fillHoursCourses() {
-            const programme = $('uhProgramme').value;
-            fill($('uhCourse'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
+            fill($('uhCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
             fillHoursUnits();
         }
 
@@ -1153,20 +1147,18 @@
             const list = course && codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
             fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]), '');
             // The programme's award as the certificate, until one is typed
-            if (!$('uhCertificate').value && $('uhProgramme').value) $('uhCertificate').placeholder = 'For example ' + $('uhProgramme').value;
+            $('uhCertificate').placeholder = 'For example ' + (courseAward(course) || 'Diploma');
             renderUnitHours();
         }
 
         const hoursText = n => n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString();
 
         function renderUnitHours() {
-            const programme = $('uhProgramme').value, course = $('uhCourse').value;
-            $('uhHint').hidden = !!programme;
-            $('uhPanel').hidden = !programme;
-            if (!programme) return;
-            // The programme's courses (or the one chosen)
-            const ofProgramme = new Set(courseItems.filter(c => c.award === programme).map(c => c.name));
-            const rows = unitHours.filter(h => course ? h.course === course : (h.programme === programme || ofProgramme.has(h.course)))
+            const course = $('uhCourse').value;
+            $('uhHint').hidden = !!course;
+            $('uhPanel').hidden = !course;
+            if (!course) return;
+            const rows = unitHours.filter(h => h.course === course)
                 .sort((a, b) => String(a.course).localeCompare(String(b.course)) || (a.yearOfStudy || 0) - (b.yearOfStudy || 0)
                     || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
             const sum = key => rows.reduce((s, h) => s + Number(h[key] || 0), 0);
@@ -1180,7 +1172,7 @@
                     <td>${escapeHtml(h.certificate || '')}</td><td class="num">${hoursText(h.theoryHours)}</td>
                     <td class="num">${hoursText(h.practicalHours)}</td>
                     <td class="num">${hoursText(Number(h.theoryHours || 0) + Number(h.practicalHours || 0))}</td></tr>`).join('')
-                : `<tr class="empty-row"><td colspan="9">No unit hours for ${escapeHtml(course || programme)} yet.</td></tr>`;
+                : `<tr class="empty-row"><td colspan="9">No unit hours for ${escapeHtml(course)} yet.</td></tr>`;
         }
 
         const validHours = v => v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
@@ -1188,9 +1180,9 @@
 
         async function saveUnitHours() {
             if (!allowed('academics', 'edit')) return;
-            const programme = $('uhProgramme').value, course = $('uhCourse').value, code = $('uhUnit').value;
+            const course = $('uhCourse').value, code = $('uhUnit').value, programme = courseAward(course);
             const theory = $('uhTheory').value.trim(), practical = $('uhPractical').value.trim();
-            const missing = [[programme, 'programme'], [course, 'course'], [code, 'unit']].filter(([v]) => !v).map(([, n]) => n);
+            const missing = [[course, 'course'], [code, 'unit']].filter(([v]) => !v).map(([, n]) => n);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             if (!validHours(theory) || !validHours(practical)) return alert('Enter the theory and practical hours (0 for none).');
             const unit = unitByCode(code) || { code };
@@ -1222,7 +1214,6 @@
                 if (value && ![...$(sel).options].some(o => o.value === value)) $(sel).add(new Option(value, value));
                 $(sel).value = value || '';
             };
-            pick('uhProgramme', h.programme || courseAward(h.course)); fillHoursCourses();
             pick('uhCourse', h.course); fillHoursUnits();
             pick('uhUnit', String(h.unitCode));
             $('uhCertificate').value = h.certificate || '';
@@ -1236,7 +1227,7 @@
         function clearUnitHours() {
             editingHours = null;
             $('uhSave').textContent = 'Save hours';
-            for (const id of ['uhProgramme', 'uhCertificate', 'uhTheory', 'uhPractical']) $(id).value = '';
+            for (const id of ['uhCourse', 'uhCertificate', 'uhTheory', 'uhPractical']) $(id).value = '';
             fillHoursCourses();
         }
 
@@ -1717,8 +1708,6 @@
         $('lecProgramme').addEventListener('change', fillLecturerStages);
         $('lecStage').addEventListener('change', fillLecturerUnits);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
-        $('pmProgramme').addEventListener('change', fillMappingCourses);
-        $('uhProgramme').addEventListener('change', fillHoursCourses);
         $('uhCourse').addEventListener('change', fillHoursUnits);
         $('uhFile').addEventListener('change', chosenHoursFile);
         $('uhDrop').addEventListener('dragover', event => { event.preventDefault(); $('uhDrop').classList.add('dragging'); });
