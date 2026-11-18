@@ -14,6 +14,7 @@
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
     <script src="backup-page.js"></script>
+    <script src="programme-units.js"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
@@ -1279,7 +1280,7 @@
         // The tabs shown under each Settings sidebar link
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
-            setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
+            setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'programmeUnits', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
@@ -1297,6 +1298,8 @@
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
+            // The units of each course (programme-units.js; table academics.programme_units)
+            programmeUnits: { title: 'Programme Units', render: () => renderProgrammeUnits() },
             backup: { title: 'Backups', render: () => renderBackupPage() },
             systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() }
         };

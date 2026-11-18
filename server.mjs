@@ -1266,7 +1266,10 @@ const RIGHTS_TO_READ = {
     documents: ['documents.view', 'documents.add', 'students.delete', 'reports.view', 'reports.standard', 'reports.students', 'settings.edit', 'settings.delete'],
     applications: ['students.view', 'students.add', 'students.edit', 'students.applications'],
     // Academic Management > Manage Units
-    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, ACADEMIC_RIGHTS]))
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, ACADEMIC_RIGHTS])),
+    // Programme units are set up in Settings > Program Setup (settings can be read by all staff)
+    programme_units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete'],
+    units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete']
 };
 
 // A stored file: someone who may read documents may open any; someone who may only read student records, not an
@@ -1280,6 +1283,7 @@ async function staffMayOpenFile(session, fileId) {
 // The rights that allow saving or deleting one record (any one of them is enough)
 async function rightsToWrite(store, id, method) {
     // Manage Units: registering students is its own right; the rest (units, programme units, offers) is editing
+    if (store === 'programme_units') return ['academics.edit', 'settings.edit', method === 'DELETE' ? 'settings.delete' : 'settings.add'];
     if (ACADEMIC_STORES.includes(store)) return store === 'unit_registrations' ? ['academics.register'] : ['academics.edit'];
     if (method === 'DELETE') return store === 'settings' ? ['settings.delete'] : ['students.delete'];
     if (store === 'students') {
