@@ -99,10 +99,11 @@ const ROLE_OPERATIONS = [
     ['settings.add', 'Add Settings Items', 'Ability to add courses, campuses, terms, roles and other setup items.'],
     ['students.delete', 'Delete Student Records', 'Ability to delete student documents and deferral/suspension records. Students themselves are only deleted in the databases.'],
     ['settings.delete', 'Delete Settings Items', 'Ability to delete courses, campuses, terms, roles and other setup items.'],
-    ['finance.edit', 'Edit Fee Payment Details', 'Ability to change the M-Pesa and bank details fees are paid to.'],
+    ['finance.edit', 'Edit Fee Payment Details', 'Ability to change the fee structure, give waivers and bursaries, and change the M-Pesa and bank details fees are paid to.'],
     ['settings.edit', 'Edit Settings', 'Ability to change setup items and the School Setup details.'],
     ['students.edit', 'Edit Students', 'Ability to change student details, status, contacts and deferrals.'],
     ['finance.add', 'Record Fee Payments', 'Ability to post student fee payments, up to the Auth Limit amount.'],
+    ['finance.void', 'Reverse Fee Payments and Charges', 'Ability to Reverse (void) a recorded payment or charge. Nothing is ever deleted: the reversal is kept with its reason.', 'finance.edit'],
     ['documents.add', 'Upload Student Documents', 'Ability to upload documents for a student.'],
     ['documents.view', 'View Student Documents', 'Ability to open the Student Documents screen and view documents.'],
     // Added later; "from" is the right that used to cover it, so a role set up before keeps what it could do

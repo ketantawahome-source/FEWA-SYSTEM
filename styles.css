@@ -6226,3 +6226,60 @@ body.login-page .btn-login {
 
 /* A grey hint under a settings field (e.g. Settings > Courses) */
 .form-group .field-hint { display: block; margin-top: 4px; font-size: 12px; color: var(--fewa-muted); }
+
+/* WHERE: open styles.css and paste everything BELOW this comment at the very END of the file. */
+
+/* ---------- Manage Finance > Payments (finance.js) ---------- */
+.fin-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--fewa-line); margin-bottom: 16px; }
+.fin-tab { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 10px 14px; cursor: pointer;
+    font: inherit; font-weight: 600; color: var(--fewa-muted); }
+.fin-tab:hover { color: var(--fewa-ink); }
+.fin-tab.active { color: var(--fewa-ink); border-bottom-color: var(--fewa-gold); }
+.fin-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.fin-tile { border-radius: var(--fewa-radius); padding: 16px; color: #fff; display: flex; flex-direction: column; gap: 4px; }
+.fin-tile b { font-size: 1.35rem; }
+.fin-tile span { font-size: .85rem; opacity: .92; }
+.fin-tile.green { background: #16a085; } .fin-tile.blue { background: #2e86de; } .fin-tile.purple { background: #5b3a8c; }
+.fin-tile.orange { background: #e59a1c; } .fin-tile.red { background: #c0392b; }
+.fin-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.fin-note { color: var(--fewa-muted); margin: 10px 0; }
+.fin-bad { color: #c0392b; } .fin-good { color: #1e8449; }
+.fin-find { position: relative; max-width: 520px; margin-bottom: 12px; }
+.fin-find input { width: 100%; }
+.fin-found { position: absolute; z-index: 20; left: 0; right: 0; background: #fff; border: 1px solid var(--fewa-field); border-radius: var(--fewa-radius-small);
+    box-shadow: 0 8px 20px rgba(36, 16, 58, .15); max-height: 280px; overflow: auto; }
+.fin-found:empty { display: none; }
+.fin-found-item { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 9px 12px; cursor: pointer; font: inherit; }
+.fin-found-item:hover { background: var(--fewa-gold-tint); }
+.fin-found-item small { color: var(--fewa-muted); margin-left: 6px; }
+.fin-card { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; background: var(--fewa-gold-tint);
+    border: 1px solid var(--fewa-gold-light); border-radius: var(--fewa-radius); padding: 12px 16px; margin: 10px 0; }
+.fin-form { margin-top: 12px; }
+.fin-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+.fin-check { display: flex; gap: 6px; align-items: center; padding-bottom: 10px; }
+.fin-totals { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 10px 0; }
+.fin-table .fin-num, .fin-num { text-align: right; white-space: nowrap; }
+.fin-row-actions { white-space: nowrap; }
+.fin-void td { text-decoration: line-through; color: var(--fewa-muted); }
+.fin-void .fin-row-actions { text-decoration: none; }
+
+/* receipt / statement shown over the page, printed on its own */
+#finOverlay { position: fixed; inset: 0; z-index: 1000; background: rgba(36, 16, 58, .6); overflow: auto; padding: 24px 12px; }
+.fin-paper { background: #fff; color: #000; max-width: 720px; margin: 0 auto; padding: 28px 32px; border-radius: 6px; position: relative; }
+.fin-paper-bar { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 14px; }
+.fin-head { display: flex; gap: 16px; align-items: center; border-bottom: 2px solid #24103a; padding-bottom: 10px; }
+.fin-head img { height: 64px; width: auto; }
+.fin-head h2 { margin: 0; }
+.fin-title { text-align: center; letter-spacing: .12em; margin: 16px 0; }
+.fin-receipt { width: 100%; border-collapse: collapse; }
+.fin-receipt th, .fin-receipt td { border: 1px solid #bbb; padding: 8px 10px; text-align: left; }
+.fin-receipt th { width: 22%; background: #f4f0f8; }
+.fin-stamp { position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 4rem; font-weight: 800;
+    color: rgba(192, 57, 43, .28); border: 8px solid rgba(192, 57, 43, .28); padding: 0 24px; pointer-events: none; }
+.fin-foot { margin-top: 18px; font-size: .85rem; color: #555; }
+@media print {
+    body.fin-printing > *:not(#finOverlay) { display: none !important; }
+    #finOverlay { position: static; background: none; padding: 0; overflow: visible; }
+    .fin-paper { max-width: none; padding: 0; }
+    .fin-paper-bar { display: none !important; }
+}

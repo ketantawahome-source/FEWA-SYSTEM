@@ -47,6 +47,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { initBackups, connectBackups, updateBackupTables, handleBackupRequest } from './backups.mjs';
+import { initFinance, handleFinanceRequest } from './finance.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || process.argv[2] || 5600);
@@ -196,7 +197,7 @@ const SCHEMA_OF = {
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', academic_terms: 'settings',
     departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
     reg_number_sequences: 'settings', short_courses: 'settings', award_types: 'settings',
-    fee_payment_details: 'finance',
+    fee_payment_details: 'finance', fee_structure: 'finance', charges: 'finance', payments: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff',
     sessions: 'logins', password_reset_codes: 'logins',
@@ -1247,7 +1248,8 @@ async function staffCan(session, ...rights) {
 const RIGHT_FROM = {
     'queries.view': 'students.view', 'reports.excel': 'reports.view', 'students.applications': 'students.edit',
     'students.status': 'students.edit', 'students.deferrals': 'students.edit', 'students.contacts': 'students.edit',
-    'students.password': 'students.edit', 'reports.standard': 'reports.view', 'reports.performance': 'reports.view',
+    'students.password': 'students.edit', 'finance.void': 'finance.edit', 
+    'reports.standard': 'reports.view', 'reports.perfomance': 'reports.view',
     'reports.students': 'reports.view', 'reports.finance': 'reports.view'
 };
 // The rights to open groups of reports (each report is built from the student records)
@@ -1703,6 +1705,10 @@ async function receiveApplication(req, body) {
 /* The backups (database backups, the password-protected download, uploading corrected students) are in backups.mjs */
 initBackups({ getPool: () => pool, T, sqlName, SCHEMA_OF, loadConfig, ensureDatabase, root, columnCache, forgetSessions, forgetAccountCount,
     mirrorChanged, SYNC_ORDER, passwordAcceptable, send, readBody, SMALL_BODY_BYTES });
+
+/* Manage Finance (fee structure, charges, payments, statements) is in finance.mjs */
+initFinance({ getPool: () => pool, T, send, readBody, staffCan, mirrorChanged,
+SMALL_BODY_BYTES });
 
 /* ---------- System Update (Settings > System Update): "running the rocket" ----------
    After changes are pushed to GitHub, an administrator presses Update. On the office computer the server then:
@@ -2214,6 +2220,9 @@ async function handleApi(req, res, parts) {
             applicationsBeingSent--;
         }
     }
+
+    /* ---------- Manage Finance: staff by their rights, a student only their own statement ---------- */
+    if (area === 'finance') return await handleFinanceRequest(req, res, session, parts.slice(1));
 
     /* ---------- Records ---------- */
     if (area === 'stores' && STORES[a]) {
