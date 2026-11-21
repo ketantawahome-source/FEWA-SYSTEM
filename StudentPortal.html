@@ -76,6 +76,43 @@
            A student's own, read-only view, arranged like the staff Student Enquiry window. A temporary password
            (from "Reset Password" at the college office) must be replaced first: until then only Change Password shows. */
         let student = null;
+                // What the college has charged and received (finance.mjs: the student's own statement only); null = not available
+        let feeStatement = null;
+        let feePayDetails = {};
+        const money = n => 'KES ' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+        const shortDate = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '';
+        const METHOD_NAMES = { MPESA: 'M-Pesa', BANK: 'Bank', CASH: 'Cash', CHEQUE: 'Cheque' };
+ 
+        function feesHtml() {
+            const f = feeStatement;
+            if (!f) return '<p class="empty-state">Your fee statement could not be loaded. Please try again later or ask the college accounts office.</p>';
+            if (!f.charges.length && !f.payments.length) {
+                return '<p class="empty-state">No fee records yet. Ask the college accounts office for your fee statement.</p>' + payHow();
+            }
+            const standing = f.balance > 0 ? `You owe <b>${money(f.balance)}</b>.` : f.balance < 0 ? `You have paid <b>${money(-f.balance)}</b> in advance.` : 'Your fees are fully paid.';
+            const lines = [...f.charges.map(c => ({ at: c.createdAt, text: c.description + (c.term ? ` (${c.term})` : ''), debit: c.amount > 0 ? c.amount : 0, credit: c.amount < 0 ? -c.amount : 0 })),
+                ...f.payments.map(p => ({ at: p.paidOn, text: `Payment ${p.receiptNo} - ${METHOD_NAMES[p.method] || p.method}${p.reference ? ' (' + p.reference + ')' : ''}`, debit: 0, credit: p.amount }))]
+                .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+            let running = 0;
+            return `<dl class="detail-grid">
+                    <div><dt>Total Charged</dt><dd>${money(f.charged)}</dd></div><div><dt>Total Paid</dt><dd>${money(f.paid)}</dd></div>
+                    <div><dt>Balance</dt><dd>${money(f.balance)}</dd></div></dl>
+                <p>${standing}</p>
+                <div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Details</th><th>Charged</th><th>Paid</th><th>Balance</th></tr></thead><tbody>
+                ${lines.map(l => { running = Math.round((running + l.debit - l.credit) * 100) / 100; return `<tr><td>${shortDate(l.at)}</td><td>${escapeHtml(l.text)}</td>
+                    <td>${l.debit ? money(l.debit) : ''}</td><td>${l.credit ? money(l.credit) : ''}</td><td>${money(running)}</td></tr>`; }).join('')}
+                </tbody></table></div>${payHow()}
+                <div class="enquiry-actions"><button type="button" onclick="window.print()">Print Statement</button></div>`;
+        }
+ 
+        // How to pay: the college's M-Pesa and bank details (Settings > Fee Payment Details)
+        function payHow() {
+            const d = feePayDetails || {};
+            const parts = [];
+            if (d.mpesaPaybill) parts.push(`M-Pesa Paybill / Till <b>${escapeHtml(d.mpesaPaybill)}</b>, account <b>${escapeHtml(d.mpesaAccount || student.admNo)}</b>`);
+            if (d.bankAccountNo) parts.push(`${escapeHtml(d.bankName || 'Bank')}${d.bankBranch ? ' ' + escapeHtml(d.bankBranch) : ''}, account name ${escapeHtml(d.bankAccountName || '')}, account no. <b>${escapeHtml(d.bankAccountNo)}</b>`);
+            return parts.length ? `<div class="report-subtitle">How to Pay</div><p>${parts.join('<br>')}</p><p><small>Quote your AdmNo <b>${escapeHtml(student.admNo)}</b> as the reference. Payments appear here once the accounts office has recorded them.</small></p>` : '';
+        }
         let documentFiles = [];
         let portalTab = 'profile';
 
@@ -308,7 +345,7 @@
                         <button type="button" onclick="window.print()">Print</button>
                     </div>`)}
                     <div class="enquiry-tiles">
-                        ${tile('blue', 'KES —', 'Fee Balance', 'fees', 'fees')}
+                        ${tile('blue', feeStatement ? (feeStatement.balance < 0 ? money(-feeStatement.balance) + ' CR' : money(feeStatement.balance)) : 'KES -', 'Fee Balance', 'fees', 'fees')}
                         ${tile('green', documentFiles.length, 'Documents Uploaded', 'documents', 'documents')}
                         ${tile(active ? 'orange' : 'red', active ? 'Active' : 'Inactive', 'Academic Status', 'status', 'status')}
                         ${tile('purple', daysSince, `Day${daysSince === 1 ? '' : 's'} Since Admission`, 'calendar', 'admission')}
@@ -339,7 +376,7 @@
                         || '<div class="report-subtitle">Parents / Guardian</div><p class="empty-state">No parent or guardian details recorded.</p>') +
                     detailSection('Emergency Contact', [['Full Name', s.emergencyName], ['Relationship', s.emergencyRelationship],
                         ['Primary Phone', s.emergencyPhone], ['Alternative Phone', s.emergencyAltPhone], ['Email', s.emergencyEmail]])),
-                fees: box(null, '<p class="empty-state">No fee records yet. Ask the college accounts office for your fee statement.</p>'),
+                fees: box(null, feesHtml()),
                 password: `
                     <div class="enquiry-box">
                         <div class="portal-title">${passwordOnly ? 'Choose Your Own Password' : 'Change Password'}</div>
@@ -433,7 +470,9 @@
                 .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
             deferrals = (await readAll('deferrals')).filter(d => d.studentId === student.id)
                 .sort((a, b) => b.startDate.localeCompare(a.startDate));
-            render();
+                feeStatement = await api('GET', '/finance/my-statement').catch(() => null);
+                feePayDetails = settings.find(s => s.key === 'paymentDetails') || {};
+                render();
         }
 
         loadPortal();
