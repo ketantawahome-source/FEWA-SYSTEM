@@ -558,15 +558,13 @@
                 <!-- ===== Semester schedule (its own menu item: Academics.html?page=schedule) ===== -->
                 <div id="pane-schedule" class="units-pane" hidden>
                     <div class="units-heading">Semester schedule</div>
-                    <div class="settings-banner info-banner">Choose the programme and batch to see its periods. Pick the class and
-                        enrolment, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
+                    <div class="settings-banner info-banner">Choose the batch to see its periods (and the course, to see only its
+                        periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
                     <div class="up-filters reg-fields lec-fields sched-fields">
-                        <label for="schProgramme">Programme</label><select id="schProgramme"></select>
+                        <label for="schCourse">Course</label><select id="schCourse"></select>
                         <label for="schBatch">Batch <span class="req">*</span></label><select id="schBatch"></select>
-                        <label for="schClass">Class</label><select id="schClass"></select>
                         <label for="schEnrolment">Enrolment</label><select id="schEnrolment"></select>
                         <label for="schPeriod">Period</label><select id="schPeriod"></select>
-                        <span></span><span></span>
                         <label for="schStart">Start date <span class="req">*</span></label><input type="date" id="schStart">
                         <label for="schEnd">End date <span class="req">*</span></label><input type="date" id="schEnd">
                         <label for="schAccStart">Accounts start date</label><input type="date" id="schAccStart" title="Empty: the same as the start date">
@@ -582,17 +580,17 @@
                         </div>
                         <span></span>
                         <span class="sched-note sched-wide">Empty accounts dates are the same as the start and end dates. Auto populate
-                            creates period schedules for every programme and enrolment of the chosen batch (only the chosen programme, if one
+                            creates period schedules for every course and enrolment of the chosen batch (only the chosen course, if one
                             is picked). Type a start date to target its year; otherwise the current year is used. Periods already
                             in the schedule are left as they are.</span>
                     </div>
 
                     <div class="units-subhead">Periods of the batch</div>
-                    <p id="schHint" class="up-hint">Choose the programme and batch to see its periods.</p>
+                    <p id="schHint" class="up-hint">Choose the batch to see its periods.</p>
                     <div id="schPanel" hidden>
                         <div class="units-count" id="schCount"></div>
                         <div class="table-wrap"><table class="data-table">
-                            <thead><tr><th class="unit-actions"></th><th>Programme</th><th>Class</th><th>Enrolment</th><th>Period</th>
+                            <thead><tr><th class="unit-actions"></th><th>Course</th><th>Enrolment</th><th>Period</th>
                                 <th>Start date</th><th>End date</th><th>Accounts start</th><th>Accounts end</th><th>Accounts status</th></tr></thead>
                             <tbody id="schRows"></tbody></table></div>
                     </div>
@@ -1922,8 +1920,8 @@
 
         /* ---------- Semester schedule ----------
            The dates of each period (SEMESTER 1, 2...) of a batch, by class (course) and enrolment (intake), in table
-           academics.period_schedules. Programme = Settings > Award Types; Class = the courses of that award; Batch =
-           Student Groups; Enrolment = Settings > Enrollment Types. A class has as many semesters as its Course units
+           academics.period_schedules. Course = Settings > Program Setup > Courses (as the other tabs; its award is
+           kept in "programme" by itself); Batch = Student Groups; Enrolment = Settings > Enrollment Types. A course has as many semesters as its Course units
            have year/semester pairs; without course units, 3 a year (January, May and September intakes) from its duration.
            Accounts dates: empty means the same as the start and end dates. Accounts status CLOSED: no invoices, credit
            notes or receipts may be posted in the period. */
@@ -1936,11 +1934,11 @@
             $('unitsTabs').style.display = 'none';
             for (const [k] of TABS) $('pane-' + k).hidden = true;
             $('pane-schedule').hidden = false;
-            document.querySelector('#topbar .search-box input').placeholder = 'Search the periods... (class, enrolment or period)';
+            document.querySelector('#topbar .search-box input').placeholder = 'Search the periods... (course, enrolment or period)';
             render();
         }
 
-        // How many semesters a class has
+        // How many semesters a course has
         function semesterCount(courseName) {
             const pairs = new Set(programmeUnits.filter(p => p.course === courseName && p.yearOfStudy)
                 .map(p => `${p.yearOfStudy}|${p.semester || 1}`));
@@ -1955,24 +1953,18 @@
         const periodNumber = name => Number(String(name || '').replace(/\D+/g, '')) || 0;
 
         function fillScheduleChoices() {
-            fill($('schProgramme'), programmes.map(p => [p, p]), '-- select one --');
+            fill($('schCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
             fill($('schBatch'), groups.map(g => [g, g]), '-- select one --');
             const enrolNames = enrolments.filter(e => e.active).map(e => e.name);
             // An enrolment already used in the schedule stays choosable even if made inactive
             for (const s of schedules) if (s.enrolment && !enrolNames.includes(s.enrolment)) enrolNames.push(s.enrolment);
             fill($('schEnrolment'), enrolNames.map(e => [e, e]), '-- select one --');
-            fillScheduleClasses();
-        }
-
-        function fillScheduleClasses() {
-            const programme = $('schProgramme').value;
-            fill($('schClass'), courseItems.filter(c => !programme || c.award === programme).map(c => [c.name, c.name]), '-- select one --');
             fillSchedulePeriods();
         }
 
         function fillSchedulePeriods() {
-            const course = $('schClass').value;
-            // Without a class: up to the longest class (6 at least)
+            const course = $('schCourse').value;
+            // Without a course: up to the longest course (6 at least)
             const most = course ? semesterCount(course) : Math.max(6, ...courseItems.map(c => semesterCount(c.name)));
             fill($('schPeriod'), Array.from({ length: most }, (_, i) => [periodName(i + 1), periodName(i + 1)]), null);
         }
@@ -1987,28 +1979,28 @@
         const isoDay = value => String(value || '').slice(0, 10);
 
         function renderSchedule() {
-            const programme = $('schProgramme').value, batch = $('schBatch').value;
+            const course = $('schCourse').value, batch = $('schBatch').value;
             const chosen = !!batch;
             $('schHint').hidden = chosen;
             $('schPanel').hidden = !chosen;
             if (!chosen) return;
             const words = scheduleFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            const rows = schedules.filter(s => s.batch === batch && (!programme || s.programme === programme || courseAward(s.course) === programme))
-                .filter(s => words.every(w => `${s.course} ${s.enrolment} ${s.period} ${s.programme}`.toLowerCase().includes(w)))
+            const rows = schedules.filter(s => s.batch === batch && (!course || s.course === course))
+                .filter(s => words.every(w => `${s.course} ${s.enrolment} ${s.period}`.toLowerCase().includes(w)))
                 .sort((a, b) => String(a.course).localeCompare(String(b.course)) || String(a.enrolment).localeCompare(String(b.enrolment))
                     || (a.periodNumber || periodNumber(a.period)) - (b.periodNumber || periodNumber(b.period)));
             const closed = rows.filter(s => s.accountsStatus === 'CLOSED').length;
             $('schCount').textContent = `${rows.length} period${rows.length === 1 ? '' : 's'} for ${batch}` +
-                (programme ? ` (${programme})` : '') + (closed ? `, ${closed} closed for accounts` : '');
+                (course ? `, ${course}` : '') + (closed ? `, ${closed} closed for accounts` : '');
             $('schRows').innerHTML = rows.length ? rows.map(s => `<tr${s.id === editingSchedule ? ' class="editing"' : ''}>
                     <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(s.period), `editSchedule('${s.id}')`) +
                         iconButton('delete', 'Remove ' + escapeHtml(s.period), `deleteSchedule('${s.id}')`) : ''}</td>
-                    <td>${escapeHtml(s.programme || courseAward(s.course))}</td><td>${escapeHtml(s.course || '')}</td>
+                    <td>${escapeHtml(s.course || '')}</td>
                     <td>${escapeHtml(s.enrolment || '')}</td><td>${escapeHtml(s.period)}</td>
                     <td>${dateText(s.startDate)}</td><td>${dateText(s.endDate)}</td>
                     <td>${dateText(s.accountsStartDate || s.startDate)}</td><td>${dateText(s.accountsEndDate || s.endDate)}</td>
                     <td class="${s.accountsStatus === 'CLOSED' ? 'sched-status-closed' : 'sched-status-open'}">${escapeHtml(s.accountsStatus || 'OPEN')}</td></tr>`).join('')
-                : `<tr class="empty-row"><td colspan="10">No periods for ${escapeHtml(batch)} yet.</td></tr>`;
+                : `<tr class="empty-row"><td colspan="9">No periods for ${escapeHtml(batch)} yet.</td></tr>`;
         }
 
         const sameSlot = (a, b) => a.batch === b.batch && (a.course || '') === (b.course || '')
@@ -2017,7 +2009,7 @@
         async function saveSchedule() {
             if (!allowed('academics', 'edit')) return;
             const v = id => $(id).value.trim();
-            const batch = v('schBatch'), course = v('schClass'), period = v('schPeriod');
+            const batch = v('schBatch'), course = v('schCourse'), period = v('schPeriod');
             const start = v('schStart'), end = v('schEnd'), accStart = v('schAccStart'), accEnd = v('schAccEnd');
             const missing = [[batch, 'the batch'], [period, 'the period'], [start, 'the start date'], [end, 'the end date']]
                 .filter(([x]) => !x).map(([, n]) => n);
@@ -2025,7 +2017,7 @@
             if (end < start) return alert('The end date is before the start date.');
             if ((accEnd || end) < (accStart || start)) return alert('The accounts end date is before the accounts start date.');
             const record = { batch, course, enrolment: v('schEnrolment'), period,
-                programme: v('schProgramme') || courseAward(course) };
+                programme: courseAward(course) };
             const existing = schedules.find(s => s.id !== editingSchedule && sameSlot(s, record));
             const label = [record.period, record.course, record.enrolment].filter(Boolean).join(', ');
             if (existing && !confirm(`${batch} already has ${label}. Replace its dates?`)) return;
@@ -2054,8 +2046,7 @@
                 if (value && ![...$(sel).options].some(o => o.value === value)) $(sel).add(new Option(value, value));
                 $(sel).value = value || '';
             };
-            pick('schProgramme', s.programme || ''); fillScheduleClasses();
-            pick('schBatch', s.batch); pick('schClass', s.course || ''); fillSchedulePeriods();
+            pick('schBatch', s.batch); pick('schCourse', s.course || ''); fillSchedulePeriods();
             pick('schEnrolment', s.enrolment || ''); pick('schPeriod', s.period);
             $('schStart').value = isoDay(s.startDate); $('schEnd').value = isoDay(s.endDate);
             $('schAccStart').value = isoDay(s.accountsStartDate); $('schAccEnd').value = isoDay(s.accountsEndDate);
@@ -2068,7 +2059,7 @@
         function clearSchedule() {
             editingSchedule = null;
             $('schSave').textContent = 'Save period';
-            for (const id of ['schClass', 'schEnrolment', 'schStart', 'schEnd', 'schAccStart', 'schAccEnd']) $(id).value = '';
+            for (const id of ['schCourse', 'schEnrolment', 'schStart', 'schEnd', 'schAccStart', 'schAccEnd']) $(id).value = '';
             $('schStatus').value = 'OPEN';
             fillSchedulePeriods();
             renderSchedule();
@@ -2106,15 +2097,15 @@
 
         async function autoPopulateSchedules() {
             if (!allowed('academics', 'edit')) return;
-            const batch = $('schBatch').value, programme = $('schProgramme').value;
+            const batch = $('schBatch').value, course = $('schCourse').value;
             if (!batch) return alert('Choose the batch first: the periods are made for that batch.');
             const year = Number(($('schStart').value || '').slice(0, 4)) || new Date().getFullYear();
             const intakes = enrolments.filter(e => e.active).map(e => ({ ...e, start: enrolmentStart(e) }))
                 .filter(e => e.start && Number(e.start.slice(0, 4)) === year);
             if (!intakes.length) return alert(`No active enrolment starts in ${year} (Settings > Organisation Setup > Enrollment Types). ` +
                 'Type a start date in another year to use that year, or add the enrolment with its start date.');
-            const classes = courseItems.filter(c => !programme || c.award === programme);
-            if (!classes.length) return alert(`There are no courses${programme ? ' for ' + programme : ''} in Settings > Program Setup > Courses.`);
+            const classes = courseItems.filter(c => !course || c.name === course);
+            if (!classes.length) return alert('There are no courses in Settings > Program Setup > Courses.');
             const made = [];
             for (const c of classes) for (const e of intakes) for (let n = 1; n <= semesterCount(c.name); n++) {
                 const startDate = addMonths(e.start, (n - 1) * SEMESTER_MONTHS);
@@ -2125,8 +2116,8 @@
                     updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
             }
             if (!made.length) return alert(`Every period of ${batch} for the ${year} enrolments is already in the schedule.`);
-            if (!confirm(`Create ${made.length} period${made.length === 1 ? '' : 's'} for ${batch}: ${classes.length} class` +
-                `${classes.length === 1 ? '' : 'es'} x ${intakes.map(e => e.name).join(', ')}, each semester ${SEMESTER_MONTHS} months ` +
+            if (!confirm(`Create ${made.length} period${made.length === 1 ? '' : 's'} for ${batch}: ${classes.length} course` +
+                `${classes.length === 1 ? '' : 's'} x ${intakes.map(e => e.name).join(', ')}, each semester ${SEMESTER_MONTHS} months ` +
                 `from the enrolment's start date? Periods already in the schedule are left as they are; the dates can be changed afterwards.`)) return;
             let saved = 0;
             try {
@@ -2192,8 +2183,8 @@
         for (const id of ['regBatch', 'regTerm', 'regUnitsOf']) $(id).addEventListener('change', showRegistration);
 
         showCurrentUser();
-        for (const id of ['schProgramme', 'schBatch']) $(id).addEventListener('change', () => { fillScheduleClasses(); renderSchedule(); });
-        $('schClass').addEventListener('change', () => { fillSchedulePeriods(); renderSchedule(); });
+        $('schBatch').addEventListener('change', renderSchedule);
+        $('schCourse').addEventListener('change', () => { fillSchedulePeriods(); renderSchedule(); });
         if (PAGE === 'schedule') showSchedulePage();
         else {
             $('menuUnits').classList.add('active');
