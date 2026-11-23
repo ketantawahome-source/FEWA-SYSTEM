@@ -66,3 +66,41 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pending && Date.now() - pending.at < 10000) renderToast(pending.message, pending.kind);
     } catch { }
 });
+
+/* ---------- Empty lists show a short note, not an empty table ----------
+   A table whose body holds only its "nothing yet" row (class empty-row) is hidden, with its heading row, and that
+   row's message is shown in its place as a short note (e.g. "Nothing is listed here yet."). As soon as the table
+   has a real row again, the table comes back and the note goes. Works for every list on every page, as they redraw. */
+(function () {
+    const style = document.createElement('style');
+    style.textContent = '.list-empty-note { font-weight: 600; color: #333; font-size: 14px; margin: 14px 0 6px; }';
+    document.head.append(style);
+
+    function tidyEmptyLists() {
+        for (const table of document.querySelectorAll('table')) {
+            const body = table.tBodies[0];
+            if (!body) continue;
+            const rows = [...body.rows];
+            const empty = rows.length > 0 && rows.every(r => r.classList.contains('empty-row'));
+            const box = table.parentElement && table.parentElement.classList.contains('table-wrap') ? table.parentElement : table;
+            let note = box.previousElementSibling && box.previousElementSibling.classList.contains('list-empty-note') ? box.previousElementSibling : null;
+            if (empty) {
+                const text = rows.map(r => r.innerText.trim()).filter(Boolean).join(' ') || 'Nothing is listed here yet.';
+                if (!note) { note = document.createElement('p'); note.className = 'list-empty-note'; box.before(note); }
+                if (note.textContent !== text) note.textContent = text;
+                if (box.style.display !== 'none') box.style.display = 'none';
+            } else {
+                if (note) note.remove();
+                if (box.style.display === 'none') box.style.display = '';
+            }
+        }
+    }
+
+    let queued = false;
+    const later = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; tidyEmptyLists(); }); } };
+    const start = () => {
+        tidyEmptyLists();
+        new MutationObserver(later).observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

@@ -81,6 +81,14 @@
         #pane-exams .settings-tabs { margin-bottom: 14px; }
         #pane-exams .exam-check { grid-column: span 2; display: flex; align-items: center; gap: 8px; font-weight: 400 !important; cursor: pointer; }
         #pane-exams .exam-check input { width: auto !important; height: auto !important; margin: 0; }
+        /* Grading system: rows edited in place (tick saves, cross cancels; the last row adds a grade) */
+        #pane-exams .exam-inline td { vertical-align: middle; }
+        #pane-exams .exam-cell { width: 100%; min-width: 60px; box-sizing: border-box; padding: 5px 8px; font-size: 13px;
+            border: 1px solid #cfcfd6; border-radius: 4px; font-family: inherit; }
+        #pane-exams .exam-icon { border: 0; background: none; cursor: pointer; font-size: 15px; padding: 4px 7px; line-height: 1; }
+        #pane-exams .exam-ok { color: #2e7d32; }
+        #pane-exams .exam-no { color: #1565c0; }
+        #pane-exams tr.exam-add td { background: #f6f9fd; }
         .sched-status-closed { color: #b3261e; font-weight: 600; }
         .sched-status-open { color: #2e7d32; font-weight: 600; }
         @media (max-width: 700px) { .sched-buttons, .sched-wide { grid-column: auto; } }

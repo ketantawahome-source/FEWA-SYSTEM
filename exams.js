@@ -94,7 +94,9 @@ const EXAM_TABS = [
     },
     {
         key: 'grading', title: 'Grading system', store: 'grading_systems',
-        banner: 'The grades of each course: choose the course to see its grades, then add a grade with its marks, points, GPA and qualification (for example 70 to 100 = A, 8.0 points, Distinction).',
+        // Edited in the list itself: the pencil turns a row into boxes (tick saves, cross cancels); the last row adds a grade
+        inline: true,
+        banner: 'The grades of each course: marks range, points and GPA. Change a grade with the pencil.',
         save: 'Save grade',
         fields: [
             { name: 'course', label: 'Course', type: 'select', options: () => examPairs(courseItems.map(c => c.name)), placeholder: '-- select one --', required: true, filter: true },
@@ -103,10 +105,10 @@ const EXAM_TABS = [
             { name: 'minMark', label: 'Marks from', type: 'number', min: -10, max: 100, required: true },
             { name: 'maxMark', label: 'Marks to', type: 'number', min: -10, max: 100, required: true },
             { name: 'points', label: 'Points', type: 'number', min: 0, max: 100 },
-            { name: 'qualification', label: 'Qualification', type: 'text', max: 100, placeholder: 'For example Distinction',
-                list: () => ['Distinction', 'Credit', 'Pass', 'Fail'] },
             { name: 'gpaFrom', label: 'GPA from', type: 'number', min: 0, max: 10 },
-            { name: 'gpaTo', label: 'GPA to', type: 'number', min: 0, max: 10 }
+            { name: 'gpaTo', label: 'GPA to', type: 'number', min: 0, max: 10 },
+            { name: 'qualification', label: 'Qualification', type: 'text', max: 100, placeholder: 'For example Distinction',
+                list: () => ['Distinction', 'Credit', 'Pass', 'Fail'] }
         ],
         columns: [['Course', r => r.course], ['Grade', r => r.grade], ['Marks from', r => examNum(r.minMark)], ['Marks to', r => examNum(r.maxMark)],
             ['Points', r => examPoints(r.points)], ['GPA from', r => examNum(r.gpaFrom)], ['GPA to', r => examNum(r.gpaTo)],
@@ -278,6 +280,7 @@ function showExamTab(key) {
 
 function buildExamForm() {
     const t = examTab();
+    if (t.inline) return buildInlineTab(t);
     const input = f => {
         const id = 'ex_' + f.name;
         if (f.type === 'select') return `<select id="${id}"></select>`;
@@ -335,8 +338,8 @@ function buildExamForm() {
 
 function fillExamChoices() {
     for (const f of examTab().fields) {
-        if (f.type === 'select') fill(examField(f.name), f.options(), f.placeholder === undefined ? '-- select one --' : f.placeholder);
-        if (f.list) $('ex_' + f.name + '_list').innerHTML = f.list().map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+        if (f.type === 'select' && examField(f.name)) fill(examField(f.name), f.options(), f.placeholder === undefined ? '-- select one --' : f.placeholder);
+        if (f.list && $('ex_' + f.name + '_list')) $('ex_' + f.name + '_list').innerHTML = f.list().map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
     }
 }
 
@@ -350,6 +353,7 @@ function renderExams() {
 
 function renderExamList() {
     const t = examTab();
+    if (t.inline) return renderInlineRows(t);
     // The filter boxes (course, batch, period...) narrow the list; "all" rows show under any choice
     const filters = t.fields.filter(f => f.filter).map(f => [f, examField(f.name).value.trim()]).filter(([, v]) => v);
     const words = examFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -357,13 +361,14 @@ function renderExamList() {
         .filter(r => filters.every(([f, v]) => same(r[f.name], v) || (f.all && !r[f.name])))
         .filter(r => words.every(w => t.columns.map(([, get]) => get(r)).join(' ').toLowerCase().includes(w)))
         .sort(t.sort);
-    $('examCount').textContent = `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}` +
+    // (an empty list shows only its note, from notify.js)
+    $('examCount').textContent = !rows.length ? '' : `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}` +
         (filters.length ? ` for ${filters.map(([, v]) => v).join(', ')}` : '') + '.' + (t.summary ? t.summary(rows) : '');
     $('examRows').innerHTML = rows.length ? rows.map(r => `<tr${r.id === examEditing ? ' class="editing"' : ''}>
             <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(t.label(r)), `editExamRecord('${r.id}')`) +
                 iconButton('delete', 'Remove ' + escapeHtml(t.label(r)), `deleteExamRecord('${r.id}')`) : ''}</td>
             ${t.columns.map(([, get, num]) => `<td${num ? ' class="num"' : ''}>${escapeHtml(get(r) ?? '')}</td>`).join('')}</tr>`).join('')
-        : `<tr class="empty-row"><td colspan="${t.columns.length + 1}">Nothing here yet.</td></tr>`;
+        : `<tr class="empty-row"><td colspan="${t.columns.length + 1}">Nothing is listed here yet.</td></tr>`;
 }
 
 async function saveExamRecord() {
@@ -382,13 +387,25 @@ async function saveExamRecord() {
         }
         record[f.name] = v;
     }
+    if (!await storeExamRecord(t, record)) return;
+    $('examSave').textContent = t.save;
+    // The filter boxes keep their choice, the rest is emptied for the next entry
+    for (const f of t.fields.filter(f => !f.filter)) {
+        if (f.type === 'check') examField(f.name).checked = false;
+        else examField(f.name).value = f.type === 'select' && f.placeholder === null ? (examField(f.name).options[0] || {}).value || '' : '';
+    }
+    await loadData();
+}
+
+// Checks a record (required fields, the tab's own check, one already like it) and saves it; true when saved
+async function storeExamRecord(t, record) {
     const missing = t.fields.filter(f => f.required && record[f.name] === '').map(f => f.label);
-    if (missing.length) return alert('Please fill in: ' + missing.join(', ') + '.');
+    if (missing.length) { alert('Please fill in: ' + missing.join(', ') + '.'); return false; }
     const others = examRows(t.store).filter(r => r.id !== examEditing);
     const problem = t.check ? t.check(record, others.filter(o => !t.same(o, record))) : '';
-    if (problem) return alert(problem);
+    if (problem) { alert(problem); return false; }
     const existing = others.find(o => t.same(o, record));
-    if (existing && !confirm(`${t.label(existing)} is already in the list. Replace it?`)) return;
+    if (existing && !confirm(`${t.label(existing)} is already in the list. Replace it?`)) return false;
     const old = examRows(t.store).find(r => r.id === examEditing);
     const base = existing || old || {};
     const saved = { ...base, ...record, id: base.id || newId(), updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' };
@@ -405,14 +422,8 @@ async function saveExamRecord() {
         }
         showToast(`${t.label(saved)} saved.`);
         examEditing = null;
-        $('examSave').textContent = t.save;
-        // The filter boxes keep their choice, the rest is emptied for the next entry
-        for (const f of t.fields.filter(f => !f.filter)) {
-            if (f.type === 'check') examField(f.name).checked = false;
-            else examField(f.name).value = f.type === 'select' && f.placeholder === null ? (examField(f.name).options[0] || {}).value || '' : '';
-        }
-        await loadData();
-    } catch (err) { alert('It could not be saved: ' + err.message); await loadData(); }
+        return true;
+    } catch (err) { alert('It could not be saved: ' + err.message); await loadData(); return false; }
 }
 
 function editExamRecord(id) {
@@ -546,4 +557,84 @@ async function uploadExamRows() {
     $('examFile').value = '';
     chosenExamFile();
     await loadData();
+}
+
+/* ---------- Tabs edited in their rows (inline: Grading system) ----------
+   Laid out like the college's grading sheet: the course box, then the list. The pencil turns a row into boxes, the
+   tick saves it and the cross cancels; the empty row at the end adds a grade to the chosen course. */
+function buildInlineTab(t) {
+    const filter = t.fields.find(f => f.filter), cols = t.fields.filter(f => !f.filter);
+    $('examBody').innerHTML = `<div class="settings-banner info-banner">${escapeHtml(t.banner)}</div>
+        <div class="up-filters reg-fields lec-fields sched-fields exam-fields">
+            <label for="ex_${filter.name}">${escapeHtml(filter.label)}</label><select id="ex_${filter.name}"></select><span></span><span></span>
+        </div>
+        ${cols.filter(f => f.list).map(f => `<datalist id="ex_${f.name}_list"></datalist>`).join('')}
+        <div class="units-count" id="examCount"></div>
+        <div class="table-wrap"><table class="data-table exam-inline">
+            <thead><tr><th class="unit-actions"></th><th>${escapeHtml(filter.label)}</th>${cols.map(f => `<th>${escapeHtml(f.label)}</th>`).join('')}</tr></thead>
+            <tbody id="examRows"></tbody></table></div>`;
+    fillExamChoices();
+    examField(filter.name).addEventListener('change', () => { examEditing = null; renderExamList(); });
+}
+
+function renderInlineRows(t) {
+    const filter = t.fields.find(f => f.filter), cols = t.fields.filter(f => !f.filter);
+    const chosen = examField(filter.name).value;
+    const words = examFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const rows = examRows(t.store).filter(r => !chosen || same(r[filter.name], chosen))
+        .filter(r => words.every(w => [r[filter.name], ...cols.map(f => r[f.name])].join(' ').toLowerCase().includes(w)))
+        .sort(t.sort);
+    $('examCount').textContent = chosen ? `${rows.length} grade${rows.length === 1 ? '' : 's'} for ${chosen}.`
+        : `${rows.length} grade${rows.length === 1 ? '' : 's'} of every course. Choose the course to add or change its grades.`;
+    const box = (f, value) => `<input data-f="${f.name}" class="exam-cell" autocomplete="off" ${f.type === 'number'
+        ? `type="number" step="any" min="${f.min ?? 0}" max="${f.max ?? 100000}"` : `type="text" maxlength="${f.max || 200}"`}${f.list
+        ? ` list="ex_${f.name}_list"` : ''} value="${escapeHtml(value === undefined || value === null ? '' : f.type === 'number' && value !== '' ? Number(value) : value)}">`;
+    const shown = (f, r) => f.name === 'points' ? examPoints(r.points) : f.type === 'number' ? examNum(r[f.name]) : (r[f.name] || '');
+    const tick = id => `<button type="button" class="exam-icon exam-ok" title="Save" aria-label="Save" onclick="saveInlineRow('${id}')">&#10004;</button>`;
+    const cross = `<button type="button" class="exam-icon exam-no" title="Cancel" aria-label="Cancel" onclick="cancelInlineRow()">&#10006;</button>`;
+    $('examRows').innerHTML = rows.map(r => r.id === examEditing
+        ? `<tr class="editing" data-id="${r.id}"><td class="unit-actions">${tick(r.id)}${cross}</td><td>${escapeHtml(r[filter.name] || '')}</td>
+            ${cols.map(f => `<td>${box(f, r[f.name])}</td>`).join('')}</tr>`
+        : `<tr><td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(t.label(r)), `editInlineRow('${r.id}')`) +
+            iconButton('delete', 'Remove ' + escapeHtml(t.label(r)), `deleteExamRecord('${r.id}')`) : ''}</td>
+            <td>${escapeHtml(r[filter.name] || '')}</td>${cols.map(f => `<td>${escapeHtml(shown(f, r))}</td>`).join('')}</tr>`).join('')
+        // The row that adds a grade to the chosen course
+        + (chosen && mayEdit() ? `<tr class="exam-add" data-id="new"><td class="unit-actions">${tick('')}</td><td>${escapeHtml(chosen)}</td>
+            ${cols.map(f => `<td>${box(f, '')}</td>`).join('')}</tr>` : '')
+        || `<tr class="empty-row"><td colspan="${cols.length + 2}">Choose the course to see its grades.</td></tr>`;
+}
+
+function editInlineRow(id) {
+    examEditing = id;
+    renderExamList();
+    const first = document.querySelector('#examRows tr.editing input');
+    if (first) first.focus();
+}
+
+function cancelInlineRow() {
+    examEditing = null;
+    renderExamList();
+}
+
+// Saves a row (id) or the add row (''): the same checks as the form
+async function saveInlineRow(id) {
+    if (!allowed('academics', 'edit')) return;
+    const t = examTab(), filter = t.fields.find(f => f.filter);
+    const tr = document.querySelector(`#examRows tr[data-id="${id || 'new'}"]`);
+    if (!tr) return;
+    const old = id ? examRows(t.store).find(r => r.id === id) : null;
+    const record = { [filter.name]: old ? old[filter.name] : examField(filter.name).value };
+    for (const f of t.fields.filter(f => !f.filter)) {
+        let v = tr.querySelector(`[data-f="${f.name}"]`).value.trim().replace(/\s+/g, ' ');
+        if (f.upper) v = v.toUpperCase();
+        if (f.type === 'number' && v !== '') {
+            if (!Number.isFinite(Number(v)) || Number(v) < (f.min ?? 0) || Number(v) > (f.max ?? 100000)) {
+                return alert(`${f.label}: enter a number from ${f.min ?? 0} to ${f.max ?? 100000}.`);
+            }
+            v = Number(v);
+        }
+        record[f.name] = v;
+    }
+    examEditing = id || null;
+    if (await storeExamRecord(t, record)) await loadData();
 }
