@@ -23,6 +23,24 @@
         requireLogin();
     </script>
     <link rel="stylesheet" href="styles.css?v=20261112h">
+    <style>
+        /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
+        .batch-page { font-size: 14px; }
+        .batch-title { font-size: 19px; font-weight: 600; color: #24103a; margin: 2px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        .batch-grid { display: grid; grid-template-columns: 170px minmax(0, 1fr) 200px minmax(0, 1fr); gap: 10px 18px; align-items: start; max-width: 1200px; }
+        .batch-grid > label { font-weight: 600; font-size: 14px; padding-top: 8px; color: #222; }
+        .batch-grid select, .batch-grid input { width: 100%; box-sizing: border-box; height: 36px; padding: 6px 10px; font-size: 14px;
+            border: 1px solid #cfcfd6; border-radius: 4px; background: #fff; font-family: inherit; margin: 0; }
+        .batch-grid select:disabled, .batch-grid input[readonly] { background: #eeeeee; color: #333; opacity: 1; cursor: default; }
+        .batch-grid small { display: block; color: #666; font-size: 12px; margin-top: 4px; }
+        .batch-buttons { display: flex; gap: 8px; }
+        .batch-buttons button { margin: 0; padding: 8px 16px; font-size: 14px; }
+        .batch-empty { font-style: italic; color: #666; margin: 14px 0 0; }
+        .batch-table { font-size: 13px; margin-top: 14px; }
+        .batch-table .batch-actions { white-space: nowrap; text-align: right; }
+        .batch-table tr.editing td { background: #fff8e1; }
+        @media (max-width: 800px) { .batch-grid { grid-template-columns: 1fr; } .batch-grid > span { display: none; } }
+    </style>
 </head>
 
 <body>
@@ -1332,8 +1350,180 @@
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
             backup: { title: 'Backups', render: () => renderBackupPage() },
-            systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() }
+            systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() },
+            // Organisation Setup > Batches: its own compact screen (the rules are in SETTINGS_LISTS.batches)
+            batches: { title: 'Batches', render: () => renderBatchesPage() }
         };
+
+        /* ---------- Settings > Organisation Setup > Batches ----------
+           Laid out like the Batches screen it was copied from: the school first, then the batch's academic year and
+           dates; "comes after", "precedes" and the name are worked out from the dates as they are typed (and again when
+           saved, by SETTINGS_LISTS.batches.prepare). The list below shows the chosen school's batches. */
+        let chosenBatchSchool = '', batchEditing = null;
+        const BATCH_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const batchDay = d => d ? `${d.slice(8, 10)} ${BATCH_MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : '';
+
+        async function renderBatchesPage() {
+            const list = SETTINGS_LISTS.batches;
+            const schools = await getSettingLabels('schools');
+            if (chosenBatchSchool && !schools.includes(chosenBatchSchool)) chosenBatchSchool = '';
+            const banner = document.getElementById('settingsBanner');
+            banner.innerText = "A batch is a school's academic year (for example 1 Sep 2026 to 31 Aug 2027), not a semester: semesters are set in "
+                + 'Academic Management > Semester Schedule. Choose the school, then add or edit its batches.';
+            banner.classList.add('info-banner');
+            const years = list.fields.find(f => f.name === 'academicYear').options;
+            const option = (v, chosen) => `<option${v === chosen ? ' selected' : ''}>${escapeHtml(v)}</option>`;
+            document.getElementById('settingsContent').innerHTML = `
+                <div class="batch-page">
+                    <div class="batch-title">Batches</div>
+                    <form id="batchForm" class="batch-grid" onsubmit="saveBatch(event)" oninput="previewBatch()" onchange="previewBatch()">
+                        <label for="batchSchool">School <span class="req">*</span></label>
+                        <select id="batchSchool" onchange="pickBatchSchool(this.value)">
+                            <option value="">-- select one --</option>${schools.map(v => option(v, chosenBatchSchool)).join('')}</select>
+                        <label for="batchYear">Academic Year <span class="req">*</span></label>
+                        <select id="batchYear" onchange="batchYearChosen()"><option value="">-- select one --</option>${years.map(v => option(v)).join('')}</select>
+
+                        <label for="batchFrom">Date From <span class="req">*</span></label>
+                        <input type="date" id="batchFrom" onchange="batchFromChosen()">
+                        <label for="batchTo">Date To <span class="req">*</span></label>
+                        <input type="date" id="batchTo">
+
+                        <label for="batchAfter">Comes after (batch)</label>
+                        <div><select id="batchAfter" disabled><option>-- no other batch --</option></select>
+                            <small>Worked out from the dates when the batch is saved.</small></div>
+                        <label for="batchBefore">Batch Precedes (Comes Before)</label>
+                        <div><select id="batchBefore" disabled><option>-- no other batch --</option></select>
+                            <small>Worked out from the dates when the batch is saved.</small></div>
+
+                        <label for="batchName">Name</label>
+                        <div><input type="text" id="batchName" readonly tabindex="-1"><small>Made from the two dates.</small></div>
+                        <span></span><span></span>
+
+                        <span></span>
+                        <div class="batch-buttons">
+                            <button type="submit" class="btn-submit" id="batchSave">Save batch</button>
+                            <button type="button" class="btn-secondary" id="batchDelete" hidden style="color: #b3261e; border-color: #b3261e;"
+                                onclick="deleteBatch(batchEditing)">Delete</button>
+                            <button type="button" class="btn-secondary" id="batchCancel" hidden onclick="cancelBatchEdit()">Cancel</button>
+                        </div>
+                    </form>
+                    <div id="batchList"></div>
+                </div>`;
+            const items = await getSettingItems('batches');
+            const mine = items.filter(b => b.school === chosenBatchSchool).sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
+            document.getElementById('batchList').innerHTML = !chosenBatchSchool
+                ? '<p class="batch-empty">Choose the school to see its batches.</p>'
+                : !mine.length ? '<p class="batch-empty">This school has no batches yet. Add one above.</p>'
+                : `<div class="table-wrap"><table class="data-table batch-table">
+                    <thead><tr><th>Name</th><th>Academic Year</th><th>Date From</th><th>Date To</th><th>Comes after</th><th>Comes before</th><th></th></tr></thead>
+                    <tbody>${mine.map(b => `<tr${b.id === batchEditing ? ' class="editing"' : ''}>
+                        <td><b>${escapeHtml(b.name)}</b></td><td>${escapeHtml(b.academicYear || '')}</td>
+                        <td>${batchDay(b.dateFrom)}</td><td>${batchDay(b.dateTo)}</td>
+                        <td>${escapeHtml(b.comesAfter || '—')}</td><td>${escapeHtml(b.precedes || '—')}</td>
+                        <td class="batch-actions"><button type="button" class="btn-small" onclick="editBatch('${b.id}')">Edit</button>
+                            <button type="button" class="btn-small" style="color: #b3261e; border-color: #b3261e;" onclick="deleteBatch('${b.id}')">Delete</button></td>
+                    </tr>`).join('')}</tbody></table></div>`;
+            if (batchEditing) fillBatchForm(items.find(b => b.id === batchEditing));
+            previewBatch();
+        }
+
+        // (called from the form's buttons; a name inside a form's onclick would mean its box of the same id)
+        function pickBatchSchool(school) { chosenBatchSchool = school; batchEditing = null; renderBatchesPage(); }
+        function cancelBatchEdit() { batchEditing = null; renderBatchesPage(); }
+
+        // The academic year picked: an empty Date From starts on 1 Jan of it
+        function batchYearChosen() {
+            const year = document.getElementById('batchYear').value, from = document.getElementById('batchFrom');
+            if (year && !from.value) { from.value = `${year}-01-01`; batchFromChosen(); }
+            previewBatch();
+        }
+
+        // Date From typed: an empty Date To becomes one year later (less a day), and the academic year its year
+        function batchFromChosen() {
+            const from = document.getElementById('batchFrom').value, to = document.getElementById('batchTo');
+            if (from && !to.value) {
+                const [y, m, d] = from.split('-').map(Number);
+                to.value = new Date(Date.UTC(y + 1, m - 1, d - 1)).toISOString().slice(0, 10);
+            }
+            const year = document.getElementById('batchYear');
+            if (from && [...year.options].some(o => o.value === from.slice(0, 4))) year.value = from.slice(0, 4);
+            previewBatch();
+        }
+
+        function batchFromForm() {
+            const v = id => document.getElementById(id).value.trim();
+            return { id: batchEditing || newId(), school: v('batchSchool'), academicYear: v('batchYear'), dateFrom: v('batchFrom'), dateTo: v('batchTo') };
+        }
+
+        // Name, comes after and precedes as they will be saved
+        async function previewBatch() {
+            const item = batchFromForm();
+            const items = (await getSettingItems('batches')).map(b => ({ ...b }));
+            if (item.dateFrom && item.dateTo) SETTINGS_LISTS.batches.prepare(item, items);
+            else item.name = item.comesAfter = item.precedes = '';
+            document.getElementById('batchName').value = item.name || '';
+            for (const [id, value] of [['batchAfter', item.comesAfter], ['batchBefore', item.precedes]]) {
+                document.getElementById(id).innerHTML = `<option>${escapeHtml(value || '-- no other batch --')}</option>`;
+            }
+        }
+
+        function fillBatchForm(b) {
+            if (!b) return;
+            document.getElementById('batchYear').value = b.academicYear || '';
+            document.getElementById('batchFrom').value = String(b.dateFrom || '').slice(0, 10);
+            document.getElementById('batchTo').value = String(b.dateTo || '').slice(0, 10);
+            document.getElementById('batchSave').textContent = 'Save change';
+            document.getElementById('batchDelete').hidden = false;
+            document.getElementById('batchCancel').hidden = false;
+        }
+
+        async function editBatch(id) {
+            const b = (await getSettingItems('batches')).find(x => x.id === id);
+            if (!b) return;
+            batchEditing = id;
+            chosenBatchSchool = b.school || '';
+            await renderBatchesPage();
+            document.getElementById('batchForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        async function saveBatch(event) {
+            event.preventDefault();
+            if (!allowed('settings', batchEditing ? 'edit' : 'add')) return;
+            const list = SETTINGS_LISTS.batches;
+            const item = batchFromForm();
+            if (!item.school) return alert('Choose the school.');
+            if (!item.academicYear) return alert('Choose the academic year.');
+            if (!item.dateFrom || !item.dateTo) return alert('Fill in Date From and Date To.');
+            const items = await getSettingItems('batches');
+            list.prepare(item, items);
+            const problem = list.validate(item);
+            if (problem) return alert(problem);
+            if (items.some(i => i.id !== item.id && list.label(i).toLowerCase() === list.label(item).toLowerCase())) {
+                return alert(list.duplicateMessage(list.label(item)));
+            }
+            const index = items.findIndex(i => i.id === item.id);
+            if (index >= 0) items[index] = item; else items.push(item);
+            await saveSettingItems('batches', items);
+            showToast(`Batch "${item.name}" ${index >= 0 ? 'updated' : 'added'}.`);
+            batchEditing = null;
+            renderBatchesPage();
+        }
+
+        async function deleteBatch(id) {
+            if (!allowed('settings', 'delete')) return;
+            const items = await getSettingItems('batches');
+            const b = items.find(x => x.id === id);
+            if (!b) return;
+            const students = (await getAll('students')).filter(st => st.group === b.name).length;
+            if (!confirm(`Delete the batch ${b.name} of ${b.school}?` +
+                (students ? `\n\n${students} student(s) have this batch; they will keep it.` : ''))) return;
+            const left = items.filter(x => x.id !== id);
+            SETTINGS_LISTS.batches.afterDelete(left);
+            await saveSettingItems('batches', left);
+            showToast(`Batch "${b.name}" deleted.`);
+            if (batchEditing === id) batchEditing = null;
+            renderBatchesPage();
+        }
 
         /* ---------- Settings > System Update: "running the rocket" (administrators only) ----------
            Left: release notes, every change on GitHub by month, with the ones not installed yet marked New.
