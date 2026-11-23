@@ -192,7 +192,7 @@ const EXAM_TABS = [
         fields: [
             { name: 'course', label: 'Course', type: 'select', options: () => examPairs(courseItems.map(c => c.name)), placeholder: '-- select one --', required: true, filter: true },
             { name: 'recommendation', label: 'Recommendations', type: 'text', required: true, max: 200, placeholder: 'For example FIRST CLASS UPPER DIVISION',
-                upper: true, list: () => ['FIRST CLASS UPPER DIVISION', 'SECOND CLASS UPPER DIVISION', 'SECOND CLASS LOWER DIVISION', 'PASS', 'DISTINCTION', 'CREDIT', 'FAIL'] },
+                upper: true },
             { name: 'marksFrom', label: 'Marks from', type: 'number', min: 0, max: 100, required: true },
             { name: 'marksTo', label: 'Marks to', type: 'number', min: 0, max: 100, required: true }
         ],
@@ -380,7 +380,7 @@ function renderExamList() {
 }
 
 async function saveExamRecord() {
-    if (!allowed('academics', 'edit')) return;
+    if (!allowed('exams', 'edit')) return;
     const t = examTab();
     const record = {};
     for (const f of t.fields) {
@@ -462,7 +462,7 @@ function clearExamForm() {
 }
 
 async function deleteExamRecord(id) {
-    if (!allowed('academics', 'edit')) return;
+    if (!allowed('exams', 'edit')) return;
     const t = examTab();
     const r = examRows(t.store).find(x => x.id === id);
     if (!r) return;
@@ -511,7 +511,7 @@ async function downloadExamTemplate() {
 }
 
 async function uploadExamRows() {
-    if (!allowed('academics', 'edit')) return;
+    if (!allowed('exams', 'edit')) return;
     const t = examTab(), up = t.upload;
     const f = $('examFile').files[0];
     if (!f) return alert('Choose the filled-in Excel file first.');
@@ -626,7 +626,7 @@ function cancelInlineRow() {
 
 // Saves a row (id) or the add row (''): the same checks as the form
 async function saveInlineRow(id) {
-    if (!allowed('academics', 'edit')) return;
+    if (!allowed('exams', 'edit')) return;
     const t = examTab(), filter = t.fields.find(f => f.filter);
     const tr = document.querySelector(`#examRows tr[data-id="${id || 'new'}"]`);
     if (!tr) return;

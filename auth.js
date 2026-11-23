@@ -123,6 +123,11 @@ const ROLE_OPERATIONS = [
     ['academics.view', 'Access Manage Units', 'Ability to open Academic Management > Manage Units and see units, units on offer and registrations.'],
     ['academics.edit', 'Edit Units', 'Ability to add, change and remove units, programme units, units on offer and lecturer units.'],
     ['academics.register', 'Register Student Units', 'Ability to register students for units, one by one or by uploading a list.'],
+    // Academic Management > Semester Schedule and Exam Management (were covered by Access Manage Units / Edit Units)
+    ['schedule.view', 'Access Semester Schedule', 'Ability to open Academic Management > Semester Schedule and see the periods of each batch.', 'academics.view'],
+    ['schedule.edit', 'Edit Semester Schedule', 'Ability to add, change, auto populate and remove the periods (semesters) of a batch, with their dates and accounts status.', 'academics.edit'],
+    ['exams.view', 'Access Exam Management', 'Ability to open Academic Management > Exam Management and see the exam setup.', 'academics.view'],
+    ['exams.edit', 'Edit Exam Management', 'Ability to add, change and remove exam types, exam groups, grading systems, group exam types, awards setup, course exam groups and exam paper types, and to upload group exam types.', 'academics.edit'],
     ['students.photos', 'Upload Student Photos in Bulk', 'Ability to upload many student photos at once (Student Hub > Upload Student Photos).']
 ].map(([key, name, remarks, from]) => ({ key, name, remarks, from })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -619,10 +624,11 @@ document.addEventListener('DOMContentLoaded', () => {
     search.insertBefore(menuButton, search.firstChild);
 
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)
-    const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings', 'Academic Management': 'academics' };
+    // (Academic Management goes when all three of its items are hidden)
+    const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
     const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel',
         'Standard Reports': 'reports.standard', 'Performance Reports': 'reports.performance', 'Student Reports': 'reports.students',
-        'Finance Reports': 'reports.finance' };
+        'Finance Reports': 'reports.finance', 'Manage Units': 'academics', 'Semester Schedule': 'schedule', 'Exam Management': 'exams' };
     sidebar.querySelectorAll('.menu-list > .nav-item').forEach(item => {
         const label = item.querySelector('.nav-label');
         const part = label && menuPart[label.textContent.trim()];

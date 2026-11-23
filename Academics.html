@@ -13,10 +13,15 @@
     <script src="exams.js"></script>
     <script>
         requireLogin();
-        // Academic Management > Manage Units (Role Operations: Access Manage Units, Edit Units, Register Student Units)
-        if (currentAccount() && !can('academics', 'view') && !can('academics', 'edit') && !can('academics', 'register')) {
-            location.replace('StudentAdmissions.html');
-        }
+        // Role Operations: Manage Units (Access Manage Units, Edit Units, Register Student Units), Semester Schedule
+        // (Access / Edit Semester Schedule) and Exam Management (Access / Edit Exam Management) each have their own
+        (() => {
+            const page = new URLSearchParams(location.search).get('page');
+            const part = page === 'schedule' ? 'schedule' : page === 'exams' ? 'exams' : 'academics';
+            if (currentAccount() && !can(part, 'view') && !can(part, 'edit') && !(part === 'academics' && can('academics', 'register'))) {
+                location.replace('StudentAdmissions.html');
+            }
+        })();
     </script>
     <link rel="stylesheet" href="styles.css?v=20261124a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -665,7 +670,9 @@
         const $ = id => document.getElementById(id);
         const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
         const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-        const mayEdit = () => can('academics', 'edit');
+        // The right that edits the page that is open: Edit Units, Edit Semester Schedule or Edit Exam Management
+        const EDIT_PART = { schedule: 'schedule', exams: 'exams' }[new URLSearchParams(location.search).get('page')] || 'academics';
+        const mayEdit = () => can(EDIT_PART, 'edit');
         const mayRegister = () => can('academics', 'register');
 
         /* ---------- Tabs (in the order of the Manage Units screen) ---------- */
@@ -803,7 +810,7 @@
         function applyRights() {
             document.querySelectorAll('[data-edit]').forEach(b => b.disabled = !mayEdit());
             document.querySelectorAll('[data-register]').forEach(b => b.disabled = !mayRegister());
-            const missing = [!mayEdit() && 'Edit Units', PAGE === 'units' && !mayRegister() && 'Register Student Units'].filter(Boolean);
+            const missing = [!mayEdit() && { academics: 'Edit Units', schedule: 'Edit Semester Schedule', exams: 'Edit Exam Management' }[EDIT_PART], PAGE === 'units' && !mayRegister() && 'Register Student Units'].filter(Boolean);
             $('readOnlyNote').hidden = !missing.length;
             $('readOnlyNote').textContent = missing.length ? `Your role can view these screens but does not have: ${missing.join(', ')}. ` +
                 'An administrator can assign them in Settings > Access Management > Role Operations.' : '';
@@ -2138,7 +2145,7 @@
             && (a.enrolment || '') === (b.enrolment || '') && same(a.period, b.period);
 
         async function saveSchedule() {
-            if (!allowed('academics', 'edit')) return;
+            if (!allowed('schedule', 'edit')) return;
             const v = id => $(id).value.trim();
             const batch = v('schBatch'), course = v('schCourse'), period = v('schPeriod');
             const start = v('schStart'), end = v('schEnd'), accStart = v('schAccStart'), accEnd = v('schAccEnd');
@@ -2197,7 +2204,7 @@
         }
 
         async function deleteSchedule(id) {
-            if (!allowed('academics', 'edit')) return;
+            if (!allowed('schedule', 'edit')) return;
             const s = schedules.find(x => x.id === id);
             if (!s || !confirm(`Remove ${[s.period, s.course, s.enrolment].filter(Boolean).join(', ')} from the schedule of ${s.batch}?`)) return;
             try {
@@ -2227,7 +2234,7 @@
         }
 
         async function autoPopulateSchedules() {
-            if (!allowed('academics', 'edit')) return;
+            if (!allowed('schedule', 'edit')) return;
             const batch = $('schBatch').value, course = $('schCourse').value;
             if (!batch) return alert('Choose the batch first: the periods are made for that batch.');
             const year = Number(($('schStart').value || '').slice(0, 4)) || new Date().getFullYear();

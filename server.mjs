@@ -183,7 +183,10 @@ async function inTransaction(work) {
 // Academic Management > Manage Units (database/8-academics.sql): record stores like deferrals
 const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours', 'period_schedules',
     'exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
-const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register'];
+const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register', 'schedule.view', 'schedule.edit', 'exams.view', 'exams.edit'];
+// Academic tables written with Edit Semester Schedule / Edit Exam Management (the rest: Edit Units)
+const SCHEDULE_STORES = ['period_schedules'];
+const EXAM_STORES = ['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
 const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
@@ -1253,8 +1256,9 @@ const RIGHT_FROM = {
     'queries.view': 'students.view', 'reports.excel': 'reports.view', 'students.applications': 'students.edit',
     'students.status': 'students.edit', 'students.deferrals': 'students.edit', 'students.contacts': 'students.edit',
     'students.password': 'students.edit', 'finance.void': 'finance.edit', 
-    'reports.standard': 'reports.view', 'reports.perfomance': 'reports.view',
-    'reports.students': 'reports.view', 'reports.finance': 'reports.view'
+    'reports.standard': 'reports.view', 'reports.performance': 'reports.view',
+    'reports.students': 'reports.view', 'reports.finance': 'reports.view',
+    'schedule.view': 'academics.view', 'schedule.edit': 'academics.edit', 'exams.view': 'academics.view', 'exams.edit': 'academics.edit'
 };
 // The rights to open groups of reports (each report is built from the student records)
 const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 'reports.performance', 'reports.students', 'reports.finance'];
@@ -1266,7 +1270,7 @@ const STUDENT_WRITERS = ['students.edit', 'students.applications', 'students.sta
     'students.password', 'students.photos'];
 const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
     'finance.view', 'finance.add', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS,
-    'academics.view', 'academics.edit', 'academics.register'];
+    ...ACADEMIC_RIGHTS];
 const RIGHTS_TO_READ = {
     students: STUDENT_READERS,
     deferrals: STUDENT_READERS,
@@ -1293,6 +1297,8 @@ async function staffMayOpenFile(session, fileId) {
 async function rightsToWrite(store, id, method) {
     // Manage Units: registering students is its own right; the rest (units, programme units, offers) is editing
     if (store === 'programme_units') return ['academics.edit', 'settings.edit', method === 'DELETE' ? 'settings.delete' : 'settings.add'];
+    if (SCHEDULE_STORES.includes(store)) return ['schedule.edit'];
+    if (EXAM_STORES.includes(store)) return ['exams.edit'];
     if (ACADEMIC_STORES.includes(store)) return store === 'unit_registrations' ? ['academics.register'] : ['academics.edit'];
     if (method === 'DELETE') return store === 'settings' ? ['settings.delete'] : ['students.delete'];
     if (store === 'students') {
