@@ -13,7 +13,7 @@
                          "extra". Columns added in pgAdmin become fields of the records (within 15 seconds).
      settings.settings   which table holds each Settings list or form (stored_in)
      settings.courses, schools, enrollment_types, study_sessions, campuses, batches, departments,
-     student_types, student_groups, document_types, reg_number_sequences, short_courses, award_types, staff_roles
+     student_types, document_types, reg_number_sequences, short_courses, award_types, staff_roles
                          one row per item of that Settings list, in the order shown (position)
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
@@ -197,7 +197,7 @@ const SCHEMA_OF = {
     students: 'students', documents: 'students', deferrals: 'students', applications: 'students',
     settings: 'settings', schools: 'settings', courses: 'settings', enrollment_types: 'settings',
     study_sessions: 'settings', school_setup: 'settings', campuses: 'settings', batches: 'settings',
-    departments: 'settings', student_types: 'settings', student_groups: 'settings', document_types: 'settings', system_updates: 'settings',
+    departments: 'settings', student_types: 'settings', document_types: 'settings', system_updates: 'settings',
     reg_number_sequences: 'settings', short_courses: 'settings', award_types: 'settings',
     fee_payment_details: 'finance', fee_structure: 'finance', charges: 'finance', payments: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
@@ -467,7 +467,7 @@ async function deleteUnusedFiles(client, before, after) {
 const SETTING_LISTS = {
     courses: 'courses', studySessions: 'study_sessions', enrollmentTypes: 'enrollment_types', schools: 'schools',
     campuses: 'campuses', batches: 'batches', departments: 'departments', studentTypes: 'student_types',
-    groups: 'student_groups', documentTypes: 'document_types', roles: 'staff_roles', regSequences: 'reg_number_sequences',
+    documentTypes: 'document_types', roles: 'staff_roles', regSequences: 'reg_number_sequences',
     shortCourses: 'short_courses', awardTypes: 'award_types'
 };
 const SETTING_FORMS = { organization: 'school_setup', paymentDetails: 'fee_payment_details' };
@@ -1623,7 +1623,7 @@ async function applicationOptions() {
         enrollments: await names('enrollmentTypes', [], e => e.status !== 'Inactive'),
         studentType: (await names('studentTypes', ['STUDENT']))[0] || '',
         // The batch new students get (Settings > Organisation Setup > Batches): the next to start, else the one running
-        group: await batchForApplicants() || (await names('groups', ['DEFAULT GROUP']))[0] || ''
+        group: await batchForApplicants()
     };
 }
 

@@ -188,7 +188,7 @@ ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_course text
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS study_session text;     -- from settings.study_sessions
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS enrollment text;        -- from settings.enrollment_types
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS student_type text;      -- the first of settings.student_types
-ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_group text;   -- the first of settings.student_groups, given on Admit
+ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_group text;   -- the batch given on Admit (settings.batches)
 CREATE INDEX IF NOT EXISTS applications_status ON students.applications (status);
 -- Each prospect number (e.g. PRP-00001) belongs to one applicant only
 CREATE UNIQUE INDEX IF NOT EXISTS applications_reference ON students.applications (reference);

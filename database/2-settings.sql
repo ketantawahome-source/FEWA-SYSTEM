@@ -188,12 +188,8 @@ CREATE TABLE IF NOT EXISTS settings.student_types (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS settings.student_groups (
-    id          text PRIMARY KEY,
-    name        text,
-    position    integer NOT NULL DEFAULT 0,
-    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
-);
+-- (settings.student_groups, the old Groups list, was removed on 24 Nov 2026: a student's Batch comes from
+--  settings.batches, and Student Types is used for the kind of student)
 
 CREATE TABLE IF NOT EXISTS settings.document_types (
     id          text PRIMARY KEY,
@@ -235,7 +231,6 @@ ALTER TABLE settings.school_setup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.campuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.document_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.reg_number_sequences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.short_courses ENABLE ROW LEVEL SECURITY;
