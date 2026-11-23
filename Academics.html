@@ -701,8 +701,11 @@
             const most = Math.max(1, ...courseItems.map(c => semesterCount(c.name)),
                 ...schedules.map(p => p.periodNumber || periodNumber(p.period)));
             terms = Array.from({ length: most }, (_, i) => periodName(i + 1));
-            // Batches: the Student Groups, and any group students already have
-            groups = [...new Set([...(await settingNames('groups')), ...students.map(s => s.group).filter(Boolean)])].sort();
+            // Batches: Settings > Organisation Setup > Batches (newest first), then any group students already have
+            const batchRecord = await fewaDB.getOne('settings', 'batches').catch(() => null);
+            const batchNames = ((batchRecord && batchRecord.items) || []).filter(b => b.name)
+                .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name);
+            groups = [...new Set([...batchNames, ...students.map(s => s.group).filter(Boolean).sort()])];
             lecturers = getAccounts().filter(a => a.status !== 'Inactive')
                 .map(a => ({ username: a.username, name: accountName(a) })).sort((a, b) => a.name.localeCompare(b.name));
             units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
@@ -857,7 +860,7 @@
 
         /* ---------- Units on offer (unit projection) ----------
            The units taught in a period to a course's batch (table academics.unit_offers). Course = Settings > Courses;
-           Batch = Student Groups; Group category = Study Sessions (empty: all); Lecturer: an active staff member (or not
+           Batch = Settings > Organisation Setup > Batches; Group category = Study Sessions (empty: all); Lecturer: an active staff member (or not
            yet known). Older offers with no course or batch are for every course or batch, and still show. */
         const offerFor = (o, course, batch, term) => o.term === term && (!o.course || o.course === course) && (!o.batch || o.batch === batch);
 
@@ -946,7 +949,7 @@
             XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
                 ['Column', 'What to type'],
                 ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
-                ['Batch', 'The student group, as in Student Groups'],
+                ['Batch', 'The batch, as in Settings > Organisation Setup > Batches'],
                 ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
                 ['Group category', 'The study session, e.g. Full Time; blank = all group categories'],
                 ['Unit code', 'The unit code, as in Manage Units > Units register'],
@@ -1001,7 +1004,7 @@
                     lecturerCode, lecturer, problems: [] };
                 const problem = text => line.problems.push(text);
                 if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
-                if (!batch) problem(batchText ? 'Batch not in Student Groups' : 'No batch');
+                if (!batch) problem(batchText ? 'Batch not in Settings > Batches' : 'No batch');
                 if (!term) problem(periodText ? 'Period not like SEMESTER 1' : 'No period');
                 if (categoryText && category === undefined) problem('Group category not in Study Sessions');
                 if (!code) problem('No unit code');
@@ -1174,7 +1177,7 @@
         /* ---------- Programme units (unit programme mapping) ----------
            The units a course takes, by batch and by year and semester (table academics.programme_units, the same
            records as Settings > Program Setup > Programme Units). Programme = Settings > Award Types; Course = the
-           Settings courses with that award; Batch = Student Groups; Cluster group = Core or Elective. A unit
+           Settings courses with that award; Batch = Settings > Organisation Setup > Batches; Cluster group = Core or Elective. A unit
            mapped with no batch (as from Settings) is taken by every batch. */
         const CLUSTER_GROUPS = ['Core', 'Elective'];
         const stageOf = (y, s) => `Year ${y}, Semester ${s}`;
@@ -1330,7 +1333,7 @@
                     hours: cell(r, 'hours'), year, semester, cluster: cluster || clusterText, unit, problems: [] };
                 const problem = text => line.problems.push(text);
                 if (!course) problem(courseText ? 'Programme not in Settings > Courses' : 'No programme');
-                if (batch && !group) problem('Batch not in Student Groups');
+                if (batch && !group) problem('Batch not in Settings > Batches');
                 if (!code) problem('No unit code');
                 else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
                 if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
@@ -1813,7 +1816,7 @@
             XLSX.utils.book_append_sheet(book, sheet, 'Student units');
             XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
                 ['Column', 'What to type'],
-                ['Batch', "The student's group, as in Settings > Institution Setup > Student Groups (may be left blank)"],
+                ['Batch', "The student's batch, as in Settings > Organisation Setup > Batches (may be left blank)"],
                 ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
                 ['Unit code', 'The unit code, as in Manage Units > Units register'],
                 ['Registration number', "The student's AdmNo, with the same capital and small letters"],
@@ -1941,7 +1944,7 @@
         /* ---------- Semester schedule ----------
            The dates of each period (SEMESTER 1, 2...) of a batch, by class (course) and enrolment (intake), in table
            academics.period_schedules. Course = Settings > Program Setup > Courses (as the other tabs; its award is
-           kept in "programme" by itself); Batch = Student Groups; Enrolment = Settings > Enrollment Types. A course has as many semesters as its Course units
+           kept in "programme" by itself); Batch = Settings > Organisation Setup > Batches; Enrolment = Settings > Enrollment Types. A course has as many semesters as its Course units
            have year/semester pairs; without course units, 3 a year (January, May and September intakes) from its duration.
            Accounts dates: empty means the same as the start and end dates. Accounts status CLOSED: no invoices, credit
            notes or receipts may be posted in the period. */

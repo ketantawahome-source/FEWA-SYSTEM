@@ -154,6 +154,22 @@ CREATE TABLE IF NOT EXISTS settings.campuses (
 -- (settings.academic_terms was removed on 24 Nov 2026: the periods are in academics.period_schedules,
 --  Academic Management > Semester Schedule)
 
+-- Batches (Settings > Organisation Setup > Batches): a school's period of study. The Batch boxes of Academic
+-- Management list them. Name, comes_after and precedes are worked out from the dates when a batch is saved.
+CREATE TABLE IF NOT EXISTS settings.batches (
+    id             text PRIMARY KEY,
+    name           text,                    -- made from the two dates, e.g. Jan 2026 - Apr 2026
+    school         text,                    -- a school name from settings.schools
+    academic_year  text,                    -- e.g. 2026
+    date_from      date,
+    date_to        date,
+    comes_after    text,                    -- the school's batch just before it (by date)
+    precedes       text,                    -- the school's batch just after it
+    position       integer NOT NULL DEFAULT 0,
+    extra          jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+ALTER TABLE settings.batches ENABLE ROW LEVEL SECURITY;
+
 CREATE TABLE IF NOT EXISTS settings.departments (
     id          text PRIMARY KEY,
     name        text,

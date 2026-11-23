@@ -1164,6 +1164,45 @@
 
         // Lists that no student, staff or document records point at
         Object.assign(SETTINGS_LISTS, {
+            /* Batches (Organisation Setup > Batches): a school's period of study. The Batch boxes of Academic Management
+               (Semester Schedule, Exam Management, Manage Units) list them. When a batch is saved, its name is made from
+               its two dates, and "comes after" / "precedes" are worked out from the dates of the school's other batches. */
+            batches: {
+                title: 'Batches', singular: 'Batch', formGrid: 'grid-2 compact-fields',
+                banner: "A batch is the year a course runs in, for example 1 Jan 2027 to 31 Dec 2027. Choose the school and the academic year (the dates fill in by themselves when left blank), then Save.",
+                fields: [
+                    { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
+                    { name: 'academicYear', label: 'Academic Year', required: true, placeholder: '-- select one --',
+                        // 2026 onwards, up to next year (2026 and 2027 now; a new year appears by itself)
+                        options: Array.from({ length: Math.max(2, new Date().getFullYear() + 2 - 2026) }, (_, i) => String(2026 + i)) },
+                    { name: 'dateFrom', label: 'Date From', type: 'date', format: formatDate, hint: 'Blank: 1 Jan of the academic year.' },
+                    { name: 'dateTo', label: 'Date To', type: 'date', format: formatDate, hint: 'Blank: 31 Dec of the academic year.' },
+                    { name: 'comesAfter', label: 'Comes after (batch)', readonly: true, placeholder: '-- no other batch --',
+                        hint: 'Worked out from the dates when the batch is saved.' },
+                    { name: 'precedes', label: 'Batch Precedes (Comes Before)', readonly: true, placeholder: '-- no other batch --',
+                        hint: 'Worked out from the dates when the batch is saved.' },
+                    { name: 'name', label: 'Name', readonly: true, hint: 'Made from the two dates.' }
+                ],
+                // The same year can be a batch of each school (same name), but only once per school
+                label: i => i.school ? `${i.name}, ${i.school}` : i.name,
+                duplicateMessage: label => `The batch ${label} already exists.`,
+                validate: i => !i.school ? 'Choose the school.' : !i.academicYear ? 'Choose the academic year.'
+                    : i.dateTo < i.dateFrom ? 'Date To must be on or after Date From.' : '',
+                prepare: (item, items) => {
+                    // A batch is a year: blank dates are 1 Jan - 31 Dec of the academic year
+                    if (item.academicYear && !item.dateFrom) item.dateFrom = `${item.academicYear}-01-01`;
+                    if (item.academicYear && !item.dateTo) item.dateTo = `${item.academicYear}-12-31`;
+                    // e.g. Sep 2026 (always three letters, whatever the browser's language)
+                    const month = d => d ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(d.slice(5, 7)) - 1]
+                        + ' ' + d.slice(0, 4) : '';
+                    item.name = item.dateFrom && item.dateTo ? `${month(item.dateFrom)} - ${month(item.dateTo)}` : '';
+                    // Comes after / precedes, for this batch and its neighbours (the list is saved with them)
+                    linkBatches([...items.filter(i => i.id !== item.id), item]);
+                },
+                // After a batch is deleted, its neighbours are linked to each other
+                afterDelete: items => linkBatches(items),
+                defaults: []
+            },
             campuses: {
                 title: 'Campuses', singular: 'Campus', studentField: 'campus', inlineEdit: true,
                 fields: [
@@ -1260,7 +1299,7 @@
         // The tabs shown under each Settings sidebar link (Academic Terms was removed: the periods are in
         // Academic Management > Semester Schedule)
         const SETTINGS_GROUPS = {
-            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'departments'] },
+            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
@@ -1464,6 +1503,17 @@
             return (await getSettingItems(listKey)).filter(list.selectable || (() => true)).map(list.label);
         }
 
+        // Batches: each school's batches in date order, each told the one before and after it
+        function linkBatches(batches) {
+            for (const school of new Set(batches.map(b => b.school))) {
+                const ordered = batches.filter(b => b.school === school && b.dateFrom).sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+                ordered.forEach((b, n) => {
+                    b.comesAfter = n > 0 ? ordered[n - 1].name : '';
+                    b.precedes = n < ordered.length - 1 ? ordered[n + 1].name : '';
+                });
+            }
+        }
+
         function formatDate(value) {
             return value ? new Date(value + 'T00:00').toLocaleDateString('en-GB',
                 { day: '2-digit', month: 'short', year: 'numeric' }) : '';
@@ -1567,7 +1617,8 @@
                         : f.type === 'textarea'
                         ? `<textarea name="${f.name}" rows="3" placeholder="${escapeHtml(f.placeholder || '')}"${f.required ? ' required' : ''}>${escapeHtml(values[f.name])}</textarea>`
                         : `<input type="${f.type || 'text'}" name="${f.name}" value="${escapeHtml(values[f.name])}"
-                            placeholder="${escapeHtml(f.placeholder || '')}"${f.required ? ' required' : ''}>`}
+                            placeholder="${escapeHtml(f.placeholder || '')}"${f.required ? ' required' : ''}${f.readonly
+                                ? ' readonly tabindex="-1" style="background: #eeeeee; cursor: default;"' : ''}>`}
                     ${f.hint ? `<small class="field-hint">${escapeHtml(f.hint)}</small>` : ''}
                 </div>`).join('');
         }
@@ -2014,7 +2065,9 @@
                 : '';
             if (!confirm(`Delete "${list.label(item)}"?${inUse}`)) return;
 
-            await saveSettingItems(key, items.filter(i => i.id !== id));
+            const left = items.filter(i => i.id !== id);
+            if (list.afterDelete) list.afterDelete(left);
+            await saveSettingItems(key, left);
             showToast(`${list.singular} "${list.label(item)}" deleted successfully.`);
             showSettingsTab(key);
         }
