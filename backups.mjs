@@ -202,7 +202,7 @@ async function deleteBackup(id) {
    Password details are never included. */
 configureZip({ useWebWorkers: false });
 const EXPORT_NEVER = new Set(['salt', 'hash', 'login_salt', 'login_hash']);
-const EXPORT_SETTINGS = ['schools', 'courses', 'enrollment_types', 'study_sessions', 'school_setup', 'campuses', 'academic_terms',
+const EXPORT_SETTINGS = ['schools', 'courses', 'enrollment_types', 'study_sessions', 'school_setup', 'campuses',
     'departments', 'student_types', 'student_groups', 'document_types', 'reg_number_sequences', 'short_courses', 'award_types', 'staff_roles', 'role_operations', 'fee_payment_details'];
 // part -> [table, file in the zip, the date the period looks at]
 const EXPORT_PARTS = {

@@ -151,14 +151,8 @@ CREATE TABLE IF NOT EXISTS settings.campuses (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
-CREATE TABLE IF NOT EXISTS settings.academic_terms (
-    id          text PRIMARY KEY,
-    name        text,                       -- e.g. Term 1 2027
-    start_date  date,
-    end_date    date,
-    position    integer NOT NULL DEFAULT 0,
-    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
-);
+-- (settings.academic_terms was removed on 24 Nov 2026: the periods are in academics.period_schedules,
+--  Academic Management > Semester Schedule)
 
 CREATE TABLE IF NOT EXISTS settings.departments (
     id          text PRIMARY KEY,
@@ -223,7 +217,6 @@ ALTER TABLE settings.enrollment_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.study_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.school_setup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.campuses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE settings.academic_terms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings.student_groups ENABLE ROW LEVEL SECURITY;

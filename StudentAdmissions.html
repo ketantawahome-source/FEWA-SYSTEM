@@ -1161,17 +1161,6 @@
 
         // Lists that no student, staff or document records point at
         Object.assign(SETTINGS_LISTS, {
-            terms: {
-                title: 'Academic Terms', singular: 'Term',
-                fields: [
-                    { name: 'name', label: 'Term Name', required: true, placeholder: 'e.g. Term 1 2027' },
-                    { name: 'startDate', label: 'Start Date', type: 'date', required: true, format: formatDate },
-                    { name: 'endDate', label: 'End Date', type: 'date', required: true, format: formatDate }
-                ],
-                label: i => i.name,
-                validate: i => i.endDate < i.startDate ? 'The End Date must be on or after the Start Date.' : '',
-                defaults: []
-            },
             campuses: {
                 title: 'Campuses', singular: 'Campus', studentField: 'campus', inlineEdit: true,
                 fields: [
@@ -1265,8 +1254,8 @@
             }
         };
 
-        // The tabs shown under each Settings sidebar link (Academic Terms was removed from Organisation Setup at the
-        // user's request; the terms already saved stay in settings.academic_terms and are still used by the system)
+        // The tabs shown under each Settings sidebar link (Academic Terms was removed: the periods are in
+        // Academic Management > Semester Schedule)
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },

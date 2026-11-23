@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS students.applications (
     school                      text,           -- from settings.schools
     class_applied               text,           -- a course name from settings.courses
     year_admitted               text,
-    term                        text,           -- from settings.academic_terms
+    term                        text,           -- (old applications only; Academic Terms is no longer used)
     intake                      text,           -- January, May, September
 
     first_name                  text,
