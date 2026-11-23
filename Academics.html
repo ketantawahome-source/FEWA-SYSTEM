@@ -79,6 +79,8 @@
         .sched-note { color: var(--fewa-muted); font-size: 13px; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
         #pane-exams .settings-tabs { margin-bottom: 14px; }
+        #pane-exams .exam-check { grid-column: span 2; display: flex; align-items: center; gap: 8px; font-weight: 400 !important; cursor: pointer; }
+        #pane-exams .exam-check input { width: auto !important; height: auto !important; margin: 0; }
         .sched-status-closed { color: #b3261e; font-weight: 600; }
         .sched-status-open { color: #2e7d32; font-weight: 600; }
         @media (max-width: 700px) { .sched-buttons, .sched-wide { grid-column: auto; } }
@@ -563,8 +565,9 @@
                 <!-- ===== Semester schedule (its own menu item: Academics.html?page=schedule) ===== -->
                 <div id="pane-schedule" class="units-pane" hidden>
                     <div class="units-heading">Semester schedule</div>
-                    <div class="settings-banner info-banner">Choose the batch to see its periods (and the course, to see only its
-                        periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
+                    <div class="settings-banner info-banner">A batch is an academic year (Settings > Organisation Setup > Batches, e.g.
+                        Sep 2026 - Aug 2027); here you set the semesters inside it (SEMESTER 1, 2, 3... with their dates).
+                        Choose the batch to see its semesters (and the course, to see only its periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
                     <div class="up-filters reg-fields lec-fields sched-fields">
                         <label for="schCourse">Course</label><select id="schCourse"></select>
                         <label for="schBatch">Batch <span class="req">*</span></label><select id="schBatch"></select>

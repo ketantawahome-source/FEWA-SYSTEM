@@ -173,6 +173,10 @@ CREATE TABLE IF NOT EXISTS academics.exam_types (
     extra        jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS exam_types_batch ON academics.exam_types (batch, period);
+-- Exam groups as on the Exam groups tab: group weight, Exam Out Of and Include on transcript (Y or N)
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS weight numeric;
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS out_of numeric;
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS on_transcript text;
 
 -- ---------- Grading system: the grade of a mark, e.g. 70-100 = A (Distinction), in a named grading ----------
 CREATE TABLE IF NOT EXISTS academics.grading_systems (

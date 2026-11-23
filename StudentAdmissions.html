@@ -639,7 +639,7 @@
                                 <select name="studentType" required></select>
                             </div>
                             <div class="form-group">
-                                <label>Group <span class="req">*</span></label>
+                                <label>Batch <span class="req">*</span></label>
                                 <select name="group" required></select>
                             </div>
                         </div>
@@ -1169,29 +1169,39 @@
                its two dates, and "comes after" / "precedes" are worked out from the dates of the school's other batches. */
             batches: {
                 title: 'Batches', singular: 'Batch', formGrid: 'grid-2 compact-fields',
-                banner: "A batch is the year a course runs in, for example 1 Jan 2027 to 31 Dec 2027. Choose the school and the academic year (the dates fill in by themselves when left blank), then Save.",
+                banner: "A batch is one ACADEMIC YEAR (about 12 months), for example 1 Jan 2027 to 31 Dec 2027, or 1 Sep 2026 to 31 Aug 2027 for a course that starts in September. It is not a semester: the semesters inside a batch (SEMESTER 1, 2, 3...) are set in Academic Management > Semester Schedule. Choose the school and the academic year it starts in, type Date From if it does not start in January, and Save (a blank Date To is one year later).",
                 fields: [
                     { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
-                    { name: 'academicYear', label: 'Academic Year', required: true, placeholder: '-- select one --',
+                    { name: 'academicYear', label: 'Academic Year (starts in)', required: true, placeholder: '-- select one --',
                         // 2026 onwards, up to next year (2026 and 2027 now; a new year appears by itself)
                         options: Array.from({ length: Math.max(2, new Date().getFullYear() + 2 - 2026) }, (_, i) => String(2026 + i)) },
-                    { name: 'dateFrom', label: 'Date From', type: 'date', format: formatDate, hint: 'Blank: 1 Jan of the academic year.' },
-                    { name: 'dateTo', label: 'Date To', type: 'date', format: formatDate, hint: 'Blank: 31 Dec of the academic year.' },
+                    { name: 'dateFrom', label: 'Date From', type: 'date', format: formatDate, hint: 'Blank: 1 Jan of the academic year. A September intake: 1 Sep.' },
+                    { name: 'dateTo', label: 'Date To', type: 'date', format: formatDate, hint: 'Blank: one year after Date From (e.g. 1 Sep 2026 - 31 Aug 2027).' },
                     { name: 'comesAfter', label: 'Comes after (batch)', readonly: true, placeholder: '-- no other batch --',
                         hint: 'Worked out from the dates when the batch is saved.' },
                     { name: 'precedes', label: 'Batch Precedes (Comes Before)', readonly: true, placeholder: '-- no other batch --',
                         hint: 'Worked out from the dates when the batch is saved.' },
-                    { name: 'name', label: 'Name', readonly: true, hint: 'Made from the two dates.' }
+                    { name: 'name', label: 'Batch (academic year)', readonly: true, hint: 'Made from the two dates, e.g. Sep 2026 - Aug 2027.' }
                 ],
                 // The same year can be a batch of each school (same name), but only once per school
                 label: i => i.school ? `${i.name}, ${i.school}` : i.name,
                 duplicateMessage: label => `The batch ${label} already exists.`,
                 validate: i => !i.school ? 'Choose the school.' : !i.academicYear ? 'Choose the academic year.'
-                    : i.dateTo < i.dateFrom ? 'Date To must be on or after Date From.' : '',
+                    : i.dateTo < i.dateFrom ? 'Date To must be on or after Date From.'
+                    : i.dateFrom.slice(0, 4) !== i.academicYear ? `Date From is in ${i.dateFrom.slice(0, 4)}: choose that as the academic year (the year the batch starts).`
+                    // A batch is a year (11 to 13 months); a shorter period is a semester, set in the Semester Schedule
+                    : (new Date(i.dateTo) - new Date(i.dateFrom)) / 86400000 < 330
+                        ? 'A batch is a whole academic year (about 12 months, e.g. 1 Sep 2026 - 31 Aug 2027). A shorter period is a semester: set semesters in Academic Management > Semester Schedule.'
+                    : (new Date(i.dateTo) - new Date(i.dateFrom)) / 86400000 > 400
+                        ? 'A batch is one academic year: Date To is more than 13 months after Date From. Add the next year as a batch of its own.' : '',
                 prepare: (item, items) => {
-                    // A batch is a year: blank dates are 1 Jan - 31 Dec of the academic year
+                    // A batch is a year: a blank Date From is 1 Jan of the academic year, a blank Date To one year after
+                    // Date From (1 Jan - 31 Dec, or 1 Sep 2026 - 31 Aug 2027 for a course starting in September)
                     if (item.academicYear && !item.dateFrom) item.dateFrom = `${item.academicYear}-01-01`;
-                    if (item.academicYear && !item.dateTo) item.dateTo = `${item.academicYear}-12-31`;
+                    if (item.dateFrom && !item.dateTo) {
+                        const [y, m, d] = item.dateFrom.split('-').map(Number);
+                        item.dateTo = new Date(Date.UTC(y + 1, m - 1, d - 1)).toISOString().slice(0, 10);
+                    }
                     // e.g. Sep 2026 (always three letters, whatever the browser's language)
                     const month = d => d ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(d.slice(5, 7)) - 1]
                         + ' ' + d.slice(0, 4) : '';
@@ -1201,6 +1211,8 @@
                 },
                 // After a batch is deleted, its neighbours are linked to each other
                 afterDelete: items => linkBatches(items),
+                // Edit and Delete as labelled buttons in the list
+                actionText: true,
                 defaults: []
             },
             campuses: {
@@ -1301,7 +1313,8 @@
         const SETTINGS_GROUPS = {
             organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
-            general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
+            // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
+            general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
             update: { title: 'System Update', tabs: ['systemUpdate'] }
@@ -1503,6 +1516,23 @@
             return (await getSettingItems(listKey)).filter(list.selectable || (() => true)).map(list.label);
         }
 
+        // The batch names to choose from (the same year at two schools is one name), newest first
+        async function batchNames() {
+            const items = (await getSettingItems('batches')).filter(b => b.name)
+                .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || '')));
+            return [...new Set(items.map(b => b.name))];
+        }
+
+        // A new student's batch: the next one to start, else the one running today, else the newest
+        async function batchForNewStudents() {
+            const today = new Date().toLocaleDateString('en-CA');
+            const items = (await getSettingItems('batches')).filter(b => b.name && b.dateFrom)
+                .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+            const next = items.find(b => b.dateFrom > today);
+            const running = items.find(b => b.dateFrom <= today && today <= (b.dateTo || b.dateFrom));
+            return (next || running || items[items.length - 1] || {}).name || '';
+        }
+
         // Batches: each school's batches in date order, each told the one before and after it
         function linkBatches(batches) {
             for (const school of new Set(batches.map(b => b.school))) {
@@ -1544,18 +1574,19 @@
             const form = document.getElementById('studentAdmissionsForm');
             const listsForFields = {
                 campus: 'campuses', admissionCourse: 'courses', studySession: 'studySessions', enrollment: 'enrollmentTypes',
-                studentType: 'studentTypes', group: 'groups'
+                studentType: 'studentTypes', group: 'batches'
             };
 
             for (const [field, listKey] of Object.entries(listsForFields)) {
-                const labels = await getSettingLabels(listKey);
+                // The student's batch: the Batches of Organisation Setup by name (one per year, newest first)
+                const labels = field === 'group' ? await batchNames() : await getSettingLabels(listKey);
                 const placeholder = labels.length
                     ? `-- select ${SETTINGS_LISTS[listKey].singular.toLowerCase()} --`
                     : `-- none set up yet (${settingsLocation(listKey)}) --`;
-                // New students get the first option for lists that usually have a single default,
-                // and the campus when the college has only one
-                const preselect = !student && (['studentType', 'group'].includes(field)
-                    || (field === 'campus' && labels.length === 1)) ? labels[0] : '';
+                // New students get the first option for lists that usually have a single default, the campus when
+                // the college has only one, and the batch starting next (else the one running now)
+                const preselect = student ? '' : field === 'group' ? await batchForNewStudents()
+                    : (field === 'studentType' || (field === 'campus' && labels.length === 1)) ? labels[0] : '';
                 fillSelect(form.elements[field], labels, placeholder, student ? student[field] : preselect);
             }
 
@@ -1730,6 +1761,8 @@
                     <div class="${list.formGrid || 'grid-3'}">${renderFields(await withListChoices(list.fields.filter(f => !f.hideInForm)))}</div>
                     <div class="action-bar" style="gap: 10px; margin-bottom: 0;">
                         <button type="submit" class="btn-submit" id="settingsSaveBtn">Save Details</button>
+                        <button type="button" class="btn-secondary" id="settingsDeleteBtn" hidden style="color: #b3261e; border-color: #b3261e;">Delete</button>
+                        <button type="button" class="btn-secondary" id="settingsCancelBtn" hidden onclick="showSettingsTab(activeSettingsTab)">Cancel</button>
                     </div>
                 </form>
                 <div class="table-wrap">
@@ -1740,9 +1773,11 @@
                         <tbody>${items.length ? items.map(item => `
                             <tr>
                                 ${columns.map(f => `<td>${cell(f, item) || '—'}</td>`).join('')}
-                                <td>
-                                    ${iconButton('edit', `Edit ${escapeHtml(list.label(item))}`, `editSettingsItem('${item.id}')`)}
-                                    ${iconButton('delete', `Delete ${escapeHtml(list.label(item))}`, `deleteSettingsItem('${item.id}', ${tracked ? usage(item) : 0})`)}
+                                <td${list.actionText ? ' style="white-space: nowrap;"' : ''}>${list.actionText
+                                    ? `<button type="button" class="btn-small" title="Edit ${escapeHtml(list.label(item))}" onclick="editSettingsItem('${item.id}')">Edit</button>
+                                       <button type="button" class="btn-small" style="color: #b3261e; border-color: #b3261e;" title="Delete ${escapeHtml(list.label(item))}" onclick="deleteSettingsItem('${item.id}', ${tracked ? usage(item) : 0})">Delete</button>`
+                                    : `${iconButton('edit', `Edit ${escapeHtml(list.label(item))}`, `editSettingsItem('${item.id}')`)}
+                                    ${iconButton('delete', `Delete ${escapeHtml(list.label(item))}`, `deleteSettingsItem('${item.id}', ${tracked ? usage(item) : 0})`)}`}
                                 </td>
                             </tr>`).join('')
                             : `<tr class="empty-row"><td colspan="${columns.length + 1}">No ${list.title.toLowerCase()} added yet.</td></tr>`}
@@ -1980,6 +2015,14 @@
             });
             document.getElementById('settingsFormTitle').innerText = `Edit ${list.singular}`;
             document.getElementById('settingsSaveBtn').innerText = 'Save Details';
+            // While editing: Delete (this item) and Cancel sit next to Save
+            const del = document.getElementById('settingsDeleteBtn');
+            if (del) {
+                del.hidden = false;
+                // (the row's own Delete button, so it still says how many records use the item)
+                del.onclick = () => document.querySelector(`#settingsContent [onclick^="deleteSettingsItem('${id}'"]`)?.click();
+                document.getElementById('settingsCancelBtn').hidden = false;
+            }
             form.scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -3033,7 +3076,7 @@
             ]],
             ['Admission Details', [
                 ['Campus', 'campus'], ['Course', 'admissionCourse'], ['Study Session', 'studySession'], ['Enrollment', 'enrollment'],
-                ['Student Type', 'studentType'], ['Group', 'group'],
+                ['Student Type', 'studentType'], ['Batch', 'group'],
                 // For reporting: the student's status and when it was recorded
                 ['Status', 'activeStudent', v => v === 'no' ? 'Inactive' : 'Active'],
                 ['Date Recorded', 'statusRecordedAt', formatDateTime]
@@ -3493,7 +3536,7 @@
                 filters: ['school', 'campus', 'course', 'enrollment', 'gender', 'status', 'period'], dateLabel: 'Admitted',
                 build: async f => ({
                     headers: ['Adm No.', 'Student Name', 'Gender', 'Date of Birth', 'Phone', 'Email', 'ID / Birth Cert No.',
-                        'Course', 'Campus', 'Enrollment', 'Study Session', 'Student Type', 'Group', 'Status', 'Admission Date'],
+                        'Course', 'Campus', 'Enrollment', 'Study Session', 'Student Type', 'Batch', 'Status', 'Admission Date'],
                     rows: (await studentsMatching(f)).filter(s => inDateRange(s.createdAt, f)).map(s => [s.admNo, fullName(s),
                         s.gender, s.dob ? formatDate(s.dob) : '', s.phone, s.email, s.idBirthCert, s.admissionCourse, s.campus,
                         s.enrollment, s.studySession, s.studentType, s.group, yesNo(s.activeStudent), formatDateTime(s.createdAt)])
@@ -4079,9 +4122,9 @@
                     <h4>Admission</h4><dl class="reset-details">
                         ${row('Campus', a.campus)}${row('Admission course', a.admissionCourse)}${row('Study session', a.studySession)}
                         ${row('Enrollment', a.enrollment)}${row('Student type', a.studentType)}
-                        ${row('Group on admission', a.admissionGroup)}
+                        ${row('Batch on admission', a.admissionGroup)}
                         ${row('School', a.school)}${row('Class applied for', a.classApplied)}${row('Year', a.yearAdmitted)}
-                        ${row('Semester', a.term)}${row('Intake', a.intake)}${row('Group', a.group || 'PROSPECT')}
+                        ${row('Semester', a.term)}${row('Intake', a.intake)}${row('Batch', a.group || 'PROSPECT')}
                         ${row('Submitted', formatDateTime(a.submittedAt))}</dl>
                     <h4>Student</h4><dl class="reset-details">
                         ${row('Name', fullName(a))}${row('Gender', a.gender)}${row('Date of birth', a.dob)}

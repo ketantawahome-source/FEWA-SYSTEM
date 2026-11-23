@@ -56,15 +56,16 @@ const EXAM_TABS = [
     },
     {
         key: 'groups', title: 'Exam groups', store: 'exam_groups',
-        banner: 'The kinds of assessment, for example Continuous Assessment (CAT) or End of Semester Exam. Exam types, group exam types and course exam groups pick from this list.',
+        banner: 'The exam groups (CATs, end of semester exams ...) with their weight and mark out of. Add one with the form; change one with the pencil.',
         save: 'Save exam group',
         fields: [
-            { name: 'name', label: 'Exam group name', type: 'text', required: true, max: 100, placeholder: 'For example Continuous Assessment' },
-            { name: 'code', label: 'Code', type: 'text', max: 20, placeholder: 'For example CAT', upper: true },
-            { name: 'description', label: 'Description', type: 'text', max: 200 },
-            { name: 'status', label: 'Status', type: 'select', options: () => examPairs(ACTIVE_STATUS), placeholder: null }
+            { name: 'name', label: 'Group name', type: 'text', required: true, max: 100, placeholder: 'For example CAT 1' },
+            { name: 'onTranscript', label: 'Include on transcript', type: 'check' },
+            { name: 'weight', label: 'Group weight', type: 'number', min: 0, max: 100 },
+            { name: 'outOf', label: 'Exam Out Of', type: 'number', min: 0, max: 1000 }
         ],
-        columns: [['Exam group', r => r.name], ['Code', r => r.code], ['Description', r => r.description], ['Status', r => r.status || 'ACTIVE']],
+        columns: [['Group name', r => r.name], ['Group weight', r => examNum(r.weight)], ['Included', r => r.onTranscript === 'Y' ? 'Y' : 'N'],
+            ['Exam out of', r => examNum(r.outOf)]],
         sort: (a, b) => String(a.name).localeCompare(String(b.name)),
         same: (a, b) => same(a.name, b.name),
         label: r => r.name,
@@ -217,7 +218,10 @@ function buildExamForm() {
         return `<input id="${id}"${attrs}${list} autocomplete="off" placeholder="${escapeHtml(f.placeholder || '')}">` +
             (f.list ? `<datalist id="${id}_list"></datalist>` : '');
     };
-    const cells = t.fields.map(f => `<label for="ex_${f.name}">${escapeHtml(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>${input(f)}`);
+    // A tick box takes a label and a box's place, its text beside it (saved as Y or N)
+    const cells = t.fields.map(f => f.type === 'check'
+        ? `<label class="exam-check"><input type="checkbox" id="ex_${f.name}"> ${escapeHtml(f.label)}</label>`
+        : `<label for="ex_${f.name}">${escapeHtml(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>${input(f)}`);
     if (cells.length % 2) cells.push('<span></span><span></span>');
     $('examBody').innerHTML = `<div class="settings-banner info-banner">${escapeHtml(t.banner)}</div>
         <div class="up-filters reg-fields lec-fields sched-fields exam-fields">${cells.join('')}
@@ -274,6 +278,7 @@ async function saveExamRecord() {
     const t = examTab();
     const record = {};
     for (const f of t.fields) {
+        if (f.type === 'check') { record[f.name] = examField(f.name).checked ? 'Y' : 'N'; continue; }
         let v = examField(f.name).value.trim().replace(/\s+/g, ' ');
         if (f.upper) v = v.toUpperCase();
         if (f.type === 'number' && v !== '') {
@@ -309,8 +314,10 @@ async function saveExamRecord() {
         examEditing = null;
         $('examSave').textContent = t.save;
         // The filter boxes keep their choice, the rest is emptied for the next entry
-        for (const f of t.fields.filter(f => !f.filter)) examField(f.name).value = f.type === 'select' && f.placeholder === null
-            ? (examField(f.name).options[0] || {}).value || '' : '';
+        for (const f of t.fields.filter(f => !f.filter)) {
+            if (f.type === 'check') examField(f.name).checked = false;
+            else examField(f.name).value = f.type === 'select' && f.placeholder === null ? (examField(f.name).options[0] || {}).value || '' : '';
+        }
         await loadData();
     } catch (err) { alert('It could not be saved: ' + err.message); await loadData(); }
 }
@@ -322,6 +329,7 @@ function editExamRecord(id) {
     examEditing = id;
     for (const f of t.fields) {
         const box = examField(f.name), value = r[f.name] === undefined || r[f.name] === null ? '' : String(r[f.name]);
+        if (f.type === 'check') { box.checked = value === 'Y'; continue; }
         if (f.type === 'select' && value && ![...box.options].some(o => o.value === value)) box.add(new Option(value, value));
         box.value = f.type === 'number' && value !== '' ? String(Number(value)) : value;
     }
@@ -334,8 +342,10 @@ function clearExamForm() {
     const t = examTab();
     examEditing = null;
     $('examSave').textContent = t.save;
-    for (const f of t.fields) examField(f.name).value = f.type === 'select' && f.placeholder === null
-        ? (examField(f.name).options[0] || {}).value || '' : '';
+    for (const f of t.fields) {
+        if (f.type === 'check') examField(f.name).checked = false;
+        else examField(f.name).value = f.type === 'select' && f.placeholder === null ? (examField(f.name).options[0] || {}).value || '' : '';
+    }
     renderExamList();
 }
 

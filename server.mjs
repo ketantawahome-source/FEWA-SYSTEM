@@ -1622,8 +1622,19 @@ async function applicationOptions() {
         studySessions: await names('studySessions', ['Full Time', 'Part Time']),
         enrollments: await names('enrollmentTypes', [], e => e.status !== 'Inactive'),
         studentType: (await names('studentTypes', ['STUDENT']))[0] || '',
-        group: (await names('groups', ['DEFAULT GROUP']))[0] || ''
+        // The batch new students get (Settings > Organisation Setup > Batches): the next to start, else the one running
+        group: await batchForApplicants() || (await names('groups', ['DEFAULT GROUP']))[0] || ''
     };
+}
+
+async function batchForApplicants() {
+    const record = await getRecord('settings', 'batches');
+    const today = new Date().toISOString().slice(0, 10);
+    const items = ((record && record.items) || []).filter(b => b.name && b.dateFrom)
+        .sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
+    const next = items.find(b => b.dateFrom > today);
+    const running = items.find(b => b.dateFrom <= today && today <= (b.dateTo || b.dateFrom));
+    return (next || running || items[items.length - 1] || {}).name || '';
 }
 
 async function receiveApplication(req, body) {
