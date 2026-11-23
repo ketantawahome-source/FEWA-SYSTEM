@@ -18,14 +18,15 @@
             location.replace('StudentAdmissions.html');
         }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261112h">
+    <link rel="stylesheet" href="styles.css?v=20261124a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
-        .units-heading { font-size: 22px; font-weight: 600; color: var(--fewa-ink); margin: 4px 0 14px; }
+        /* The screens have no title of their own (user's wish): the tabs / fields come first */
+        .units-heading { display: none !important; }
         .units-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 18px; align-items: end; }
         .units-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .units-actions .btn-submit, .units-actions .btn-secondary { margin: 0; }
@@ -112,7 +113,7 @@
         #pane-exams input, #pane-exams select, #pane-exams button, #pane-exams textarea { font-family: inherit; }
         #pane-exams .settings-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 18px; padding: 0 0 0 4px;
             border-bottom: 1px solid #e3e6ea; }
-        #pane-exams .settings-tab { padding: 12px 22px 11px; margin: 0 0 -1px; font-size: 17px; font-weight: 400; color: #333;
+        #pane-exams .settings-tab { padding: 11px 16px 10px; margin: 0 0 -1px; font-size: 16px; font-weight: 400; color: #333;
             background: transparent; border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0;
             box-shadow: none; text-align: left; flex: 0 0 auto; }
         #pane-exams .settings-tab:hover { color: #3c8dbc; background: transparent; border-color: transparent; border-top-color: transparent; }
@@ -704,20 +705,26 @@
         let courses = [], terms = [], lecturers = [], groups = [], courseItems = [], programmes = [], categories = [];
 
         async function settingNames(key, usable = () => true, label = i => i.name) {
-            const record = await fewaDB.getOne('settings', key).catch(() => null);
+            const record = await fewaDB.getOne('settings', key).catch(readFailed);
             return record ? (record.items || []).filter(usable).map(label).filter(Boolean) : [];
         }
 
+        // A list that could not be read (server restarting, database busy) is not shown as empty for good: the page
+        // tries again by itself, and says so if it still cannot read
+        let loadFailed = false, loadRetries = 0;
+        const readFailed = () => { loadFailed = true; return null; };
+
         async function loadData() {
-            const read = store => fewaDB.getAll(store).catch(() => []);
+            loadFailed = false;
+            const read = store => fewaDB.getAll(store).catch(() => { loadFailed = true; return []; });
             [units, programmeUnits, offers, registrations, students, allocations, unitHours, schedules] = await Promise.all(
                 ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'students', 'unit_lecturers', 'unit_hours', 'period_schedules'].map(read));
             // Enrolments (intakes): Settings > Organisation Setup > Enrollment Types, with their start dates
-            const enrolRecord = await fewaDB.getOne('settings', 'enrollmentTypes').catch(() => null);
+            const enrolRecord = await fewaDB.getOne('settings', 'enrollmentTypes').catch(readFailed);
             enrolments = ((enrolRecord && enrolRecord.items) || []).filter(e => e.name)
                 .map(e => ({ name: e.name, startDate: e.startDate || '', active: e.status !== 'Inactive' }));
             // Programme = Settings > Program Setup > Award Types (each course says its award). Group category = study session.
-            const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
+            const courseRecord = await fewaDB.getOne('settings', 'courses').catch(readFailed);
             courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.enabled !== 'NO')
                 .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '',
                     duration: c.duration, durationType: c.durationType || '', intake: c.intake || '' }));
@@ -729,7 +736,7 @@
                 ...schedules.map(p => p.periodNumber || periodNumber(p.period)));
             terms = Array.from({ length: most }, (_, i) => periodName(i + 1));
             // Batches: Settings > Organisation Setup > Batches (newest first), then any group students already have
-            const batchRecord = await fewaDB.getOne('settings', 'batches').catch(() => null);
+            const batchRecord = await fewaDB.getOne('settings', 'batches').catch(readFailed);
             const batchNames = ((batchRecord && batchRecord.items) || []).filter(b => b.name)
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name);
             groups = [...new Set([...batchNames, ...students.map(s => s.group).filter(Boolean).sort()])];
@@ -739,6 +746,13 @@
             if (PAGE === 'exams') await loadExams();
             fillChoices();
             render();
+            if (loadFailed && loadRetries < 3) {
+                loadRetries++;
+                showToast('Some lists could not be read from the database. Trying again...');
+                setTimeout(loadData, 3000 * loadRetries);
+            } else if (loadFailed) {
+                alert('Some lists (such as the courses) could not be read from the database. Please refresh the page in a moment.');
+            } else loadRetries = 0;
         }
 
         const unitByCode = code => units.find(u => same(u.code, code));

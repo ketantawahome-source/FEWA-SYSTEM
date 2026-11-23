@@ -261,7 +261,7 @@ const examField = name => $('ex_' + name);
 
 // Called by loadData() on this screen
 async function loadExams() {
-    const lists = await Promise.all(EXAM_TABS.map(t => fewaDB.getAll(t.store).catch(() => [])));
+    const lists = await Promise.all(EXAM_TABS.map(t => fewaDB.getAll(t.store).catch(() => { loadFailed = true; return []; })));
     EXAM_TABS.forEach((t, i) => { examData[t.store] = lists[i]; });
 }
 

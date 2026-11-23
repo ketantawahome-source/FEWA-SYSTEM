@@ -5806,6 +5806,9 @@ body {
     margin-bottom: 10px;
 }
 
+/* No page title at the top of the pages (user's wish, 2026-11-24): only the Home button stays, on the right */
+.sp-crumbs > span:not(.sp-crumb-sep), .sp-crumbs .sp-crumb-sep { display: none; }
+
 .sp-home {
     padding: 5px 14px;
     border-radius: var(--fewa-radius-small);
