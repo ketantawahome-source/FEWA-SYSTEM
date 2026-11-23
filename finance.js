@@ -48,9 +48,9 @@
     }
 
     const termOptions = (selected, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') +
-        state.terms.map(t => `<option${t === selected ? ' selected' : ''}>${esc(t)}</option>`).join('');
+        state.terms.map(t => `<option value="${esc(t)}"${t === selected ? ' selected' : ''}>${esc(t)}</option>`).join('');
     const courseOptions = (selected, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') +
-        state.courses.map(c => `<option${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
+        state.courses.map(c => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
 
     /* ---------- The frame: tabs ---------- */
     function frame() {

@@ -34,7 +34,10 @@
         .batch-grid select:disabled, .batch-grid input[readonly] { background: #eeeeee; color: #333; opacity: 1; cursor: default; }
         .batch-grid small { display: block; color: #666; font-size: 12px; margin-top: 4px; }
         .batch-buttons { display: flex; gap: 8px; }
-        .batch-buttons button { margin: 0; padding: 8px 16px; font-size: 14px; }
+        .batch-buttons button { margin: 0; padding: 8px 16px; font-size: 14px; white-space: nowrap; }
+        .batch-buttons button[hidden] { display: none !important; }
+        /* A hidden button stays hidden (the button styles would otherwise show it), e.g. Delete / Cancel until editing */
+        #settingsContent button[hidden] { display: none !important; }
         .batch-empty { font-style: italic; color: #666; margin: 14px 0 0; }
         .batch-table { font-size: 13px; margin-top: 14px; }
         .batch-table .batch-actions { white-space: nowrap; text-align: right; }
@@ -1372,7 +1375,8 @@
                 + 'Academic Management > Semester Schedule. Choose the school, then add or edit its batches.';
             banner.classList.add('info-banner');
             const years = list.fields.find(f => f.name === 'academicYear').options;
-            const option = (v, chosen) => `<option${v === chosen ? ' selected' : ''}>${escapeHtml(v)}</option>`;
+            // (value given in full: without it the browser squeezes double spaces, e.g. "School of  Cosmetology")
+            const option = (v, chosen) => `<option value="${escapeHtml(v)}"${v === chosen ? ' selected' : ''}>${escapeHtml(v)}</option>`;
             document.getElementById('settingsContent').innerHTML = `
                 <div class="batch-page">
                     <div class="batch-title">Batches</div>
