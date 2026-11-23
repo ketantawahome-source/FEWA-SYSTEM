@@ -189,8 +189,6 @@ ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS study_session text;  
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS enrollment text;        -- from settings.enrollment_types
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS student_type text;      -- the first of settings.student_types
 ALTER TABLE students.applications ADD COLUMN IF NOT EXISTS admission_group text;   -- the first of settings.student_groups, given on Admit
--- The student's group (Settings > Institution Setup > Groups, e.g. Group A); "group" holds the batch (the year)
-ALTER TABLE students.students ADD COLUMN IF NOT EXISTS student_group text;
 CREATE INDEX IF NOT EXISTS applications_status ON students.applications (status);
 -- Each prospect number (e.g. PRP-00001) belongs to one applicant only
 CREATE UNIQUE INDEX IF NOT EXISTS applications_reference ON students.applications (reference);

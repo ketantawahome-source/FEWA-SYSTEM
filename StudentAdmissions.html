@@ -664,10 +664,6 @@
                                 <label>Batch <span class="req">*</span></label>
                                 <select name="group" required></select>
                             </div>
-                            <div class="form-group">
-                                <label>Group</label>
-                                <select name="studentGroup"></select>
-                            </div>
                         </div>
                     </div>
 
@@ -1159,12 +1155,10 @@
                 defaults: [{ name: 'STUDENT' }]
             },
             groups: {
-                // The group a student is in (e.g. Group A), chosen on the student's form; not the batch (the year)
-                title: 'Student Groups', singular: 'Group', studentField: 'studentGroup',
-                banner: 'The groups students are put in (for example Group A, Group B). Each student is given a group on their admission details.',
+                title: 'Groups', singular: 'Group', studentField: 'group',
                 fields: [{ name: 'name', label: 'Group Name', required: true, placeholder: 'e.g. Group A' }],
                 label: i => i.name,
-                defaults: []
+                defaults: [{ name: 'DEFAULT GROUP' }]
             },
             documentTypes: {
                 title: 'Document Types', singular: 'Document Type', documentField: 'docType',
@@ -1339,7 +1333,7 @@
         // The tabs shown under each Settings sidebar link (Academic Terms was removed: the periods are in
         // Academic Management > Semester Schedule)
         const SETTINGS_GROUPS = {
-            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'groups', 'departments'] },
+            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },
@@ -1775,14 +1769,12 @@
             const form = document.getElementById('studentAdmissionsForm');
             const listsForFields = {
                 campus: 'campuses', admissionCourse: 'courses', studySession: 'studySessions', enrollment: 'enrollmentTypes',
-                studentType: 'studentTypes', group: 'batches', studentGroup: 'groups'
+                studentType: 'studentTypes', group: 'batches'
             };
 
             for (const [field, listKey] of Object.entries(listsForFields)) {
                 // The student's batch: the Batches of Organisation Setup by name (one per year, newest first)
-                const labels = field === 'group' ? await batchNames()
-                    : field === 'studentGroup' ? (await getSettingLabels(listKey)).filter(g => !/^DEFAULT( GROUP)?$/i.test(g.trim()))
-                    : await getSettingLabels(listKey);
+                const labels = field === 'group' ? await batchNames() : await getSettingLabels(listKey);
                 const placeholder = labels.length
                     ? `-- select ${SETTINGS_LISTS[listKey].singular.toLowerCase()} --`
                     : `-- none set up yet (${settingsLocation(listKey)}) --`;
@@ -3279,7 +3271,7 @@
             ]],
             ['Admission Details', [
                 ['Campus', 'campus'], ['Course', 'admissionCourse'], ['Study Session', 'studySession'], ['Enrollment', 'enrollment'],
-                ['Student Type', 'studentType'], ['Batch', 'group'], ['Group', 'studentGroup'],
+                ['Student Type', 'studentType'], ['Batch', 'group'],
                 // For reporting: the student's status and when it was recorded
                 ['Status', 'activeStudent', v => v === 'no' ? 'Inactive' : 'Active'],
                 ['Date Recorded', 'statusRecordedAt', formatDateTime]
