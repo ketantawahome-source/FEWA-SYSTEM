@@ -109,11 +109,12 @@
         #pane-schedule .data-table, #pane-exams .data-table { font-size: 13px; }
         /* Exam Management laid out as the reference screen: Source Sans font, plain text tabs on one line under a thin
            rule; the chosen tab has a blue top line and a light blue background */
-        #pane-exams { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; font-size: 14px; }
-        #pane-exams input, #pane-exams select, #pane-exams button, #pane-exams textarea { font-family: inherit; }
+        /* (styles.css gives every element Segoe UI, so the font is set on everything inside, not just inherited) */
+        #pane-exams { font-size: 14px; }
+        #pane-exams, #pane-exams * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #pane-exams .settings-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 18px; padding: 0 0 0 4px;
             border-bottom: 1px solid #e3e6ea; }
-        #pane-exams .settings-tab { padding: 11px 16px 10px; margin: 0 0 -1px; font-size: 16px; font-weight: 400; color: #333;
+        #pane-exams .settings-tab { padding: 11px 22px 10px; margin: 0 0 -1px; font-size: 17px; font-weight: 400; color: #333;
             background: transparent; border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0;
             box-shadow: none; text-align: left; flex: 0 0 auto; }
         #pane-exams .settings-tab:hover { color: #3c8dbc; background: transparent; border-color: transparent; border-top-color: transparent; }
@@ -739,7 +740,9 @@
             const batchRecord = await fewaDB.getOne('settings', 'batches').catch(readFailed);
             const batchNames = ((batchRecord && batchRecord.items) || []).filter(b => b.name)
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name);
-            groups = [...new Set([...batchNames, ...students.map(s => s.group).filter(Boolean).sort()])];
+            // (the old "DEFAULT GROUP" is not a batch and is not offered, though a few students still have it)
+            groups = [...new Set([...batchNames, ...students.map(s => s.group).filter(Boolean).sort()])]
+                .filter(g => !/^DEFAULT( GROUP)?$/i.test(String(g).trim()));
             lecturers = getAccounts().filter(a => a.status !== 'Inactive')
                 .map(a => ({ username: a.username, name: accountName(a) })).sort((a, b) => a.name.localeCompare(b.name));
             units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
