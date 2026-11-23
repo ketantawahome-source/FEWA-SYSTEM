@@ -19,6 +19,9 @@
         }
     </script>
     <link rel="stylesheet" href="styles.css?v=20261112h">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
@@ -103,6 +106,19 @@
         #pane-schedule .units-actions button, #pane-exams .units-actions button { font-size: 13px; padding: 7px 12px; }
         #pane-schedule .sched-note, #pane-schedule .up-hint, #pane-schedule .units-count, #pane-exams .sched-note, #pane-exams .up-hint, #pane-exams .units-count { font-size: 12px; }
         #pane-schedule .data-table, #pane-exams .data-table { font-size: 13px; }
+        /* Exam Management laid out as the reference screen: Source Sans font, plain text tabs on one line under a thin
+           rule; the chosen tab has a blue top line and a light blue background */
+        #pane-exams { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; font-size: 14px; }
+        #pane-exams input, #pane-exams select, #pane-exams button, #pane-exams textarea { font-family: inherit; }
+        #pane-exams .settings-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 18px; padding: 0 0 0 4px;
+            border-bottom: 1px solid #e3e6ea; }
+        #pane-exams .settings-tab { padding: 12px 22px 11px; margin: 0 0 -1px; font-size: 17px; font-weight: 400; color: #333;
+            background: transparent; border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0;
+            box-shadow: none; text-align: left; flex: 0 0 auto; }
+        #pane-exams .settings-tab:hover { color: #3c8dbc; background: transparent; border-color: transparent; border-top-color: transparent; }
+        #pane-exams .settings-tab.active { color: #222; background: #edf4fb; border-color: #e3e6ea; border-top-color: #3c8dbc;
+            border-bottom-color: #edf4fb; box-shadow: none; }
+        @media (max-width: 700px) { #pane-exams .settings-tab { padding: 9px 12px 8px; font-size: 15px; } }
     </style>
 </head>
 

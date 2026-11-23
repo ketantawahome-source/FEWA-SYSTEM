@@ -234,19 +234,25 @@ const EXAM_TABS = [
     },
     {
         key: 'paperTypes', title: 'Exam paper types', store: 'exam_paper_types',
-        banner: 'The kinds of exam paper, for example Theory, Practical, Oral or Project, with the marks they are usually out of.',
+        banner: 'The exam papers (Paper 1, Paper 2 ...) and the order they are listed in.',
         save: 'Save paper type',
         fields: [
-            { name: 'name', label: 'Paper type', type: 'text', required: true, max: 100, placeholder: 'For example Practical',
-                list: () => ['Theory', 'Practical', 'Oral', 'Project'] },
-            { name: 'code', label: 'Code', type: 'text', max: 20, upper: true },
-            { name: 'description', label: 'Description', type: 'text', max: 200 },
-            { name: 'outOf', label: 'Usually out of', type: 'number', min: 1, max: 1000 }
+            { name: 'name', label: 'Name', type: 'text', required: true, max: 100, placeholder: 'For example Paper 1',
+                list: () => ['Paper 1', 'Paper 2', 'Paper 3', 'Paper 4'] },
+            { name: 'position', label: 'Position', type: 'number', min: 1, max: 100 },
+            { name: 'code', label: 'Code', type: 'text', max: 20, upper: true, placeholder: 'For example PA1' }
         ],
-        columns: [['Paper type', r => r.name], ['Code', r => r.code], ['Description', r => r.description], ['Out of', r => examNum(r.outOf), true]],
-        sort: (a, b) => String(a.name).localeCompare(String(b.name)),
+        columns: [['Paper name', r => r.name], ['Position', r => examNum(r.position)], ['Code', r => r.code]],
+        // In their position order; papers without a position come last
+        sort: (a, b) => (a.position === '' || a.position == null ? 1e9 : Number(a.position)) - (b.position === '' || b.position == null ? 1e9 : Number(b.position))
+            || String(a.name).localeCompare(String(b.name)),
         same: (a, b) => same(a.name, b.name),
-        label: r => r.name
+        label: r => r.name,
+        check: (r, others) => {
+            if (r.position === '') return '';
+            const clash = others.find(o => o.position !== '' && o.position != null && Number(o.position) === Number(r.position));
+            return clash ? `Position ${examNum(r.position)} is already taken by ${clash.name}.` : '';
+        }
     }
 ];
 

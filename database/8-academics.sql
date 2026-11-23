@@ -264,6 +264,8 @@ ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS course text;
 ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS gpa_from numeric;
 ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS gpa_to numeric;
 ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS qualification text;
+-- Exam paper types as on its tab: Name, Position (the order listed in) and Code
+ALTER TABLE academics.exam_paper_types ADD COLUMN IF NOT EXISTS position numeric;
 
 ALTER TABLE academics.exam_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.exam_types ENABLE ROW LEVEL SECURITY;
