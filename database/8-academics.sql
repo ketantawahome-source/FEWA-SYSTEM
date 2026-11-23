@@ -173,10 +173,6 @@ CREATE TABLE IF NOT EXISTS academics.exam_types (
     extra        jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS exam_types_batch ON academics.exam_types (batch, period);
--- Exam groups as on the Exam groups tab: group weight, Exam Out Of and Include on transcript (Y or N)
-ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS weight numeric;
-ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS out_of numeric;
-ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS on_transcript text;
 
 -- ---------- Grading system: the grade of a mark, e.g. 70-100 = A (Distinction), in a named grading ----------
 CREATE TABLE IF NOT EXISTS academics.grading_systems (
@@ -241,6 +237,25 @@ CREATE TABLE IF NOT EXISTS academics.exam_paper_types (
     updated_by   text,
     extra        jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+
+-- Columns added after the tables were first made (each after its table exists)
+-- Exam groups as on the Exam groups tab: group weight, Exam Out Of and Include on transcript (Y or N)
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS weight numeric;
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS out_of numeric;
+ALTER TABLE academics.exam_groups ADD COLUMN IF NOT EXISTS on_transcript text;
+-- Group exam types as on their tab: course, class (YEAR 1...), batch, period, exam type, weight, main exam (Y/N), unit
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS course text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS class_name text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS batch text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS period text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS exam_type text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS on_main_exam text;
+ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS unit text;
+-- Grading system per course (the Course box on the Grading system tab), with GPA range and qualification
+ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS course text;
+ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS gpa_from numeric;
+ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS gpa_to numeric;
+ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS qualification text;
 
 ALTER TABLE academics.exam_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.exam_types ENABLE ROW LEVEL SECURITY;
