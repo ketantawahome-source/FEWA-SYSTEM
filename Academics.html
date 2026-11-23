@@ -254,7 +254,7 @@
                         <label for="offerLecturer">Lecturer</label><select id="offerLecturer"></select>
                         <span></span><span></span><span></span>
                         <div class="units-actions">
-                            <button type="button" class="btn-submit" data-edit onclick="addOffer()">Add unit on offer</button>
+                            <button type="button" class="btn-submit" id="offerAdd" data-edit onclick="addOffer()">Add unit on offer</button>
                             <button type="button" class="btn-secondary" onclick="clearOffer()">Clear</button>
                         </div>
                     </div>
@@ -433,7 +433,7 @@
                         <label for="pmCluster">Cluster group</label><select id="pmCluster"></select>
                         <span></span>
                         <div class="units-actions">
-                            <button type="button" class="btn-submit" data-edit onclick="addUnitToCourse()">Add unit to course</button>
+                            <button type="button" class="btn-submit" id="pmAdd" data-edit onclick="addUnitToCourse()">Add unit to course</button>
                             <button type="button" class="btn-secondary" onclick="clearProgrammeMapping()">Clear</button>
                         </div>
                     </div>
@@ -897,10 +897,11 @@
             $('offerRows').innerHTML = rows.length ? rows.map(o => {
                 const u = unitByCode(o.unitCode) || {};
                 const scope = [!o.course && 'every course', !o.batch && 'every batch'].filter(Boolean).join(', ');
-                return `<tr><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml(u.title || '')}${scope ? ` <small class="units-muted">(${scope})</small>` : ''}</td>
+                return `<tr${o.id === editingOffer ? ' class="editing"' : ''}><td>${escapeHtml(o.unitCode)}</td><td>${escapeHtml(u.title || '')}${scope ? ` <small class="units-muted">(${scope})</small>` : ''}</td>
                     <td class="num">${escapeHtml(u.creditHours ?? '')}</td><td>${escapeHtml(o.groupCategory || 'All')}</td>
                     <td>${escapeHtml(o.lecturerName || 'Not yet known')}</td><td class="num">${registeredCount(o)}</td>
-                    <td>${mayEdit() ? iconButton('delete', 'Take ' + escapeHtml(o.unitCode) + ' off the offer', `deleteOffer('${o.id}')`) : ''}</td></tr>`;
+                    <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(o.unitCode), `editOffer('${o.id}')`) +
+                        iconButton('delete', 'Take ' + escapeHtml(o.unitCode) + ' off the offer', `deleteOffer('${o.id}')`) : ''}</td></tr>`;
             }).join('') : `<tr class="empty-row"><td colspan="7">No units on offer to ${escapeHtml(batch)} of ${escapeHtml(course)} in ${escapeHtml(term)} yet.</td></tr>`;
         }
 
@@ -909,26 +910,55 @@
             && (o.course || '') === (course || '') && (o.batch || '') === (batch || '') && (o.groupCategory || '') === (groupCategory || '')
             && same(o.unitCode, unitCode));
 
+        // The offer whose pencil was clicked: Add unit on offer then saves the change to it
+        let editingOffer = null;
+
         async function addOffer() {
             if (!allowed('academics', 'edit')) return;
             const course = $('offerCourse').value, batch = $('offerBatch').value, term = $('offerTerm').value;
             const unitCode = $('offerUnit').value, groupCategory = $('offerCategory').value;
             const missing = [[course, 'course'], [batch, 'batch'], [term, 'period'], [unitCode, 'unit']].filter(([v]) => !v).map(([, n]) => n);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
-            if (offerExists(term, course, unitCode, batch, groupCategory)) {
+            const old = offers.find(o => o.id === editingOffer);
+            const twin = offerExists(term, old ? old.course : course, unitCode, old ? old.batch : batch, groupCategory);
+            if (twin && twin.id !== editingOffer) {
                 return alert(`${unitCode} is already on offer to ${batch} of ${course} in ${term}${groupCategory ? ' (' + groupCategory + ')' : ''}.`);
             }
             const lecturer = lecturers.find(l => l.username === $('offerLecturer').value);
+            const record = { ...(old || { id: newId(), term, course, batch }), unitCode: (unitByCode(unitCode) || {}).code || unitCode, groupCategory,
+                lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '' };
             try {
-                await save('unit_offers', { id: newId(), term, unitCode: (unitByCode(unitCode) || {}).code || unitCode, course, batch, groupCategory,
-                    lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '' });
-                showToast(`${unitCode} is on offer to ${batch} of ${course} in ${term}.`);
-                $('offerUnit').value = '';
+                await save('unit_offers', record);
+                showToast(old ? `${record.unitCode} on offer changed.` : `${unitCode} is on offer to ${batch} of ${course} in ${term}.`);
+                stopEditingOffer();
                 await loadData();
             } catch (err) { alert('The unit could not be put on offer: ' + err.message); await loadData(); }
         }
 
+        function editOffer(id) {
+            const o = offers.find(x => x.id === id);
+            if (!o) return;
+            editingOffer = id;
+            const pick = (sel, value) => {
+                if (value && ![...$(sel).options].some(op => op.value === value)) $(sel).add(new Option(value, value));
+                $(sel).value = value || '';
+            };
+            pick('offerUnit', o.unitCode);
+            pick('offerCategory', o.groupCategory || '');
+            pick('offerLecturer', o.lecturer || '');
+            $('offerAdd').textContent = 'Save change';
+            renderOffers();
+            $('offerUnit').focus();
+        }
+
+        function stopEditingOffer() {
+            editingOffer = null;
+            $('offerAdd').textContent = 'Add unit on offer';
+            $('offerUnit').value = '';
+        }
+
         function clearOffer() {
+            stopEditingOffer();
             for (const id of ['offerCourse', 'offerBatch', 'offerCategory', 'offerLecturer']) $(id).value = '';
             fillOfferUnits();
         }
@@ -1221,11 +1251,12 @@
                 || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
             const hours = rows.reduce((sum, p) => sum + Number((unitByCode(p.unitCode) || {}).creditHours || 0), 0);
             $('pmCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'}, ${hours} credit hours in all`;
-            $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr><td>${escapeHtml(stageOf(p.yearOfStudy, p.semester))}</td>
+            $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr${p.id === editingMapping ? ' class="editing"' : ''}><td>${escapeHtml(stageOf(p.yearOfStudy, p.semester))}</td>
                     <td>${escapeHtml(p.unitCode)}</td><td>${escapeHtml((unitByCode(p.unitCode) || {}).title || '(not in the Units register)')}</td>
                     <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
                     <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(p.unitType || 'Core')}</td>
-                    <td>${mayEdit() ? iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
+                    <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(p.unitCode), `editUnitInCourse('${p.id}')`) +
+                        iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units${batch ? ' for ' + escapeHtml(batch) : ''} yet. Add them above, or upload them.</td></tr>`;
         }
 
@@ -1236,25 +1267,55 @@
             return unitByCode(t.split(' - ')[0].trim()) || units.find(u => same(unitLabel(u), t)) || units.find(u => same(u.title, t)) || null;
         }
 
+        // The course unit whose pencil was clicked: Add unit to course then saves the change to it
+        let editingMapping = null;
+
         async function addUnitToCourse() {
             if (!allowed('academics', 'edit')) return;
-            const course = $('pmCourse').value, batch = $('pmBatch').value, stage = $('pmSemester').value;
-            const missing = [['pmCourse', 'course'], ['pmBatch', 'batch'], ['pmSemester', 'semester']]
-                .filter(([id]) => !$(id).value).map(([, name]) => name);
+            const old = programmeUnits.find(p => p.id === editingMapping);
+            const course = $('pmCourse').value, stage = $('pmSemester').value;
+            // A course unit of every batch keeps "all batches" when changed and no batch is chosen
+            const batch = $('pmBatch').value || (old ? old.batch || '' : '');
+            const missing = [['pmCourse', 'course'], ['pmSemester', 'semester']].filter(([id]) => !$(id).value).map(([, name]) => name);
+            if (!batch && !old) missing.splice(1, 0, 'batch');
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             const unit = unitFromTyped($('pmUnit').value);
             if (!unit) return alert('Pick the unit from the list that appears as you type (units come from the Units register).');
-            const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code));
+            const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code) && p.id !== editingMapping);
             if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageOf(already.yearOfStudy, already.semester)}).`);
             const [yearOfStudy, semester] = stage.split('|').map(Number);
             try {
-                await save('programme_units', { id: newId(), course, unitCode: unit.code, yearOfStudy, semester, batch,
+                await save('programme_units', { ...(old || { id: newId() }), course, unitCode: unit.code, yearOfStudy, semester, batch,
                     unitType: $('pmCluster').value || 'Core' });
-                showToast(`${unit.code} added to ${course} (${batch}, ${stageOf(yearOfStudy, semester)}).`);
-                $('pmUnit').value = '';
+                showToast(old ? `${unit.code} on ${course} changed.` : `${unit.code} added to ${course} (${batch}, ${stageOf(yearOfStudy, semester)}).`);
+                stopEditingMapping();
                 await loadData();
                 $('pmUnit').focus();
             } catch (err) { alert('The unit could not be added: ' + err.message); await loadData(); }
+        }
+
+        function editUnitInCourse(id) {
+            const p = programmeUnits.find(x => x.id === id);
+            if (!p) return;
+            editingMapping = id;
+            const pick = (sel, value) => {
+                if (value && ![...$(sel).options].some(op => op.value === value)) $(sel).add(new Option(value, value));
+                $(sel).value = value || '';
+            };
+            pick('pmBatch', p.batch || '');
+            pick('pmSemester', `${p.yearOfStudy}|${p.semester}`);
+            pick('pmCluster', p.unitType || 'Core');
+            const u = unitByCode(p.unitCode);
+            $('pmUnit').value = u ? unitLabel(u) : p.unitCode;
+            $('pmAdd').textContent = 'Save change';
+            renderProgrammeMapping();
+            $('pmUnit').focus();
+        }
+
+        function stopEditingMapping() {
+            editingMapping = null;
+            $('pmAdd').textContent = 'Add unit to course';
+            $('pmUnit').value = '';
         }
 
         async function removeUnitFromCourse(id) {
@@ -1269,6 +1330,7 @@
         }
 
         function clearProgrammeMapping() {
+            stopEditingMapping();
             for (const id of ['pmCourse', 'pmBatch', 'pmCluster']) $(id).value = '';
             $('pmUnit').value = '';
             fillMappingCourses();

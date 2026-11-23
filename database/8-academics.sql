@@ -251,6 +251,14 @@ ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS period text;
 ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS exam_type text;
 ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS on_main_exam text;
 ALTER TABLE academics.group_exam_types ADD COLUMN IF NOT EXISTS unit text;
+-- Course exam groups as on their tab: also the mark out of and Include On Main Exam (Y or N)
+ALTER TABLE academics.course_exam_groups ADD COLUMN IF NOT EXISTS out_of numeric;
+ALTER TABLE academics.course_exam_groups ADD COLUMN IF NOT EXISTS on_main_exam text;
+-- Awards setup as on its tab: the recommendation printed for a range of marks of a course
+ALTER TABLE academics.award_setups ADD COLUMN IF NOT EXISTS course text;
+ALTER TABLE academics.award_setups ADD COLUMN IF NOT EXISTS recommendation text;
+ALTER TABLE academics.award_setups ADD COLUMN IF NOT EXISTS marks_from numeric;
+ALTER TABLE academics.award_setups ADD COLUMN IF NOT EXISTS marks_to numeric;
 -- Grading system per course (the Course box on the Grading system tab), with GPA range and qualification
 ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS course text;
 ALTER TABLE academics.grading_systems ADD COLUMN IF NOT EXISTS gpa_from numeric;

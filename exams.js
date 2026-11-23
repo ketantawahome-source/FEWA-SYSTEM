@@ -187,38 +187,41 @@ const EXAM_TABS = [
     },
     {
         key: 'awards', title: 'Awards setup', store: 'award_setups',
-        banner: 'How a final average is classified for each award, for example a Diploma average of 70 to 100 = Distinction. The awards are those in Settings > Program Setup > Award Types.',
-        save: 'Save classification',
+        banner: 'The recommendation printed for each range of marks in a course.',
+        save: 'Save award setting',
         fields: [
-            { name: 'award', label: 'Award', type: 'select', options: () => examPairs(programmes), placeholder: '-- select one --', required: true, filter: true },
-            { name: 'classification', label: 'Classification', type: 'text', required: true, max: 100, placeholder: 'For example Distinction',
-                list: () => ['Distinction', 'Credit', 'Pass', 'Fail', 'Referred'] },
-            { name: 'minAverage', label: 'From average', type: 'number', min: 0, max: 100, required: true },
-            { name: 'maxAverage', label: 'To average', type: 'number', min: 0, max: 100, required: true },
-            { name: 'remark', label: 'Remark', type: 'text', max: 200 }
+            { name: 'course', label: 'Course', type: 'select', options: () => examPairs(courseItems.map(c => c.name)), placeholder: '-- select one --', required: true, filter: true },
+            { name: 'recommendation', label: 'Recommendations', type: 'text', required: true, max: 200, placeholder: 'For example FIRST CLASS UPPER DIVISION',
+                upper: true, list: () => ['FIRST CLASS UPPER DIVISION', 'SECOND CLASS UPPER DIVISION', 'SECOND CLASS LOWER DIVISION', 'PASS', 'DISTINCTION', 'CREDIT', 'FAIL'] },
+            { name: 'marksFrom', label: 'Marks from', type: 'number', min: 0, max: 100, required: true },
+            { name: 'marksTo', label: 'Marks to', type: 'number', min: 0, max: 100, required: true }
         ],
-        columns: [['Award', r => r.award], ['Classification', r => r.classification], ['From', r => examNum(r.minAverage), true],
-            ['To', r => examNum(r.maxAverage), true], ['Remark', r => r.remark]],
-        sort: (a, b) => String(a.award).localeCompare(String(b.award)) || Number(b.minAverage) - Number(a.minAverage),
-        same: (a, b) => same(a.award, b.award) && same(a.classification, b.classification),
-        label: r => `${r.classification} (${r.award})`,
+        columns: [['Course', r => r.course], ['Mark from', r => examNum(r.marksFrom)], ['Mark to', r => examNum(r.marksTo)], ['Recommendation', r => r.recommendation]],
+        // Highest marks first; a range may be typed either way round (100 to 80, or 80 to 100)
+        sort: (a, b) => String(a.course).localeCompare(String(b.course))
+            || Math.max(Number(b.marksFrom), Number(b.marksTo)) - Math.max(Number(a.marksFrom), Number(a.marksTo)),
+        same: (a, b) => same(a.course, b.course) && same(a.recommendation, b.recommendation),
+        label: r => `${r.recommendation} (${r.course})`,
         check: (r, others) => {
-            if (Number(r.minAverage) > Number(r.maxAverage)) return 'The From average is above the To average.';
-            const clash = others.find(o => same(o.award, r.award) && overlaps(r.minAverage, r.maxAverage, o.minAverage, o.maxAverage));
-            return clash ? `${examNum(r.minAverage)}-${examNum(r.maxAverage)} overlaps ${clash.classification} (${examNum(clash.minAverage)}-${examNum(clash.maxAverage)}) of ${r.award}.` : '';
+            const range = x => [Math.min(Number(x.marksFrom), Number(x.marksTo)), Math.max(Number(x.marksFrom), Number(x.marksTo))];
+            const [lo, hi] = range(r);
+            const clash = others.find(o => same(o.course, r.course) && overlaps(lo, hi, ...range(o)));
+            return clash ? `${examNum(r.marksFrom)}-${examNum(r.marksTo)} overlaps ${clash.recommendation} (${examNum(clash.marksFrom)}-${examNum(clash.marksTo)}) of ${r.course}.` : '';
         }
     },
     {
         key: 'courseGroups', title: 'Course exam groups', store: 'course_exam_groups',
-        banner: "The exam groups of each course and their weight in the final mark (for example CAT 30 and End of Semester Exam 70). The course's grades are on the Grading system tab.",
+        banner: 'The exam groups each course uses, with their weight and mark out of.',
         save: 'Save course exam group',
         fields: [
             { name: 'course', label: 'Course', type: 'select', options: () => examPairs(courseItems.map(c => c.name)), placeholder: '-- select one --', required: true, filter: true },
             { name: 'examGroup', label: 'Exam group', type: 'select', options: () => examPairs(activeGroups()), placeholder: '-- select one --', required: true },
-            { name: 'weight', label: 'Weight (out of 100)', type: 'number', min: 0, max: 100, required: true }
+            { name: 'weight', label: 'Exam weight (out of 100)', type: 'number', min: 0, max: 100, required: true },
+            { name: 'outOf', label: 'Exam out of', type: 'number', min: 0, max: 1000 },
+            { name: 'onMainExam', label: 'Include On Main Exam', type: 'check' }
         ],
-        columns: [['Course', r => r.course], ['Exam group', r => r.examGroup], ['Weight', r => examNum(r.weight), true],
-            ['Grades', r => examRows('grading_systems').filter(g => same(g.course, r.course)).length + ' set']],
+        columns: [['Course', r => r.course], ['Exam group', r => r.examGroup], ['Exam weight', r => examNum(r.weight)],
+            ['Exam out of', r => examNum(r.outOf)], ['Main exam', r => r.onMainExam === 'Y' ? 'Y' : 'N']],
         sort: (a, b) => String(a.course).localeCompare(String(b.course)) || String(a.examGroup).localeCompare(String(b.examGroup)),
         same: (a, b) => same(a.course, b.course) && same(a.examGroup, b.examGroup),
         label: r => `${r.examGroup} (${r.course})`,

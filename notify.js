@@ -73,7 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
    has a real row again, the table comes back and the note goes. Works for every list on every page, as they redraw. */
 (function () {
     const style = document.createElement('style');
-    style.textContent = '.list-empty-note { font-weight: 600; color: #333; font-size: 14px; margin: 14px 0 6px; }';
+    // (and a hidden button stays hidden everywhere: the button styles would otherwise show it, e.g. Cancel until editing)
+    style.textContent = '.list-empty-note { font-weight: 600; color: #333; font-size: 14px; margin: 14px 0 6px; } button[hidden] { display: none !important; }';
     document.head.append(style);
 
     function tidyEmptyLists() {

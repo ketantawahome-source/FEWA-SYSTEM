@@ -454,7 +454,8 @@
                                     <textarea name="reason" rows="2" required></textarea>
                                 </div>
                                 <div class="deferral-save">
-                                    <button type="submit" class="btn-submit">Save Student Deferral</button>
+                                    <button type="submit" class="btn-submit" id="deferralSave">Save Student Deferral</button>
+                                    <button type="button" class="btn-secondary" id="deferralCancel" hidden onclick="stopEditingDeferral()">Cancel</button>
                                 </div>
                             </form>
 
@@ -4922,13 +4923,13 @@
                 return;
             }
             tbody.innerHTML = deferrals.map(d => `
-                <tr>
+                <tr${d.id === editingDeferral ? ' class="editing"' : ''}>
                     <td>${escapeHtml(studentOptionLabel(d.student))}</td>
                     <td>${escapeHtml(d.type)}</td>
                     <td>${formatDate(d.startDate)}</td>
                     <td>${formatDate(d.endDate)}</td>
                     <td>${escapeHtml(d.reason)}</td>
-                    <td>${iconButton('delete', 'Delete this record', `deleteDeferral('${d.id}')`)}</td>
+                    <td style="white-space: nowrap;">${iconButton('edit', 'Change this record', `editDeferral('${d.id}')`)}${iconButton('delete', 'Delete this record', `deleteDeferral('${d.id}')`)}</td>
                 </tr>`).join('');
         }
 
@@ -4965,13 +4966,46 @@
                 alert('End Date cannot be before Start Date.');
                 return;
             }
-            await addDeferral(student, data);
-            showToast(`${data.type || 'Deferral'} saved successfully for ${fullName(student)}.`);
+            if (editingDeferral) {
+                // A change to a record: its type, dates and reason (the student's status is left as it is)
+                const old = (await getAll('deferrals')).find(d => d.id === editingDeferral);
+                if (old) await putOne('deferrals', { ...old, studentId: student.id, type: data.type || 'Deferral', startDate: data.startDate,
+                    endDate: data.endDate || '', reason: data.reason });
+                stopEditingDeferral();
+                showToast(`${data.type || 'Deferral'} record changed for ${fullName(student)}.`);
+            } else {
+                await addDeferral(student, data);
+                showToast(`${data.type || 'Deferral'} saved successfully for ${fullName(student)}.`);
+            }
             // Keep the student filled in so their list, with the new record, stays on screen
             form.reset();
             form.elements['student'].value = studentOptionLabel(student);
             renderDeferralList();
             renderStatusList();
+        }
+
+        // The record whose pencil was clicked: Save then changes it instead of adding one
+        let editingDeferral = null;
+
+        async function editDeferral(id) {
+            const d = (await getAll('deferrals')).find(x => x.id === id);
+            if (!d) return;
+            editingDeferral = id;
+            const form = document.getElementById('deferralForm');
+            for (const name of ['type', 'startDate', 'endDate', 'reason']) form.elements[name].value = d[name] || '';
+            document.getElementById('deferralSave').textContent = 'Save change';
+            document.getElementById('deferralCancel').hidden = false;
+            renderDeferralTable();
+            form.elements['reason'].focus();
+        }
+
+        function stopEditingDeferral() {
+            editingDeferral = null;
+            document.getElementById('deferralSave').textContent = 'Save Student Deferral';
+            document.getElementById('deferralCancel').hidden = true;
+            const form = document.getElementById('deferralForm');
+            for (const name of ['startDate', 'endDate', 'reason']) form.elements[name].value = '';
+            renderDeferralTable();
         }
 
         async function deleteDeferral(id) {
