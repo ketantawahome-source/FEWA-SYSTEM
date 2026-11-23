@@ -117,3 +117,24 @@ ALTER TABLE academics.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.programme_units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.unit_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.unit_registrations ENABLE ROW LEVEL SECURITY;
+
+-- ---------- Semester schedule: the dates of each period of a batch (Academic Management > Semester Schedule) ----------
+CREATE TABLE IF NOT EXISTS academics.period_schedules (
+    id                   text PRIMARY KEY,
+    programme            text,            -- the award type (Settings > Program Setup > Award Types)
+    batch                text,            -- the student group (Student Groups)
+    course               text,            -- the class: the course as named in Settings > Program Setup > Courses
+    enrolment            text,            -- the intake (Settings > Enrollment Types), e.g. January 2027
+    period               text,            -- e.g. SEMESTER 1
+    period_number        integer,         -- 1 for SEMESTER 1, used for the order
+    start_date           date,
+    end_date             date,
+    accounts_start_date  date,            -- empty: the same as the start date
+    accounts_end_date    date,            -- empty: the same as the end date
+    accounts_status      text,            -- OPEN or CLOSED (closed: no invoices, credit notes or receipts in the period)
+    updated_at           timestamptz,
+    updated_by           text,            -- the staff login that saved it
+    extra                jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS period_schedules_batch ON academics.period_schedules (batch, course);
+ALTER TABLE academics.period_schedules ENABLE ROW LEVEL SECURITY;

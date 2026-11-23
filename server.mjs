@@ -18,8 +18,8 @@
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
      settings.role_operations    the rights given to each staff role
-     academics.units, programme_units, unit_offers, unit_registrations, unit_lecturers, unit_hours
-                         Academic Management > Manage Units (Academics.html); one column per field, as students
+     academics.units, programme_units, unit_offers, unit_registrations, unit_lecturers, unit_hours, period_schedules
+                         Academic Management > Manage Units and Semester Schedule (Academics.html); one column per field, as students
      logins.sessions, logins.password_reset_codes
                          who is logged in, and emailed reset codes (hashes only) until used or expired
      files.stored_files  student photos and uploaded documents (bytes), referred to from the records
@@ -180,7 +180,7 @@ async function inTransaction(work) {
    The columns are read from the database itself (every 15 seconds at most), so columns added, removed or
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
 // Academic Management > Manage Units (database/8-academics.sql): record stores like deferrals
-const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours'];
+const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours', 'period_schedules'];
 const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register'];
 const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
@@ -203,7 +203,7 @@ const SCHEMA_OF = {
     sessions: 'logins', password_reset_codes: 'logins',
     stored_files: 'files',
     units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics',
-    unit_lecturers: 'academics', unit_hours: 'academics'
+    unit_lecturers: 'academics', unit_hours: 'academics', period_schedules: 'academics'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
 // A table's full name, e.g. T('courses') -> "settings"."courses"
