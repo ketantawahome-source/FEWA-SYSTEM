@@ -335,7 +335,6 @@ function buildExamForm() {
                 <thead><tr><th>Row</th>${t.upload.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}<th>Result</th></tr></thead>
                 <tbody id="examUploadRows"></tbody></table></div>
         </div>` : ''}
-        <div class="units-subhead">${escapeHtml(t.title)}</div>
         <div class="units-count" id="examCount"></div>
         <div class="table-wrap"><table class="data-table">
             <thead><tr><th class="unit-actions"></th>${t.columns.map(([h, , num]) => `<th${num ? ' class="num"' : ''}>${escapeHtml(h)}</th>`).join('')}</tr></thead>
