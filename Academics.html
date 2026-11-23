@@ -684,7 +684,10 @@
             programmes = await settingNames('awardTypes'); // exactly as listed in Settings > Program Setup > Award Types
             categories = await settingNames('studySessions');
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
-            terms = await settingNames('terms');
+            // Periods: SEMESTER 1, 2... as in the Semester Schedule (Academic Terms is no longer used), up to the longest course
+            const most = Math.max(1, ...courseItems.map(c => semesterCount(c.name)),
+                ...schedules.map(p => p.periodNumber || periodNumber(p.period)));
+            terms = Array.from({ length: most }, (_, i) => periodName(i + 1));
             // Batches: the Student Groups, and any group students already have
             groups = [...new Set([...(await settingNames('groups')), ...students.map(s => s.group).filter(Boolean)])].sort();
             lecturers = getAccounts().filter(a => a.status !== 'Inactive')
@@ -929,7 +932,7 @@
                 ['Column', 'What to type'],
                 ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
                 ['Batch', 'The student group, as in Student Groups'],
-                ['Period', 'The academic term, exactly as in Settings > Organisation Setup > Academic Terms'],
+                ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
                 ['Group category', 'The study session, e.g. Full Time; blank = all group categories'],
                 ['Unit code', 'The unit code, as in Manage Units > Units register'],
                 ['Lecturer staff number', "The lecturer's staff code (the Staff codes button lists them); blank = not yet known"]
@@ -974,7 +977,7 @@
                 const categoryText = cell(r, 'category'), lecturerCode = cell(r, 'lecturer');
                 const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
                 const batch = groups.find(g => g === batchText) || groups.find(g => same(g, batchText));
-                const term = terms.find(x => x === periodText) || terms.find(x => same(x, periodText));
+                const term = periodOf(periodText);
                 const category = categoryText ? categories.find(c => same(c, categoryText)) : '';
                 const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
                 const unit = unitByCode(code);
@@ -984,7 +987,7 @@
                 const problem = text => line.problems.push(text);
                 if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
                 if (!batch) problem(batchText ? 'Batch not in Student Groups' : 'No batch');
-                if (!term) problem(periodText ? 'Period not in Academic Terms' : 'No period');
+                if (!term) problem(periodText ? 'Period not like SEMESTER 1' : 'No period');
                 if (categoryText && category === undefined) problem('Group category not in Study Sessions');
                 if (!code) problem('No unit code');
                 else if (!unit) problem('Unit not in the Units register');
@@ -1619,9 +1622,11 @@
             $('regClass').value = student.admissionCourse || '';
             if (student.group && ![...$('regBatch').options].some(o => o.value === student.group)) $('regBatch').add(new Option(student.group, student.group));
             $('regBatch').value = student.group || '';
-            // The latest period the student is registered in, else the latest term
+            // The period running today in the Semester Schedule of the student's batch and course, else the latest
+            // period they are registered in, else SEMESTER 1
             const theirs = registrations.filter(r => r.studentId === student.id).map(r => r.term);
-            $('regTerm').value = [...terms].reverse().find(t => theirs.includes(t)) || terms[terms.length - 1] || '';
+            $('regTerm').value = currentPeriod(student.group, student.admissionCourse)
+                || [...terms].reverse().find(t => theirs.includes(t)) || terms[0] || '';
             fillUnitsOf();
             showRegistration();
         }
@@ -1794,7 +1799,7 @@
             XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
                 ['Column', 'What to type'],
                 ['Batch', "The student's group, as in Settings > Institution Setup > Student Groups (may be left blank)"],
-                ['Period', 'The academic term, exactly as in Settings > Organisation Setup > Academic Terms'],
+                ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
                 ['Unit code', 'The unit code, as in Manage Units > Units register'],
                 ['Registration number', "The student's AdmNo, with the same capital and small letters"],
                 ['Exam reason', 'Blank = First attempt; or ' + EXAM_REASONS.slice(1).join(', ')],
@@ -1848,12 +1853,12 @@
                 const reason = examReasonOf(cell(r, 'reason'));
                 const lecturerCode = cell(r, 'lecturer');
                 const lecturer = lecturerCode ? lecturerByCode(lecturerCode) : null;
-                const term = terms.find(t => same(t, period));
+                const term = periodOf(period);
                 let result = 'ok', note = 'OK';
                 const problem = text => { if (result === 'ok') [result, note] = ['bad', text]; };
                 if (!student) problem('Registration number not found');
                 else if (batch && !same(student.group, batch)) problem(`The student's batch is ${student.group || 'not set'}`);
-                if (!term) problem('Period not in Settings > Academic Terms');
+                if (!term) problem('Period not like SEMESTER 1');
                 if (!unit) problem('Unit code not in the Units register');
                 if (!reason) problem('Exam reason must be blank, ' + EXAM_REASONS.slice(1).join(', '));
                 if (lecturerCode && !lecturer) problem('Staff code not found (see Staff codes)');
@@ -1950,6 +1955,16 @@
             return 1;
         }
         const periodName = n => `SEMESTER ${n}`;
+        // A period typed in an upload: SEMESTER 1, Semester 1 or 1
+        const periodOf = text => { const t = String(text || '').trim(); return terms.find(x => same(x, t)) || terms.find(x => same(x, periodName(t))); };
+        // The period running today for a batch (and course), from the Semester Schedule
+        function currentPeriod(batch, course) {
+            const today = new Date().toLocaleDateString('en-CA');
+            const running = schedules.filter(s => s.batch === batch && s.startDate && s.endDate
+                && isoDay(s.startDate) <= today && today <= isoDay(s.endDate));
+            const best = running.find(s => s.course === course) || running.find(s => !s.course);
+            return best ? best.period : '';
+        }
         const periodNumber = name => Number(String(name || '').replace(/\D+/g, '')) || 0;
 
         function fillScheduleChoices() {

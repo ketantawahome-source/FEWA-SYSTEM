@@ -326,7 +326,7 @@
                                 <select id="statusPeriodKind" class="toolbar-search" onchange="updateStatusPeriod()">
                                     <option value="">Any time</option>
                                     <option value="day">One day</option>
-                                    <option value="term">A term</option>
+                                    <option value="term">A semester</option>
                                     <option value="year">A year</option>
                                     <option value="range">Between dates</option>
                                 </select>
@@ -904,7 +904,7 @@
                             </select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="period" style="display: none;">
-                            <label id="reportSPeriodLabel">Year or Term</label>
+                            <label id="reportSPeriodLabel">Year or Semester</label>
                             <select id="reportSPeriod"></select>
                         </div>
                         <div class="form-group report-s-filter report-s-docs" data-filter="docs" style="display: none;">
@@ -1265,9 +1265,10 @@
             }
         };
 
-        // The tabs shown under each Settings sidebar link
+        // The tabs shown under each Settings sidebar link (Academic Terms was removed from Organisation Setup at the
+        // user's request; the terms already saved stay in settings.academic_terms and are still used by the system)
         const SETTINGS_GROUPS = {
-            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'terms', 'departments'] },
+            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'departments'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'groups', 'documentTypes'] },
             access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
@@ -1457,7 +1458,7 @@
         // Where in Settings a list is managed, for hints on empty dropdowns
         function settingsLocation(listKey) {
             const group = Object.values(SETTINGS_GROUPS).find(g => g.tabs.includes(listKey));
-            return `Settings > ${group.title}`;
+            return group ? `Settings > ${group.title}` : 'Settings';
         }
 
         async function getSettingItems(listKey) {
@@ -2360,16 +2361,13 @@
         // Dates as YYYY-MM-DD in the computer's own time zone
         const isoDate = date => date.toLocaleDateString('en-CA');
 
-        // The term covering today from Settings > Organisation Setup > Academic Terms; otherwise
-        // the college year is taken as three terms: Jan-Apr, May-Aug and Sep-Dec (as on the Dashboard)
+        // The college year is taken as three terms: Jan-Apr, May-Aug and Sep-Dec (as on the Dashboard). Academic
+        // Terms is no longer used: the periods of each batch are in Academic Management > Semester Schedule.
         async function currentTermRange() {
-            const today = isoDate(new Date());
-            const term = (await getSettingItems('terms')).find(t => t.startDate <= today && today <= t.endDate);
-            if (term) return { name: term.name, from: term.startDate, to: term.endDate };
             const now = new Date();
             const index = Math.floor(now.getMonth() / 4);
             return {
-                name: `Term ${index + 1}, ${now.getFullYear()}`,
+                name: `Semester ${index + 1}, ${now.getFullYear()}`,
                 from: isoDate(new Date(now.getFullYear(), index * 4, 1)),
                 to: isoDate(new Date(now.getFullYear(), index * 4 + 4, 0))
             };
@@ -2629,7 +2627,7 @@
             periodSelect.innerHTML = '<option value="">-- Any time --</option>' +
                 [...reportSPeriods.keys()].map(label => `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`).join('');
             if (reportSPeriods.has(keep)) periodSelect.value = keep;
-            document.getElementById('reportSPeriodLabel').textContent = report.periodLabel || 'Year or Term';
+            document.getElementById('reportSPeriodLabel').textContent = report.periodLabel || 'Year or Semester';
             if (report.filters.includes('docs')) {
                 const types = await getSettingLabels('documentTypes');
                 const box = document.getElementById('reportSDocs');
@@ -2794,7 +2792,7 @@
                         boxes: students.length ? [{ title: 'By course', rows: countBy(students, s => s.admissionCourse) }] : [],
                         sections: [
                             { title: 'Intake per academic year', headers: ['Year', 'Admitted', 'Female', 'Male', 'Active Now', 'Inactive Now'], rows: yearRows, empty: 'No admissions yet.' },
-                            { title: 'Intake per term', headers: ['Term', 'Dates', 'Admitted', 'Female', 'Male', 'Active Now', 'Inactive Now'], rows: termRows, empty: 'No admissions yet.' }
+                            { title: 'Intake per semester', headers: ['Semester', 'Dates', 'Admitted', 'Female', 'Male', 'Active Now', 'Inactive Now'], rows: termRows, empty: 'No admissions yet.' }
                         ]
                     };
                 }
@@ -3425,7 +3423,7 @@
                 ...getAccounts().map(a => a.jobTitle).filter(Boolean)])].sort() },
             staffStatus: { label: 'Status', all: '-- all staff --', choices: async () => ['Active', 'Inactive'] },
             // A year or a term: used instead of the From / To dates
-            period: { label: 'Year or Term', all: '-- use the dates below --', choices: async () => {
+            period: { label: 'Year or Semester', all: '-- use the dates below --', choices: async () => {
                 const { terms, years } = await periodChoices(await getAll('students'));
                 reportPeriods = new Map([...years, ...terms].map(p => [p.label, p]));
                 return [...reportPeriods.keys()];
@@ -3472,9 +3470,9 @@
             },
             {
                 key: 'admissions', category: 'Admissions Office', title: 'New Admissions',
-                about: 'Students admitted between two dates (starts on the current term).',
+                about: 'Students admitted between two dates (starts on the current semester).',
                 filters: ['school', 'campus', 'course', 'enrollment', 'period'], dateLabel: 'Admitted',
-                // The dates start on the current term (Settings > Organisation Setup > Academic Terms)
+                // The dates start on the current term (Jan-Apr, May-Aug or Sep-Dec)
                 defaults: async () => {
                     const term = await currentTermRange();
                     return { dateFrom: term.from, dateTo: term.to };
@@ -3491,7 +3489,7 @@
             },
             {
                 key: 'status', category: 'Admissions Office', title: 'Student Status List',
-                about: 'Active and inactive students by year, term, day or dates (inactive ones by their exit date), with exit details.',
+                about: 'Active and inactive students by year, semester, day or dates (inactive ones by their exit date), with exit details.',
                 filters: ['school', 'course', 'status', 'period'], dateLabel: 'Status Date',
                 build: async f => ({
                     headers: ['Adm No.', 'Student Name', 'Course', 'Status', 'Status Date', 'Date Recorded', 'Exit Date', 'Reason for Exit'],
@@ -4038,7 +4036,7 @@
                         ${row('Enrollment', a.enrollment)}${row('Student type', a.studentType)}
                         ${row('Group on admission', a.admissionGroup)}
                         ${row('School', a.school)}${row('Class applied for', a.classApplied)}${row('Year', a.yearAdmitted)}
-                        ${row('Term', a.term)}${row('Intake', a.intake)}${row('Group', a.group || 'PROSPECT')}
+                        ${row('Semester', a.term)}${row('Intake', a.intake)}${row('Group', a.group || 'PROSPECT')}
                         ${row('Submitted', formatDateTime(a.submittedAt))}</dl>
                     <h4>Student</h4><dl class="reset-details">
                         ${row('Name', fullName(a))}${row('Gender', a.gender)}${row('Date of birth', a.dob)}
@@ -4388,8 +4386,8 @@
             return { ...student, statusHistory: history };
         }
 
-        /* Terms and years to choose from: the terms in Settings > Organisation Setup > Academic Terms, and Term 1-3
-           (Jan-Apr, May-Aug, Sep-Dec) for any part of a year they do not cover; newest first. */
+        /* Terms and years to choose from: Term 1-3 of each year (Jan-Apr, May-Aug, Sep-Dec); newest first.
+           (Academic Terms is no longer used.) */
         async function periodChoices(students) {
             const years = new Set([new Date().getFullYear()]);
             for (const s of students) {
@@ -4398,15 +4396,12 @@
                     if (/^\d{4}-/.test(day)) years.add(Number(day.slice(0, 4)));
                 }
             }
-            const terms = (await getSettingItems('terms')).filter(t => t.startDate && t.endDate).map(t => ({
-                label: /\d{4}/.test(t.name || '') ? t.name : `${t.name || 'Term'}, ${t.startDate.slice(0, 4)}`,
-                from: t.startDate, to: t.endDate
-            }));
+            const terms = [];
             for (const year of years) {
                 for (let i = 0; i < 3; i++) {
                     const from = isoDate(new Date(year, i * 4, 1));
                     const to = isoDate(new Date(year, i * 4 + 4, 0));
-                    if (!terms.some(t => t.from <= to && from <= t.to)) terms.push({ label: `Term ${i + 1}, ${year}`, from, to });
+                    if (!terms.some(t => t.from <= to && from <= t.to)) terms.push({ label: `Semester ${i + 1}, ${year}`, from, to });
                 }
             }
             terms.sort((a, b) => b.from.localeCompare(a.from));

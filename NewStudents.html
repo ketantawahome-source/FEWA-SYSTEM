@@ -370,7 +370,7 @@
                         </td>
                     </tr>`).join('')
                 : `<tr class="empty-row"><td colspan="${COLUMNS.length}">${newStudents.length
-                    ? 'No matching students found.' : 'No new students this term yet.'}</td></tr>`;
+                    ? 'No matching students found.' : 'No new students this semester yet.'}</td></tr>`;
 
             document.getElementById('tableInfo').innerText = rows.length
                 ? `Showing ${first + 1} to ${first + pageRows.length} of ${rows.length} entries` +

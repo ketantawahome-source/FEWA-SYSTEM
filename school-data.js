@@ -25,19 +25,12 @@ function readAll(storeName) {
     });
 }
 
-// Uses the terms set up in Settings > Organisation Setup > Academic Terms. Without one that covers
-// today, the college year is taken as three terms: Jan-Apr, May-Aug and Sep-Dec.
-function currentTerm(today, terms = []) {
-    const setUp = terms.map(t => {
-        const end = new Date(t.endDate + 'T00:00');
-        end.setDate(end.getDate() + 1);
-        return { name: t.name, start: new Date(t.startDate + 'T00:00'), end };
-    }).find(t => today >= t.start && today < t.end);
-    if (setUp) return setUp;
-
+// The college year is taken as three terms: Jan-Apr, May-Aug and Sep-Dec. (Academic Terms is no longer used:
+// the periods of each batch are in Academic Management > Semester Schedule.)
+function currentTerm(today) {
     const index = Math.floor(today.getMonth() / 4);
     return {
-        name: `Term ${index + 1}, ${today.getFullYear()}`,
+        name: `Semester ${index + 1}, ${today.getFullYear()}`,
         start: new Date(today.getFullYear(), index * 4, 1),
         end: new Date(today.getFullYear(), index * 4 + 4, 1)
     };
@@ -45,8 +38,7 @@ function currentTerm(today, terms = []) {
 
 // The current term, with inTerm(date) telling whether a date falls in it
 function termFromSettings(settings, today = new Date()) {
-    const terms = settings.find(s => s.key === 'terms');
-    const term = currentTerm(today, terms ? terms.items : []);
+    const term = currentTerm(today);
     term.inTerm = value => !!value && new Date(value) >= term.start && new Date(value) < term.end;
     return term;
 }

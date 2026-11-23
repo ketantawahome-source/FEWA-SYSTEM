@@ -1272,7 +1272,9 @@ const RIGHTS_TO_READ = {
     ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, ACADEMIC_RIGHTS])),
     // Programme units are set up in Settings > Program Setup (settings can be read by all staff)
     programme_units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete'],
-    units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete']
+    units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete'],
+    // Finance lists the semesters of the Semester Schedule (fees, charges and payments are per semester)
+    period_schedules: [...ACADEMIC_RIGHTS, 'finance.view', 'finance.add', 'finance.edit', 'finance.void']
 };
 
 // A stored file: someone who may read documents may open any; someone who may only read student records, not an

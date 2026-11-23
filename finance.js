@@ -23,19 +23,28 @@
     const mayEdit = () => can('finance', 'edit');
     const mayVoid = () => can('finance', 'void');
 
-    /* ---------- Settings lists (terms, courses, the college's details), read once per opening ---------- */
+    /* ---------- Settings lists (semesters, courses, the college's details), read once per opening ----------
+       The semesters (SEMESTER 1, 2...) are those of Academic Management > Semester Schedule (Academic Terms is no
+       longer used): as many as the longest course has, 3 a year (4 months each). The "term" fields hold them. */
     async function loadSettings() {
         const read = key => api('GET', '/stores/settings/' + key).catch(() => null);
-        const [terms, courses, org, details] = await Promise.all([read('terms'), read('courses'), read('organization'), read('paymentDetails')]);
-        state.terms = ((terms && terms.items) || []).map(t => t.name).filter(Boolean);
-        state.courses = ((courses && courses.items) || []).filter(c => c.enabled !== 'NO' && c.name)
-            .map(c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
+        const [schedules, courses, org, details] = await Promise.all([api('GET', '/stores/period_schedules').catch(() => []),
+            read('courses'), read('organization'), read('paymentDetails')]);
+        const courseItems = ((courses && courses.items) || []).filter(c => c.enabled !== 'NO' && c.name);
+        state.courses = courseItems.map(c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
+        const semestersOf = c => {
+            const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase();
+            return type === 'YEARS' ? n * 3 : type === 'MONTHS' ? Math.ceil(n / 4) : 1;
+        };
+        const periods = Array.isArray(schedules) ? schedules : [];
+        const most = Math.max(1, ...courseItems.map(semestersOf), ...periods.map(p => Number(p.periodNumber) || 0));
+        state.terms = Array.from({ length: most }, (_, i) => `SEMESTER ${i + 1}`);
         state.org = org || {};
         state.paymentDetails = details || {};
-        // The term running today, else the first one
+        // The semester running today in the Semester Schedule, else the first one
         const now = today();
-        const running = ((terms && terms.items) || []).find(t => t.startDate <= now && now <= t.endDate);
-        if (!state.term || !state.terms.includes(state.term)) state.term = (running && running.name) || state.terms[0] || '';
+        const running = periods.find(p => p.startDate && p.endDate && String(p.startDate).slice(0, 10) <= now && now <= String(p.endDate).slice(0, 10));
+        if (!state.term || !state.terms.includes(state.term)) state.term = (running && running.period) || state.terms[0] || '';
     }
 
     const termOptions = (selected, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') +
@@ -147,7 +156,7 @@
                     <div class="form-group"><label>Payment Method *</label><select name="method">${METHODS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
                     <div class="form-group"><label>Transaction Code / Ref No. <span id="finRefNeed">*</span></label><input name="reference" maxlength="60" placeholder="e.g. QX7892KL" autocomplete="off"></div>
                     <div class="form-group"><label>Payment Date *</label><input name="paidOn" type="date" value="${today()}" max="${today()}" required></div>
-                    <div class="form-group"><label>Term</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
+                    <div class="form-group"><label>Semester</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
                     <div class="form-group"><label>Note</label><input name="note" maxlength="300" placeholder="Optional"></div>
                 </div>
                 <div class="action-bar"><button type="submit" class="btn-submit" id="finPaySave">Post Payment</button></div>
@@ -256,7 +265,7 @@
 
     function statementHtml() {
         const st = state.statement;
-        const charges = st.charges.length ? `<div class="table-wrap"><table class="data-table fin-table"><thead><tr><th>Date</th><th>Term</th><th>Description</th><th class="fin-num">Amount</th><th></th></tr></thead>
+        const charges = st.charges.length ? `<div class="table-wrap"><table class="data-table fin-table"><thead><tr><th>Date</th><th>Semester</th><th>Description</th><th class="fin-num">Amount</th><th></th></tr></thead>
             <tbody>${st.charges.map(c => `<tr class="${c.voided ? 'fin-void' : ''}"><td>${esc(date(c.createdAt))}</td><td>${esc(c.term)}</td><td>${esc(c.description)}${c.amount < 0 ? ' <small>(waiver)</small>' : ''}</td>
                 <td class="fin-num">${kes(c.amount)}</td><td class="fin-row-actions">${c.voided ? `<small title="${esc(c.voidReason)}">Reversed</small>` :
                     (mayVoid() ? `<button type="button" class="btn-small btn-delete" data-act="void-charge" data-id="${esc(c.id)}">Reverse</button>` : '')}</td></tr>`).join('')}</tbody></table></div>`
@@ -274,7 +283,7 @@
             ${mayAdd() ? `<div class="report-subtitle">Add a Charge${mayEdit() ? ' or Waiver' : ''}</div>
             <form data-form="charge" class="fin-form"><div class="grid-3">
                 <div class="form-group"><label>Description *</label><input name="description" required maxlength="200" placeholder="e.g. Uniform, Exam fee"></div>
-                <div class="form-group"><label>Term</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
+                <div class="form-group"><label>Semester</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
                 <div class="form-group"><label>Amount (KES) *</label><input name="amount" type="number" min="0.01" step="0.01" required></div>
                 ${mayEdit() ? `<div class="form-group"><label>Type</label><select name="kind"><option value="charge">Charge (student owes more)</option><option value="waiver">Waiver / bursary (student owes less)</option></select></div>` : ''}
             </div><div class="action-bar"><button type="submit" class="btn-submit">Add</button></div></form>` : ''}`;
@@ -304,14 +313,14 @@
         const others = [...new Set(items.map(f => f.term))].filter(t => t !== state.term);
         return {
             html: `<div class="section-title">FEE STRUCTURE</div>
-            ${!state.terms.length ? '<p class="fin-note fin-bad">No Academic Terms are set up yet. Add them under Settings > Organisation Setup > Academic Terms first, then come back here.</p>'
-                : `<div class="fin-filter"><div class="form-group"><label>Term</label><select id="finTerm" data-act="pick-term">${termOptions(state.term)}</select></div></div>`}
+            ${!state.terms.length ? '<p class="fin-note fin-bad">No semesters yet. Add the courses in Settings > Program Setup > Courses and their periods in Academic Management > Semester Schedule first, then come back here.</p>'
+                : `<div class="fin-filter"><div class="form-group"><label>Semester</label><select id="finTerm" data-act="pick-term">${termOptions(state.term)}</select></div></div>`}
             ${byCourse.size ? [...byCourse].map(([course, list]) => `<div class="report-subtitle">${esc(course)} - ${kes(list.reduce((s, f) => s + f.amount, 0))} per student</div>
                 <div class="table-wrap"><table class="data-table fin-table"><thead><tr><th>Fee item</th><th class="fin-num">Amount</th><th></th></tr></thead><tbody>
                 ${list.map(f => `<tr><td>${esc(f.item)}</td><td class="fin-num">${kes(f.amount)}</td><td class="fin-row-actions">${mayEdit() ?
                     `<button type="button" class="btn-small" data-act="edit-fee" data-id="${esc(f.id)}" data-item="${esc(f.item)}" data-amount="${f.amount}">Edit</button>
                      <button type="button" class="btn-small btn-delete" data-act="delete-fee" data-id="${esc(f.id)}" data-item="${esc(f.item)}">Remove</button>` : ''}</td></tr>`).join('')}
-                </tbody></table></div>`).join('') : `<p class="fin-note">No fee items for ${esc(state.term || 'this term')} yet.</p>`}
+                </tbody></table></div>`).join('') : `<p class="fin-note">No fee items for ${esc(state.term || 'this semester')} yet.</p>`}
             ${mayEdit() && state.term ? `<div class="report-subtitle">Add a Fee Item to ${esc(state.term)}</div>
             <form data-form="fee" class="fin-form"><div class="grid-3">
                 <div class="form-group"><label>Course *</label><select name="course" required>${courseOptions('', '- choose -')}</select></div>
@@ -431,7 +440,7 @@
                 <tr><th>Received from</th><td colspan="3">${esc(payment.studentName)} (${esc(payment.admNo)})</td></tr>
                 <tr><th>Amount</th><td colspan="3"><b>${kes(payment.amount)}</b></td></tr>
                 <tr><th>Paid by</th><td>${esc(METHOD_NAME[payment.method] || payment.method)}</td><th>Reference</th><td>${esc(payment.reference) || '-'}</td></tr>
-                ${payment.term ? `<tr><th>Term</th><td colspan="3">${esc(payment.term)}</td></tr>` : ''}
+                ${payment.term ? `<tr><th>Semester</th><td colspan="3">${esc(payment.term)}</td></tr>` : ''}
                 ${payment.note ? `<tr><th>Note</th><td colspan="3">${esc(payment.note)}</td></tr>` : ''}
                 ${balance === null ? '' : `<tr><th>Fee balance now</th><td colspan="3">${balance > 0 ? kes(balance) + ' due' : balance < 0 ? kes(-balance) + ' paid in advance' : 'Fully paid'}</td></tr>`}
                 <tr><th>Received by</th><td colspan="3">${esc(payment.createdBy)}</td></tr>

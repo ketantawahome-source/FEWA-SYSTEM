@@ -147,7 +147,7 @@ async function recordPayment(session, body) {
     const paidOn = String(body.paidOn || today());
     if (!isDate(paidOn)) throw problem('The payment date is not valid.');
     if (paidOn > today()) throw problem('The payment date cannot be in the future.');
-    const term = text(body.term, 'The term', { max: 100 });
+    const term = text(body.term, 'The semester', { max: 100 });
     const note = text(body.note, 'The note', { max: 300 });
     const student = await studentOf(db, body.studentId);
 
@@ -213,7 +213,7 @@ async function addCharge(session, body) {
     if (amount < 0) await need(session, 'finance.edit');
     const student = await studentOf(getPool(), body.studentId);
     const description = text(body.description, 'The description', { required: true });
-    const term = text(body.term, 'The term', { max: 100 });
+    const term = text(body.term, 'The semester', { max: 100 });
     const { rows } = await getPool().query(`INSERT INTO ${T('charges')} (id, student_id, adm_no, term, description, amount, source, created_by)
         VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7) RETURNING id`,
         [newId('chg'), student.id, student.adm_no, term || null, description, amount, session.account.username]);
@@ -228,7 +228,7 @@ async function feeItemFields(body) {
 
 async function addFeeItem(session, body) {
     const course = text(body.course, 'The course', { required: true, max: 200 });
-    const term = text(body.term, 'The term', { required: true, max: 100 });
+    const term = text(body.term, 'The semester', { required: true, max: 100 });
     const { item, amount } = await feeItemFields(body);
     try {
         await getPool().query(`INSERT INTO ${T('fee_structure')} (id, course, term, item, amount, created_by) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -240,9 +240,9 @@ async function addFeeItem(session, body) {
 }
 
 async function copyTerm(session, body) {
-    const from = text(body.fromTerm, 'The term to copy from', { required: true, max: 100 });
-    const to = text(body.toTerm, 'The term to copy to', { required: true, max: 100 });
-    if (from.toLowerCase() === to.toLowerCase()) throw problem('Choose two different terms.');
+    const from = text(body.fromTerm, 'The semester to copy from', { required: true, max: 100 });
+    const to = text(body.toTerm, 'The semester to copy to', { required: true, max: 100 });
+    if (from.toLowerCase() === to.toLowerCase()) throw problem('Choose two different semesters.');
     const { rowCount } = await getPool().query(`INSERT INTO ${T('fee_structure')} (id, course, term, item, amount, created_by)
         SELECT 'fee-' || gen_random_uuid()::text, course, $2, item, amount, $3 FROM ${T('fee_structure')} WHERE lower(term) = lower($1)
         ON CONFLICT DO NOTHING`, [from, to, session.account.username]);
@@ -252,7 +252,7 @@ async function copyTerm(session, body) {
 // Charges the fee structure of a term to the active students of the courses (once each: pressing it again adds nothing).
 // preview: true only counts, and changes nothing.
 async function postFees(session, body) {
-    const term = text(body.term, 'The term', { required: true, max: 100 });
+    const term = text(body.term, 'The semester', { required: true, max: 100 });
     const course = text(body.course, 'The course', { max: 200 });
     const client = await getPool().connect();
     try {
