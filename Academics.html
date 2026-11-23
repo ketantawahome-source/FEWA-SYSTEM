@@ -10,6 +10,7 @@
     <script src="backup.js?v=20261104f"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="exams.js"></script>
     <script>
         requireLogin();
         // Academic Management > Manage Units (Role Operations: Access Manage Units, Edit Units, Register Student Units)
@@ -77,20 +78,21 @@
         .sched-fields { grid-template-columns: 170px minmax(0, 1fr) 160px minmax(0, 1fr); column-gap: 24px; }
         .sched-note { color: var(--fewa-muted); font-size: 13px; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
+        #pane-exams .settings-tabs { margin-bottom: 14px; }
         .sched-status-closed { color: #b3261e; font-weight: 600; }
         .sched-status-open { color: #2e7d32; font-weight: 600; }
         @media (max-width: 700px) { .sched-buttons, .sched-wide { grid-column: auto; } }
-        /* Compact text, as the Semester schedule screen it was copied from */
-        #pane-schedule { font-size: 13px; }
-        #pane-schedule .units-heading { font-size: 18px; margin-bottom: 10px; }
-        #pane-schedule .units-subhead { font-size: 16px; }
-        #pane-schedule .settings-banner.info-banner { font-size: 13px; padding: 12px 16px; }
-        #pane-schedule .up-filters { gap: 10px 16px; }
-        #pane-schedule .up-filters label { font-size: 13px; }
-        #pane-schedule .up-filters select, #pane-schedule .up-filters input { font-size: 13px; padding: 6px 10px; height: 34px; }
-        #pane-schedule .units-actions button { font-size: 13px; padding: 7px 12px; }
-        #pane-schedule .sched-note, #pane-schedule .up-hint, #pane-schedule .units-count { font-size: 12px; }
-        #pane-schedule .data-table { font-size: 13px; }
+        /* Compact text, as the Semester schedule screen it was copied from (and Exam Management) */
+        #pane-schedule, #pane-exams { font-size: 13px; }
+        #pane-schedule .units-heading, #pane-exams .units-heading { font-size: 18px; margin-bottom: 10px; }
+        #pane-schedule .units-subhead, #pane-exams .units-subhead { font-size: 16px; }
+        #pane-schedule .settings-banner.info-banner, #pane-exams .settings-banner.info-banner { font-size: 13px; padding: 12px 16px; }
+        #pane-schedule .up-filters, #pane-exams .up-filters { gap: 10px 16px; }
+        #pane-schedule .up-filters label, #pane-exams .up-filters label { font-size: 13px; }
+        #pane-schedule .up-filters select, #pane-schedule .up-filters input, #pane-exams .up-filters select, #pane-exams .up-filters input { font-size: 13px; padding: 6px 10px; height: 34px; }
+        #pane-schedule .units-actions button, #pane-exams .units-actions button { font-size: 13px; padding: 7px 12px; }
+        #pane-schedule .sched-note, #pane-schedule .up-hint, #pane-schedule .units-count, #pane-exams .sched-note, #pane-exams .up-hint, #pane-exams .units-count { font-size: 12px; }
+        #pane-schedule .data-table, #pane-exams .data-table { font-size: 13px; }
     </style>
 </head>
 
@@ -135,6 +137,9 @@
                     </li>
                     <li class="submenu-item" id="menuSchedule" onclick="location.href = 'Academics.html?page=schedule'">
                         <span class="icon-circle"></span> Semester Schedule
+                    </li>
+                    <li class="submenu-item" id="menuExams" onclick="location.href = 'Academics.html?page=exams'">
+                        <span class="icon-circle"></span> Exam Management
                     </li>
                 </ul>
             </li>
@@ -596,6 +601,13 @@
                     </div>
                 </div>
 
+                <!-- ===== Exam Management (its own menu item: Academics.html?page=exams; the tabs are drawn by exams.js) ===== -->
+                <div id="pane-exams" class="units-pane" hidden>
+                    <div class="units-heading">Exam Management</div>
+                    <div id="examTabs" class="settings-tabs units-tabs" role="tablist"></div>
+                    <div id="examBody"></div>
+                </div>
+
                 <div id="readOnlyNote" class="units-readonly-note" hidden></div>
             </div>
         </div>
@@ -641,8 +653,9 @@
             ['lecturer', 'Lecturer units'], ['programme', 'Course units'], ['units', 'Units register'], ['hours', 'Unit hours']
         ];
         const TAB_KEY = 'fewaUnitsTab';
-        // Academic Management has two screens on this page: Manage Units (the tabs) and Semester Schedule (?page=schedule)
-        const PAGE = new URLSearchParams(location.search).get('page') === 'schedule' ? 'schedule' : 'units';
+        // Academic Management has three screens on this page: Manage Units (the tabs), Semester Schedule (?page=schedule)
+        // and Exam Management (?page=exams, exams.js)
+        const PAGE = { schedule: 'schedule', exams: 'exams' }[new URLSearchParams(location.search).get('page')] || 'units';
         let activeTab = 'units';
 
         function drawTabs() {
@@ -693,6 +706,7 @@
             lecturers = getAccounts().filter(a => a.status !== 'Inactive')
                 .map(a => ({ username: a.username, name: accountName(a) })).sort((a, b) => a.name.localeCompare(b.name));
             units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+            if (PAGE === 'exams') await loadExams();
             fillChoices();
             render();
         }
@@ -750,7 +764,7 @@
         function applyRights() {
             document.querySelectorAll('[data-edit]').forEach(b => b.disabled = !mayEdit());
             document.querySelectorAll('[data-register]').forEach(b => b.disabled = !mayRegister());
-            const missing = [!mayEdit() && 'Edit Units', PAGE !== 'schedule' && !mayRegister() && 'Register Student Units'].filter(Boolean);
+            const missing = [!mayEdit() && 'Edit Units', PAGE === 'units' && !mayRegister() && 'Register Student Units'].filter(Boolean);
             $('readOnlyNote').hidden = !missing.length;
             $('readOnlyNote').textContent = missing.length ? `Your role can view these screens but does not have: ${missing.join(', ')}. ` +
                 'An administrator can assign them in Settings > Access Management > Role Operations.' : '';
@@ -759,6 +773,7 @@
         function render() {
             applyRights();
             if (PAGE === 'schedule') return renderSchedule();
+            if (PAGE === 'exams') return renderExams();
             ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers, programme: renderProgrammeMapping, hours: renderUnitHours,
                 register: showRegistration, upload: renderRegisteredOnUnit })[activeTab]();
         }
@@ -2145,6 +2160,7 @@
         /* ---------- Start ---------- */
         function searchFromTopbar(value) {
             if (PAGE === 'schedule') { scheduleFind = value; return renderSchedule(); }
+            if (PAGE === 'exams') { examFind = value; return renderExamList(); }
             if (activeTab !== 'units') showTab('units');
             $('unitFind').value = value;
             renderUnits();
@@ -2201,6 +2217,7 @@
         $('schBatch').addEventListener('change', renderSchedule);
         $('schCourse').addEventListener('change', () => { fillSchedulePeriods(); renderSchedule(); });
         if (PAGE === 'schedule') showSchedulePage();
+        else if (PAGE === 'exams') showExamsPage();
         else {
             $('menuUnits').classList.add('active');
             try { activeTab = localStorage.getItem(TAB_KEY) || 'units'; } catch { }

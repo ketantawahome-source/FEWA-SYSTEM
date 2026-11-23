@@ -138,3 +138,110 @@ CREATE TABLE IF NOT EXISTS academics.period_schedules (
 );
 CREATE INDEX IF NOT EXISTS period_schedules_batch ON academics.period_schedules (batch, course);
 ALTER TABLE academics.period_schedules ENABLE ROW LEVEL SECURITY;
+
+
+-- =====================================================================================================
+-- Exam Management (Academic Management > Exam Management, Academics.html?page=exams, code in exams.js)
+-- Course = Settings > Program Setup > Courses; Batch = Student Groups; Period = SEMESTER 1, 2... (Semester Schedule)
+-- =====================================================================================================
+
+-- ---------- Exam groups: the kinds of assessment, e.g. Continuous Assessment (CAT), End of Semester Exam ----------
+CREATE TABLE IF NOT EXISTS academics.exam_groups (
+    id           text PRIMARY KEY,
+    name         text,                    -- e.g. Continuous Assessment
+    code         text,                    -- e.g. CAT
+    description  text,
+    status       text,                    -- ACTIVE or INACTIVE
+    updated_at   timestamptz,
+    updated_by   text,
+    extra        jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ---------- Exam types: the exams of a course's batch in a period, with their weight and marks out of ----------
+CREATE TABLE IF NOT EXISTS academics.exam_types (
+    id           text PRIMARY KEY,
+    course       text,                    -- "Apply to": empty = every course
+    batch        text,                    -- empty = every batch
+    exam_group   text,                    -- academics.exam_groups.name
+    period       text,                    -- e.g. SEMESTER 1
+    description  text,                    -- e.g. CAT 1
+    exam_status  text,                    -- OPEN or CLOSED (closed: no more marks are entered)
+    weight       numeric,                 -- out of 100
+    out_of       numeric,                 -- the marks the exam is out of
+    updated_at   timestamptz,
+    updated_by   text,
+    extra        jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS exam_types_batch ON academics.exam_types (batch, period);
+
+-- ---------- Grading system: the grade of a mark, e.g. 70-100 = A (Distinction), in a named grading ----------
+CREATE TABLE IF NOT EXISTS academics.grading_systems (
+    id            text PRIMARY KEY,
+    grading_name  text,                   -- e.g. Diploma grading
+    grade         text,                   -- e.g. A
+    min_mark      numeric,
+    max_mark      numeric,
+    points        numeric,
+    remark        text,                   -- e.g. Distinction
+    updated_at    timestamptz,
+    updated_by    text,
+    extra         jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ---------- Group exam types: the exams that make up an exam group, e.g. CAT 1, CAT 2, Assignment ----------
+CREATE TABLE IF NOT EXISTS academics.group_exam_types (
+    id           text PRIMARY KEY,
+    exam_group   text,                    -- academics.exam_groups.name
+    name         text,                    -- e.g. CAT 1
+    code         text,
+    out_of       numeric,
+    weight       numeric,                 -- its share of the group, out of 100
+    updated_at   timestamptz,
+    updated_by   text,
+    extra        jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ---------- Awards setup: the classification of a final average per award, e.g. Diploma 70-100 = Distinction ----------
+CREATE TABLE IF NOT EXISTS academics.award_setups (
+    id              text PRIMARY KEY,
+    award           text,                 -- Settings > Program Setup > Award Types
+    classification  text,                 -- e.g. Distinction, Credit, Pass, Fail
+    min_average     numeric,
+    max_average     numeric,
+    remark          text,
+    updated_at      timestamptz,
+    updated_by      text,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ---------- Course exam groups: the exam groups of a course and their weight in the final mark ----------
+CREATE TABLE IF NOT EXISTS academics.course_exam_groups (
+    id            text PRIMARY KEY,
+    course        text,                   -- Settings > Program Setup > Courses
+    exam_group    text,                   -- academics.exam_groups.name
+    weight        numeric,                -- out of 100
+    grading_name  text,                   -- academics.grading_systems.grading_name
+    updated_at    timestamptz,
+    updated_by    text,
+    extra         jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+-- ---------- Exam paper types: e.g. Theory, Practical, Oral, Project ----------
+CREATE TABLE IF NOT EXISTS academics.exam_paper_types (
+    id           text PRIMARY KEY,
+    name         text,
+    code         text,
+    description  text,
+    out_of       numeric,                 -- the usual marks out of
+    updated_at   timestamptz,
+    updated_by   text,
+    extra        jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+ALTER TABLE academics.exam_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.exam_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.grading_systems ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.group_exam_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.award_setups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.course_exam_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academics.exam_paper_types ENABLE ROW LEVEL SECURITY;

@@ -18,7 +18,8 @@
      settings.school_setup, finance.fee_payment_details
                          the single row of that Settings form
      settings.role_operations    the rights given to each staff role
-     academics.units, programme_units, unit_offers, unit_registrations, unit_lecturers, unit_hours, period_schedules
+     academics.units, programme_units, unit_offers, unit_registrations, unit_lecturers, unit_hours, period_schedules,
+     exam_groups, exam_types, grading_systems, group_exam_types, award_setups, course_exam_groups, exam_paper_types
                          Academic Management > Manage Units and Semester Schedule (Academics.html); one column per field, as students
      logins.sessions, logins.password_reset_codes
                          who is logged in, and emailed reset codes (hashes only) until used or expired
@@ -180,7 +181,8 @@ async function inTransaction(work) {
    The columns are read from the database itself (every 15 seconds at most), so columns added, removed or
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
 // Academic Management > Manage Units (database/8-academics.sql): record stores like deferrals
-const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours', 'period_schedules'];
+const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours', 'period_schedules',
+    'exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
 const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register'];
 const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
@@ -203,7 +205,9 @@ const SCHEMA_OF = {
     sessions: 'logins', password_reset_codes: 'logins',
     stored_files: 'files',
     units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics',
-    unit_lecturers: 'academics', unit_hours: 'academics', period_schedules: 'academics'
+    unit_lecturers: 'academics', unit_hours: 'academics', period_schedules: 'academics',
+    exam_groups: 'academics', exam_types: 'academics', grading_systems: 'academics', group_exam_types: 'academics',
+    award_setups: 'academics', course_exam_groups: 'academics', exam_paper_types: 'academics'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
 // A table's full name, e.g. T('courses') -> "settings"."courses"
