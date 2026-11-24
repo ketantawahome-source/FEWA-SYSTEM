@@ -961,10 +961,61 @@ async function resetStaffPasswordOnServer({ id } = {}) {
         [salt, hash, account.id]);
     await endOtherSessions('staff', account.id, '');
     const name = [account.firstName, account.lastName].filter(Boolean).join(' ') || account.username;
-    const emailed = await sendSystemEmail(account.username, `Hello ${name}, your FEWA staff password has been reset. ` +
-        `Sign in at ${PUBLIC_SITE} with your username ${account.username} and the temporary password ${password}. ` +
-        'You will be asked to choose your own password when you sign in.');
-    return { result: 'ok', password, username: account.username, phone: account.phone || '', emailed, site: PUBLIC_SITE };
+    const [emailed, whatsapp] = await Promise.all([
+        sendSystemEmail(account.username, `Hello ${name}, your FEWA staff password has been reset. ` +
+            `Sign in at ${PUBLIC_SITE} with your username ${account.username} and the temporary password ${password}. ` +
+            'You will be asked to choose your own password when you sign in.'),
+        sendWhatsAppTemplate(account.phone, [name, account.username, password, PUBLIC_SITE])]);
+    return { result: 'ok', password, username: account.username, phone: account.phone || '', emailed, whatsapp, site: PUBLIC_SITE };
+}
+
+/* ---------- WhatsApp: messages sent by the server itself (Meta's WhatsApp Business Cloud API) ----------
+   Set up once in Meta (business.facebook.com > WhatsApp Manager): a WhatsApp business phone number, a permanent
+   access token, and an approved message template whose body has four places, e.g.
+     "Hello {{1}}, your FEWA staff password has been reset. Username: {{2}} Temporary password: {{3}}
+      Sign in at {{4}}. You will be asked to choose your own password when you sign in."
+   The details are rows of private_settings.server_keys (Supabase only: no page, backup or office copy has them):
+     whatsapp_access_token, whatsapp_phone_number_id, whatsapp_template (its name), whatsapp_template_language (e.g. en)
+   or Render's WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_TEMPLATE / WHATSAPP_TEMPLATE_LANGUAGE.
+   Not set up: nothing is sent and the page says so (its Send on WhatsApp button still opens WhatsApp by hand). */
+const WHATSAPP_API = (process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v21.0').replace(/\/+$/, '');
+
+async function whatsappSettings() {
+    const key = async (name, env) => (await readServerKey(name).catch(() => null)) || process.env[env] || '';
+    return {
+        token: await key('whatsapp_access_token', 'WHATSAPP_ACCESS_TOKEN'),
+        phoneNumberId: await key('whatsapp_phone_number_id', 'WHATSAPP_PHONE_NUMBER_ID'),
+        template: await key('whatsapp_template', 'WHATSAPP_TEMPLATE'),
+        language: (await key('whatsapp_template_language', 'WHATSAPP_TEMPLATE_LANGUAGE')) || 'en'
+    };
+}
+
+// { sent: true } or { sent: false, reason } (never throws: a failed WhatsApp must not undo the reset)
+async function sendWhatsAppTemplate(phone, values) {
+    const settings = await whatsappSettings();
+    if (!settings.token || !settings.phoneNumberId || !settings.template) return { sent: false, reason: 'not-set-up' };
+    const to = String(phone || '').replace(/\D/g, '').replace(/^0(?=7|1)/, '254');
+    if (!/^\d{10,15}$/.test(to)) return { sent: false, reason: 'no-phone' };
+    try {
+        const response = await fetch(`${WHATSAPP_API}/${encodeURIComponent(settings.phoneNumberId)}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.token}` },
+            body: JSON.stringify({
+                messaging_product: 'whatsapp', to, type: 'template',
+                template: { name: settings.template, language: { code: settings.language },
+                    components: [{ type: 'body', parameters: values.map(text => ({ type: 'text', text: String(text) })) }] }
+            }),
+            signal: AbortSignal.timeout(20000)
+        });
+        const answer = await response.json().catch(() => ({}));
+        if (response.ok && answer.messages && answer.messages.length) return { sent: true, to: '+' + to };
+        const reason = (answer.error && (answer.error.error_user_msg || answer.error.message)) || `WhatsApp answered ${response.status}`;
+        console.log(new Date().toLocaleString(), 'WhatsApp not sent:', reason.slice(0, 200));
+        return { sent: false, reason: reason.slice(0, 200) };
+    } catch (err) {
+        console.log(new Date().toLocaleString(), 'WhatsApp not sent:', err.message);
+        return { sent: false, reason: 'WhatsApp could not be reached (' + err.message + ')' };
+    }
 }
 
 // A temporary password nobody can guess, made here (no letters or numbers that look alike, e.g. O and 0)

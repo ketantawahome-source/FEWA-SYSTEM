@@ -950,9 +950,15 @@
                 return alert(result && result.result === 'inactive' ? `${accountName(account)} is Inactive, so the password was not reset.`
                     : 'The password was NOT reset. Close this staff member and open them again, then try once more.');
             }
+            // What was sent: by email (to their username) and by WhatsApp (to their phone, when WhatsApp is set up)
+            const wa = result.whatsapp || {};
+            const whatsappNote = wa.sent ? ` It was sent on WhatsApp to ${wa.to}.`
+                : wa.reason === 'not-set-up' ? ' (Automatic WhatsApp is not set up yet: use Send on WhatsApp below.)'
+                : wa.reason === 'no-phone' ? ' The WhatsApp message could not be sent: there is no valid phone number on their record.'
+                : ` The WhatsApp message to ${account.phone} could not be sent: ${wa.reason}.`;
             document.getElementById('staffResetNote').textContent = 'Password reset. The temporary password is shown below, once, and ' +
                 (result.emailed ? `was also sent by email (${result.username}).` : `could NOT be emailed to ${result.username} (email sending is not working).`) +
-                ' They will be asked to choose a new password when they sign in.';
+                whatsappNote + ' They will be asked to choose a new password when they sign in.';
             document.getElementById('staffResetUser').textContent = result.username;
             document.getElementById('staffResetPassword').textContent = result.password;
             // WhatsApp to their phone number (+2547... -> 2547...), with the sign-in details written out
