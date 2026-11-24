@@ -104,17 +104,21 @@
         #accrSection, #accrSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #accrSection { border-top: 0; border-radius: 4px; padding: 18px 14px 24px; }
         #accreditationTab[hidden] { display: none; }
-        .accr-form { display: grid; grid-template-columns: 190px minmax(0, 1fr) 210px minmax(0, 1fr); gap: 24px 24px; align-items: center; margin: 28px 0 8px; }
-        .accr-form label { font-size: 18px; font-weight: 600; color: #333; }
+        #accrSection .staff-bio-banner { font-size: 18px; font-weight: 700; padding: 10px 12px; border-left: 5px solid #a9d3ee; border-radius: 3px; margin: 0 4px; }
+        .accr-form { display: grid; grid-template-columns: 194px minmax(0, 484px) 225px minmax(0, 484px); column-gap: 16px; row-gap: 24px;
+            align-items: center; margin: 28px 0 8px; padding: 0 12px; }
+        .accr-form label { font-size: 17px; font-weight: 700; color: #333; }
         .accr-form .req { color: #d9302c; }
-        .accr-form input, .accr-form select, .accr-form textarea { font-size: 17px; padding: 10px 22px; min-height: 51px; border: 1px solid #d2d6dc;
+        .accr-form input, .accr-form select, .accr-form textarea { font-size: 17px; padding: 10px 24px; min-height: 51px; border: 1px solid #d2d6dc;
             border-radius: 2px; color: #333; background: #fff; width: 100%; box-sizing: border-box; }
-        .accr-form textarea { min-height: 76px; resize: vertical; }
-        .accr-wide { grid-column: span 2; }
-        .accr-buttons { grid-column: span 3; display: flex; gap: 10px; }
-        .accr-buttons .staff-finder-add { min-height: 50px !important; font-size: 19px; }
+        .accr-form textarea { min-height: 76px; resize: vertical; padding: 10px 14px; }
+        .accr-wide { grid-column: 2 / span 2; width: calc(100% - 0px) !important; max-width: 660px; }
+        .accr-buttons { grid-column: 2 / span 3; display: flex; gap: 10px; }
+        .accr-buttons .staff-finder-add { min-height: 50px !important; font-size: 19px; padding: 0 18px; }
         .accr-buttons .btn-secondary { font-size: 17px; min-height: 50px; padding: 0 18px; }
-        .accr-count { color: #666; font-size: 15px; margin: 22px 0 8px; }
+        .accr-count { color: #666; font-size: 15px; margin: 22px 12px 8px; }
+        .accr-none { color: #555; font-style: italic; font-size: 17px; margin: 18px 12px 0; }
+        #accrSection .table-wrap[hidden], .accr-none[hidden], .accr-count:empty { display: none; }
         .accr-table td, .accr-table th { font-size: 15px; }
         @media (max-width: 900px) { .accr-form { grid-template-columns: minmax(0, 1fr); gap: 6px; } .accr-wide, .accr-buttons { grid-column: auto; } }
         .bio-save .staff-finder-add, .bio-save-top { min-height: 50px !important; font-size: 19px; padding: 0 18px; }
@@ -286,7 +290,6 @@
                         <label for="accrRemarks">Remarks</label>
                         <textarea id="accrRemarks" name="remarks" maxlength="500" class="accr-wide"></textarea>
 
-                        <span></span>
                         <div class="accr-buttons">
                             <button type="submit" id="accrSave" class="staff-finder-add">Save Details</button>
                             <button type="button" id="accrCancel" class="btn-secondary" hidden onclick="clearQualificationForm()">Cancel</button>
@@ -294,7 +297,8 @@
                     </form>
 
                     <div class="accr-count" id="accrCount"></div>
-                    <div class="table-wrap">
+                    <p class="accr-none" id="accrNone" hidden></p>
+                    <div class="table-wrap" id="accrTableWrap">
                         <table class="data-table accr-table">
                             <thead><tr><th>Staff Member</th><th>Qualification</th><th>School / Institution</th><th>Score</th>
                                 <th>Year</th><th>Accredited</th><th>Remarks</th><th>Actions</th></tr></thead>
@@ -1134,7 +1138,7 @@
             select.innerHTML = '<option value="">-- select one --</option>' + getAccounts()
                 .sort((a, b) => accountName(a).localeCompare(accountName(b)))
                 .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(accountName(a))}${(staffDetails[a.id] || {}).staffNumber
-                    ? ' - ' + escapeHtml(staffDetails[a.id].staffNumber) : ''}</option>`).join('');
+                    ? ' (' + escapeHtml(staffDetails[a.id].staffNumber) + ')' : ''}</option>`).join('');
             select.value = [...select.options].some(o => o.value === current) ? current : '';
         }
 
@@ -1159,15 +1163,18 @@
             const rows = qualifications.filter(q => !staffId || q.staffId === staffId)
                 .sort((a, b) => qualificationStaffName(a).localeCompare(qualificationStaffName(b)) || Number(b.yearAttained || 0) - Number(a.yearAttained || 0));
             const chosen = staffId ? (getAccounts().find(a => a.id === staffId) || {}) : null;
-            document.getElementById('accrCount').textContent = chosen
+            document.getElementById('accrCount').textContent = !rows.length ? '' : chosen
                 ? `${rows.length} qualification${rows.length === 1 ? '' : 's'} of ${accountName(chosen)}.`
                 : `${rows.length} qualification${rows.length === 1 ? '' : 's'} of all staff. Choose a staff member to see only theirs.`;
+            const none = document.getElementById('accrNone');
+            none.hidden = rows.length > 0;
+            none.textContent = staffId ? 'No qualifications recorded for this staff member.' : 'No qualifications recorded yet.';
+            document.getElementById('accrTableWrap').hidden = !rows.length;
             document.getElementById('accrRows').innerHTML = rows.map(q => `<tr>
                     <td>${escapeHtml(qualificationStaffName(q))}</td><td>${escapeHtml(q.qualification)}</td><td>${escapeHtml(q.institution)}</td>
                     <td>${escapeHtml(q.score)}</td><td>${escapeHtml(q.yearAttained)}</td><td>${escapeHtml(q.accredited)}</td><td>${escapeHtml(q.remarks)}</td>
                     <td>${iconButton('edit', 'Change this qualification', `editQualification('${q.id}')`)}${iconButton('delete', 'Remove this qualification', `deleteQualification('${q.id}')`)}</td>
-                </tr>`).join('')
-                || `<tr class="empty-row"><td colspan="8">${staffId ? 'No qualifications entered for this staff member yet.' : 'Nothing is listed here yet.'}</td></tr>`;
+                </tr>`).join(''); // (none: the grey line above says so, and the table is hidden)
         }
 
         function clearQualificationForm() {
