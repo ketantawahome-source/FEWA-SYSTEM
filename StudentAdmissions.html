@@ -417,7 +417,7 @@
                                 </label>
                                 <input type="file" id="studentImportFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden
                                     onchange="studentImportFileChosen()">
-                                <p class="stu-import-note">Excel (.xls or .xlsx), one student per row. Leave AdmNo empty to number them automatically for their course.</p>
+                                <p class="stu-import-note">Excel (.xls or .xlsx), one student per row, each with their own AdmNo.</p>
                                 <p class="stu-import-note stu-import-must">The red columns (marked *) must be filled in on every row, or the file is not uploaded.
                                     After every upload a copy of your file with a Feedback column is downloaded.</p>
                                 <div class="stu-import-buttons">
@@ -4171,7 +4171,7 @@
 
         /* ---------- Import Students: many students at once from the Excel template (excel-tools.js) ----------
            The red columns (*) are the boxes the student form requires: every row must have them, right, or NOTHING is
-           imported and each problem is listed. Empty AdmNo: the next number of the student's course. After every
+           imported and each problem is listed. AdmNo is required too (each one only once). After every
            upload a copy of the file with a Feedback column is downloaded. No welcome email is sent: Reset Password on a
            student's record gives them a Student Portal password. */
         async function studentImportColumns() {
@@ -4182,7 +4182,7 @@
                 { title: 'Last Name', field: 'lastName', required: true },
                 { title: 'Gender', field: 'gender', required: true, choices: ['FEMALE', 'MALE'] },
                 { title: 'Date of Birth', field: 'dob', required: true, kind: 'date', help: `Day/month/year, e.g. 15/04/2005 (${MIN_STUDENT_AGE} to ${MAX_STUDENT_AGE} years old)` },
-                { title: 'AdmNo', field: 'admNo', help: 'Leave empty to number the student automatically for their course; each AdmNo only once' },
+                { title: 'AdmNo', field: 'admNo', required: true, help: 'The admission / registration number, e.g. HD01/001/2026 (each AdmNo only once)' },
                 { title: 'Student Email', field: 'email', required: true, kind: 'email' },
                 { title: 'ID/Birth Certificate No.', field: 'idBirthCert', required: true },
                 { title: 'Phone Number', field: 'phone', required: true, kind: 'phone', help: 'A Kenyan mobile number, e.g. 0712345678' },
@@ -4261,13 +4261,13 @@
                 return sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: the upload was cancelled' })));
             }
 
-            // One by one, so each empty AdmNo gets the next number of its course
+            // One by one (each AdmNo also moves its course's registration number sequence on)
             const results = [];
             let added = 0;
             for (const p of people) {
                 try {
                     const v = { ...p.values };
-                    v.admNo = String(v.admNo || '').trim() || await nextAdmissionNumber(v.admissionCourse);
+                    v.admNo = String(v.admNo).trim();
                     const now = new Date().toISOString();
                     const student = { ...v, id: newId(), activeStudent: 'yes', photo: null, createdAt: now, updatedAt: now, statusRecordedAt: now };
                     await putOne('students', withStatusHistory(student, {}));

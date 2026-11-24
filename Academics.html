@@ -79,7 +79,13 @@
         .up-hint { font-style: italic; color: var(--fewa-muted); margin: 6px 0 0; font-size: 15px; }
         .up-hint[hidden] { display: none; }
         .up-submit .btn-submit { margin: 0; }
-        @media (max-width: 700px) { .up-filters { grid-template-columns: 1fr; } .up-template { flex-wrap: wrap; } }
+        @media (max-width: 700px) {
+            .up-filters { grid-template-columns: 1fr; }
+            /* Phone: the template's text beside the Excel icon, its buttons on a line of their own */
+            .up-template { flex-wrap: wrap; }
+            .up-template-text { flex: 1 1 calc(100% - 60px); min-width: 0; }
+            .up-template-buttons { flex: 1 1 100%; }
+        }
         .units-readonly-note { color: var(--fewa-muted); font-size: 14px; margin-top: 8px; }
         /* Semester schedule */
         .sched-fields { grid-template-columns: 170px minmax(0, 1fr) 160px minmax(0, 1fr); column-gap: 24px; }
@@ -1022,23 +1028,16 @@
         // ----- Upload units on offer (Excel) -----
         const OFFER_HEADERS = ['Course', 'Batch', 'Period', 'Group category', 'Unit code', 'Lecturer staff number'];
 
-        async function downloadOfferTemplate() {
-            let XLSX;
-            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
-            const book = XLSX.utils.book_new();
-            const sheet = XLSX.utils.aoa_to_sheet([OFFER_HEADERS]);
-            sheet['!cols'] = OFFER_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
-            XLSX.utils.book_append_sheet(book, sheet, 'Units on offer');
-            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-                ['Column', 'What to type'],
-                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
-                ['Batch', 'The batch, as in Settings > Organisation Setup > Batches'],
-                ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
-                ['Group category', 'The study session, e.g. Full Time; blank = all group categories'],
-                ['Unit code', 'The unit code, as in Manage Units > Units register'],
-                ['Lecturer staff number', "The lecturer's staff code (the Staff codes button lists them); blank = not yet known"]
-            ]), 'How to fill it in');
-            XLSX.writeFile(book, 'units-on-offer-template.xlsx');
+        // The templates (excel-tools.js): required columns red with *, drop-down lists from Settings and the registers
+        function downloadOfferTemplate() {
+            FewaExcel.template('units-on-offer-template.xlsx', [
+                { title: 'Course', field: 'course', required: true, choices: courseItems.map(c => c.name), help: 'The course, as in Settings > Program Setup > Courses' },
+                { title: 'Batch', field: 'batch', required: true, choices: groups, help: 'The batch, as in Settings > Organisation Setup > Batches' },
+                { title: 'Period', field: 'period', required: true, choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1' },
+                { title: 'Group category', field: 'category', choices: categories, help: 'The study session, e.g. Full Time; blank = all group categories' },
+                { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
+                { title: 'Lecturer staff number', field: 'lecturer', choices: lecturers.map(l => l.username), open: true, help: "The lecturer's staff code (the Staff codes button lists them); blank = not yet known" }
+            ], 'Units on offer').catch(err => alert(err.message));
         }
 
         function chosenOfferFile() {
@@ -1116,6 +1115,14 @@
             show();
             const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: 'Put on offer' }
                 : { ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ') : l.already ? 'already on offer' : 'the upload was cancelled or stopped') });
+            const badLines = lines.filter(l => l.problems.length);
+            const feedbackRefused = () => uploadFeedback(file, rows, lines, l => ({ ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ')
+                : 'this row is fine, but the file has rows to correct (nothing was saved)') }));
+            if (badLines.length) {
+                feedbackRefused();
+                return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
+                    'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
+            }
             if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
             if (!confirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return feedback();
             try {
@@ -1384,24 +1391,16 @@
         // ----- Upload units and programme mapping (Excel) -----
         const MAPPING_HEADERS = ['Programme', 'Year of study', 'Semester number', 'Unit code', 'Unit title', 'Credit hours'];
 
-        async function downloadMappingTemplate() {
-            let XLSX;
-            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
-            const book = XLSX.utils.book_new();
-            const sheet = XLSX.utils.aoa_to_sheet([MAPPING_HEADERS]);
-            sheet['!cols'] = MAPPING_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
-            XLSX.utils.book_append_sheet(book, sheet, 'Course units');
-            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-                ['Column', 'What to type'],
-                ['Programme', 'The course, exactly as in Settings > Program Setup > Courses (blank = the Course chosen on the page)'],
-                ['Year of study', 'A number: 1, 2, 3...'],
-                ['Semester number', 'A number: 1, 2 or 3'],
-                ['Unit code', 'The unit code, e.g. HBT 101'],
-                ['Unit title', 'Needed only for a unit code not yet on the Units register (it is then created there)'],
-                ['Credit hours', 'For a new unit; may be left blank'],
-                ['', 'Each unit is mapped for the Batch chosen on the page (none chosen = all batches), with the Cluster group chosen there (none = Core).']
-            ]), 'How to fill it in');
-            XLSX.writeFile(book, 'programme-units-template.xlsx');
+        function downloadMappingTemplate() {
+            FewaExcel.template('course-units-template.xlsx', [
+                { title: 'Programme', field: 'course', choices: courseItems.map(c => c.name), help: 'The course, as in Settings > Program Setup > Courses (blank = the Course chosen on the page)' },
+                { title: 'Year of study', field: 'year', required: true, choices: ['1', '2', '3', '4', '5', '6', '7', '8'], help: 'A number: 1, 2, 3...' },
+                { title: 'Semester number', field: 'semester', required: true, choices: ['1', '2', '3'], help: 'A number: 1, 2 or 3' },
+                { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, e.g. HBT 101' },
+                { title: 'Unit title', field: 'title', help: 'Needed only for a unit code not yet on the Units register (it is then created there)' },
+                { title: 'Credit hours', field: 'hours', help: 'For a new unit; may be left blank' },
+                { title: 'Cluster group', field: 'cluster', choices: CLUSTER_GROUPS, help: 'Core or Elective (blank = the Cluster group chosen on the page, else Core). Each unit is mapped for the Batch chosen on the page (none = all batches).' }
+            ], 'Course units').catch(err => alert(err.message));
         }
 
         function chosenMappingFile() {
@@ -1479,6 +1478,14 @@
             show();
             const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: l.unit ? 'Added to the course' : 'Added to the course (new unit)' }
                 : { ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ') : l.already ? 'already on the course' : 'the upload was cancelled or stopped') });
+            const badLines = lines.filter(l => l.problems.length);
+            const feedbackRefused = () => uploadFeedback(file, rows, lines, l => ({ ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ')
+                : 'this row is fine, but the file has rows to correct (nothing was saved)') }));
+            if (badLines.length) {
+                feedbackRefused();
+                return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
+                    'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
+            }
             if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
             const newUnits = [...new Set(good.filter(l => !l.unit).map(l => l.code))];
             if (!confirm(`Add ${good.length} unit${good.length === 1 ? '' : 's'} to the courses` +
@@ -1619,24 +1626,16 @@
         // ----- Upload unit hours (Excel) -----
         const HOURS_HEADERS = ['Course', 'Certificate', 'Year', 'Unit title', 'Unit code', 'Theory hours', 'Practical hours'];
 
-        async function downloadHoursTemplate() {
-            let XLSX;
-            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
-            const book = XLSX.utils.book_new();
-            const sheet = XLSX.utils.aoa_to_sheet([HOURS_HEADERS]);
-            sheet['!cols'] = HOURS_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
-            XLSX.utils.book_append_sheet(book, sheet, 'Unit hours');
-            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-                ['Column', 'What to type'],
-                ['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
-                ['Certificate', 'For example Diploma; may be left blank'],
-                ['Year', 'The year of study, a number (1, 2, 3...); may be left blank'],
-                ['Unit title', 'For your reading only; the unit code decides the unit'],
-                ['Unit code', 'The unit code, as in Manage Units > Units register'],
-                ['Theory hours', 'A number; 0 for none'],
-                ['Practical hours', 'A number; 0 for none']
-            ]), 'How to fill it in');
-            XLSX.writeFile(book, 'unit-hours-template.xlsx');
+        function downloadHoursTemplate() {
+            FewaExcel.template('unit-hours-template.xlsx', [
+                { title: 'Course', field: 'course', required: true, choices: courseItems.map(c => c.name), help: 'The course, as in Settings > Program Setup > Courses' },
+                { title: 'Certificate', field: 'certificate', help: 'For example Diploma; may be left blank' },
+                { title: 'Year', field: 'year', choices: ['1', '2', '3', '4', '5', '6', '7', '8'], help: 'The year of study, a number (1, 2, 3...); may be left blank' },
+                { title: 'Unit title', field: 'title', help: 'For your reading only; the unit code decides the unit' },
+                { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
+                { title: 'Theory hours', field: 'theory', required: true, help: 'A number; 0 for none' },
+                { title: 'Practical hours', field: 'practical', required: true, help: 'A number; 0 for none' }
+            ], 'Unit hours').catch(err => alert(err.message));
         }
 
         function chosenHoursFile() {
@@ -1708,6 +1707,14 @@
             show();
             const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: l.existing ? 'Hours changed' : 'Hours added' }
                 : { ok: false, text: 'NOT saved: ' + (l.problems.length ? l.problems.join('; ') : 'the upload was cancelled or stopped') });
+            const badLines = lines.filter(l => l.problems.length);
+            const feedbackRefused = () => uploadFeedback(file, rows, lines, l => ({ ok: false, text: 'NOT saved: ' + (l.problems.length ? l.problems.join('; ')
+                : 'this row is fine, but the file has rows to correct (nothing was saved)') }));
+            if (badLines.length) {
+                feedbackRefused();
+                return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
+                    'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
+            }
             if (!good.length) { feedback(); return alert('Nothing to save: see the Result column.'); }
             if (!confirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return feedback();
             try {
@@ -1931,23 +1938,15 @@
         }
 
         // An empty template: the column headings, and a second sheet explaining them (no college data)
-        async function downloadTemplate() {
-            let XLSX;
-            try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
-            const book = XLSX.utils.book_new();
-            const sheet = XLSX.utils.aoa_to_sheet([UPLOAD_HEADERS]);
-            sheet['!cols'] = UPLOAD_HEADERS.map(h => ({ wch: Math.max(16, h.length + 4) }));
-            XLSX.utils.book_append_sheet(book, sheet, 'Student units');
-            XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-                ['Column', 'What to type'],
-                ['Batch', "The student's batch, as in Settings > Organisation Setup > Batches (may be left blank)"],
-                ['Period', 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1'],
-                ['Unit code', 'The unit code, as in Manage Units > Units register'],
-                ['Registration number', "The student's AdmNo, with the same capital and small letters"],
-                ['Exam reason', 'Blank = First attempt; or ' + EXAM_REASONS.slice(1).join(', ')],
-                ['Lecturer staff code', "The lecturer's staff code (Manage Units > Student units upload > Staff codes); may be left blank"]
-            ]), 'How to fill it in');
-            XLSX.writeFile(book, 'student-units-template.xlsx');
+        function downloadTemplate() {
+            FewaExcel.template('student-units-template.xlsx', [
+                { title: 'Batch', field: 'batch', choices: groups, help: "The student's batch, as in Settings > Organisation Setup > Batches (may be left blank)" },
+                { title: 'Period', field: 'period', required: true, choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1' },
+                { title: 'Unit code', field: 'unit', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
+                { title: 'Registration number', field: 'admNo', required: true, help: "The student's AdmNo, with the same capital and small letters" },
+                { title: 'Exam reason', field: 'reason', choices: EXAM_REASONS, help: 'Blank = First attempt; or ' + EXAM_REASONS.slice(1).join(', ') },
+                { title: 'Lecturer staff code', field: 'lecturer', choices: lecturers.map(l => l.username), open: true, help: "The lecturer's staff code (Staff codes button); may be left blank" }
+            ], 'Student units').catch(err => alert(err.message));
         }
 
         function chosenFile() {
@@ -2028,8 +2027,16 @@
             showLines();
             const feedback = () => uploadFeedback(file, rows, lines, l => l.result === 'done' ? { ok: true, text: 'Registered' }
                 : { ok: false, text: 'NOT registered: ' + (l.result === 'ok' ? 'the upload was cancelled or stopped' : l.note) });
+            const badLines = lines.filter(l => l.result === 'bad');
+            const feedbackRefused = () => uploadFeedback(file, rows, lines, l => ({ ok: false, text: 'NOT registered: ' + (l.result === 'bad' ? l.note
+                : l.result === 'skip' ? l.note : 'this row is fine, but the file has rows to correct (nothing was saved)') }));
+            if (badLines.length) {
+                feedbackRefused();
+                return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
+                    'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
+            }
             if (!counts.ok) { feedback(); return alert('No row can be registered. The table shows why for each row.'); }
-            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?` + (counts.bad ? `\n\n${counts.bad} row${counts.bad === 1 ? ' has a' : 's have'} a problem and will be left out.` : ''))) return feedback();
+            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?`)) return feedback();
 
             let done = 0;
             try {

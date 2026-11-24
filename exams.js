@@ -151,6 +151,11 @@ const EXAM_TABS = [
             title: 'Upload group exam types from Excel', file: 'group-exam-types-template.xlsx', sheet: 'Group exam types',
             note: 'One row per exam type of a group; fill it in and upload it here.', button: 'Upload group exam types',
             headers: ['Course', 'Class', 'Batch', 'Period', 'Group', 'Exam type', 'Exam weight', 'Include on main exam', 'Unit name'],
+            // Red (*) in the template: a row without them is refused; drop-down lists from Settings and Exam groups
+            required: ['Course', 'Period', 'Group', 'Exam type'],
+            choices: () => ({ Course: courseItems.map(c => c.name), Batch: groups, Period: terms, Group: activeGroups(),
+                'Include on main exam': ['Y', 'N'], Class: ['YEAR 1', 'YEAR 2', 'YEAR 3', 'YEAR 4', 'YEAR 5', 'YEAR 6'] }),
+            open: ['Class'],
             help: [['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
                 ['Class', 'The year of study: 1, 2, 3 or YEAR 1 (may be left blank)'],
                 ['Batch', 'The batch, as in Settings > Organisation Setup > Batches (may be left blank)'],
@@ -498,16 +503,12 @@ function chosenExamFile() {
     $('examDrop').classList.toggle('has-file', !!f);
 }
 
-async function downloadExamTemplate() {
+function downloadExamTemplate() {
     const up = examTab().upload;
-    let XLSX;
-    try { XLSX = await loadXlsx(); } catch (err) { return alert(err.message); }
-    const book = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([up.headers]);
-    sheet['!cols'] = up.headers.map(h => ({ wch: Math.max(16, h.length + 4) }));
-    XLSX.utils.book_append_sheet(book, sheet, up.sheet);
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Column', 'What to type'], ...up.help]), 'How to fill it in');
-    XLSX.writeFile(book, up.file);
+    const help = Object.fromEntries(up.help);
+    const choices = up.choices ? up.choices() : {};
+    FewaExcel.template(up.file, up.headers.map(h => ({ title: h, field: h, required: (up.required || []).includes(h), help: help[h],
+        choices: choices[h], open: (up.open || []).includes(h) })), up.sheet).catch(err => alert(err.message));
 }
 
 async function uploadExamRows() {
@@ -544,6 +545,7 @@ async function uploadExamRows() {
         l.note = existing ? 'Replaces the one in the list' : 'OK';
     }
     const good = lines.filter(l => l.record);
+    const badLines = lines.filter(l => !l.record && l.note !== 'The same as a row above');
     const showLines = () => {
         $('examUploadResult').hidden = false;
         $('examUploadSummary').textContent = `${lines.length} row${lines.length === 1 ? '' : 's'}: ${good.length} can be saved, ${lines.length - good.length} cannot.`;
@@ -555,8 +557,14 @@ async function uploadExamRows() {
     const feedback = () => window.FewaExcel && FewaExcel.feedback(f.name, rows[0] || [], lines.map(l => l.r), lines.map(l => l.done
         ? { ok: true, text: l.existing ? 'Saved (replaced the one in the list)' : 'Saved' }
         : { ok: false, text: 'NOT saved: ' + (l.record ? 'the upload was cancelled or stopped' : l.note) }));
+    if (badLines.length) {
+        if (window.FewaExcel) FewaExcel.feedback(f.name, rows[0] || [], lines.map(l => l.r), lines.map(l => ({ ok: false,
+            text: 'NOT saved: ' + (l.record ? 'this row is fine, but the file has rows to correct (nothing was saved)' : l.note) })));
+        return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
+            'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
+    }
     if (!good.length) { feedback(); return alert('No row can be saved. The table shows why for each row.'); }
-    if (!confirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}${lines.length > good.length ? ` (${lines.length - good.length} cannot be saved and are left out)` : ''}?`)) return feedback();
+    if (!confirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}?`)) return feedback();
     try {
         for (const l of good) {
             await fewaDB.put(t.store, { ...(l.existing || {}), ...l.record, id: (l.existing || {}).id || newId(),

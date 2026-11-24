@@ -1176,7 +1176,7 @@
             { title: 'Position', field: 'staffRank', required: true, choices: STAFF_CHOICES.staffRank, open: true, help: 'Their staff rank, e.g. Trainer (pick from the list or type another)' },
             { title: 'System Role', field: 'jobTitle', required: true, choices: staffRoles, help: 'As in Settings > Access Management > Roles (pick from the list)' },
             { title: 'Date of Employment', field: 'dateEmployed', required: true, kind: 'date', help: 'Day/month/year, e.g. 01/09/2026' },
-            { title: 'Staff Number', field: 'staffNumber' },
+            { title: 'Staff Number', field: 'staffNumber', required: true, help: 'The payroll / staff number (each one only once)' },
             { title: 'ID Number', field: 'idNumber', help: 'National ID number' },
             { title: 'KRA PIN', field: 'pinNumber' },
             { title: 'NSSF Number', field: 'nssfNumber' },
@@ -1217,10 +1217,15 @@
                 `${missingColumns.length === 1 ? '' : 's'}: download the template again and fill in every red column.`, true);
             if (!people.length) return showImportResult('<b>Nothing was imported.</b> The file has no staff rows under the headings.', true);
 
-            // Emails already used (by a staff member, or higher up in the file)
+            // Emails and staff numbers already used (by a staff member, or higher up in the file)
             const used = new Set(getAccounts().map(a => a.username.trim().toLowerCase()));
+            const numberKey = text => String(text || '').replace(/\s+/g, '').toLowerCase();
+            const numbers = new Set(Object.values(staffDetails).map(d => numberKey(d.staffNumber)).filter(Boolean));
             for (const p of people) {
                 const v = p.values;
+                const number = numberKey(v.staffNumber);
+                if (number && numbers.has(number)) p.problems.push(`Staff Number ${v.staffNumber} is already used`);
+                if (number) numbers.add(number);
                 if (v.dateOfBirth && v.dateOfBirth > new Date().toISOString().slice(0, 10)) p.problems.push('Date of Birth is in the future');
                 if (v.username && used.has(v.username)) p.problems.push(`Email ${v.username} is already used`);
                 if (v.username) used.add(v.username);
