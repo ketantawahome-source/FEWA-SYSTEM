@@ -54,7 +54,8 @@
         /* The staff member's bio data, laid out as the reference screen: two columns of sections */
         #staffFormSection, #staffFormSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #staffFormSection { border-top: 0; border-radius: 4px; }
-        #staffFormTitle { font-size: 22px !important; font-weight: 600; color: #222 !important; letter-spacing: 0; }
+        .staff-heading { display: flex; align-items: center; gap: 10px; font-size: 20px; color: #2f6f8f; }
+        .staff-heading svg { width: 20px; height: 20px; color: #2f6f8f; flex-shrink: 0; }
         #staffFormSection .list-toolbar-actions .btn-secondary { font-size: 17px; min-height: 50px; padding: 0 18px; }
         #staffPasswordState { font-size: 15px; }
         /* Reset Password: the green note and the temporary password box (as the reference screen) */
@@ -93,8 +94,8 @@
         .bio-school-list input { width: 18px; height: 18px; margin: 0; }
         .bio-save { text-align: center; margin-top: 22px; }
         /* Biodata | Staff Accreditation tabs on the staff member's page (as the Exam Management tabs) */
-        .staff-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid #e3e6ea; margin: 16px 0 4px; }
-        .staff-tab { padding: 11px 22px 10px; margin: 0 0 -1px; font-size: 18px; font-weight: 400; color: #333; background: transparent;
+        .staff-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid #e3e6ea; margin: 18px 0 4px; padding-left: 2px; }
+        .staff-tab { padding: 14px 26px 12px; margin: 0 0 -1px; font-size: 19px; font-weight: 400; color: #333; background: transparent;
             border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0; cursor: pointer; }
         .staff-tab:hover { color: #3c8dbc; }
         .staff-tab.active { color: #222; background: #edf4fb; border-color: #e3e6ea; border-top-color: #3c8dbc; border-bottom-color: #edf4fb; }
@@ -331,8 +332,10 @@
 
                 <div class="form-section" id="staffFormSection" hidden>
                     <div class="list-toolbar">
-                        <div id="staffFormTitle" class="section-title" style="margin: 0; border: none; padding: 0;">Add
-                            Staff Member</div>
+                        <!-- "Adding a new staff member" / "Editing <name>", as the reference screen -->
+                        <div class="staff-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="4.5" fill="currentColor"/>
+                            <path d="M3.5 21c.6-4.6 4.1-7.5 8.5-7.5s7.9 2.9 8.5 7.5z" fill="currentColor"/></svg>
+                            <span id="staffFormTitle">Adding a new staff member</span></div>
                         <div class="list-toolbar-actions">
                             <!-- Shown while a member of staff is open (were on the Staff List) -->
                             <span id="staffPasswordState" class="staff-note" style="margin: 0;"></span>
@@ -823,7 +826,7 @@
             showStaffImage('staffPhoto', null);
             showStaffImage('staffSignature', null);
             showDocsOnRecord({});
-            document.getElementById('staffFormTitle').innerText = 'Add Staff Member';
+            document.getElementById('staffFormTitle').textContent = 'Adding a new staff member';
             document.getElementById('staffCancelEdit').style.display = 'none';
             document.getElementById('staffResetLink').style.display = 'none';
             document.getElementById('staffDelete').style.display = 'none';
@@ -907,7 +910,7 @@
             ticked = new Set(String(details.schoolAccess || '').split(SCHOOL_SEPARATOR).map(n => n.trim()).filter(Boolean));
             document.getElementById('staffSchoolFilter').value = '';
             renderSchoolAccess();
-            document.getElementById('staffFormTitle').innerText = 'Edit Staff Member - ' + accountName(account);
+            document.getElementById('staffFormTitle').textContent = 'Editing ' + accountName(account);
             document.getElementById('staffCancelEdit').style.display = 'inline-block';
             // Their password and the buttons that were on the Staff List
             const me = currentAccount();
