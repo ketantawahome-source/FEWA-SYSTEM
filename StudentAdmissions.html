@@ -19,6 +19,7 @@
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
     <script src="countries.js"></script>
+    <script src="excel-tools.js?v=20261125a"></script>
     <script>
         requireLogin();
     </script>
@@ -42,6 +43,22 @@
         .batch-table { font-size: 13px; margin-top: 14px; }
         .batch-table .batch-actions { white-space: nowrap; text-align: right; }
         .batch-table tr.editing td { background: #fff8e1; }
+        /* Import Students (as Staff > Import) */
+        .stu-import-banner { background: #eef6fc; color: #2f6f8f; text-align: center; font-size: 15px; font-weight: 700; padding: 9px 12px;
+            border-left: 5px solid #a9d3ee; border-radius: 3px; }
+        .stu-import-box { width: 630px; max-width: 100%; margin-top: 16px; }
+        .stu-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 140px;
+            border: 2px dashed #c3c8d0; border-radius: 8px; background: #f1f6fb; cursor: pointer; color: #222; }
+        .stu-import-drop:hover { background: #e8f1f9; }
+        .stu-import-drop svg { width: 46px; height: 46px; color: #3c8dbc; }
+        .stu-import-drop span { font-size: 14px; font-weight: 700; text-decoration: underline; text-align: center; padding: 0 12px; word-break: break-word; }
+        .stu-import-note { font-size: 13px; color: #555; margin: 8px 0 0; line-height: 1.5; }
+        .stu-import-must { color: #c0392b; font-weight: 700; }
+        .stu-import-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+        .stu-import-result { margin: 18px 0 0; padding: 12px 16px; border-radius: 3px; font-size: 14px; background: #eaf6ee; border-left: 5px solid #2e8b57; color: #1e4d33; }
+        .stu-import-result.bad { background: #fdf0ef; border-left-color: #c0392b; color: #6b1f17; }
+        .stu-import-result[hidden] { display: none; }
+        .stu-import-result ul { margin: 6px 0 0 18px; padding: 0; }
         @media (max-width: 800px) { .batch-grid { grid-template-columns: 1fr; } .batch-grid > span { display: none; } }
     </style>
 </head>
@@ -206,6 +223,8 @@
                         <!-- Administrators only -->
                         <button type="button" id="tabStudentPhotos" class="settings-tab"
                             onclick="showStudentListTab('studentPhotosPane')">Upload Student Photos</button>
+                        <button type="button" id="tabStudentImport" class="settings-tab"
+                            onclick="showStudentListTab('studentImportPane')">Import Students</button>
                     </div>
 
                     <div id="manageStudentPane">
@@ -383,6 +402,35 @@
                                     <tbody id="statusTableBody"></tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Import Students: many students at once from the Excel template (red columns = the form's required boxes) -->
+                    <div id="studentImportPane" style="display: none;">
+                        <div class="form-section stu-import">
+                            <div class="stu-import-banner">Add many students at once: download the template, fill in one student per row and upload it.</div>
+                            <div class="stu-import-box">
+                                <label class="stu-import-drop" for="studentImportFile">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.48-1.6A4.75 4.75 0 0 1 17.25 19z" fill="currentColor"/>
+                                        <path d="M12 16.5v-6m0 0-2.6 2.6M12 10.5l2.6 2.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span id="studentImportChosen">Choose the filled-in template</span>
+                                </label>
+                                <input type="file" id="studentImportFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden
+                                    onchange="studentImportFileChosen()">
+                                <p class="stu-import-note">Excel (.xls or .xlsx), one student per row. Leave AdmNo empty to number them automatically for their course.</p>
+                                <p class="stu-import-note stu-import-must">The red columns (marked *) must be filled in on every row, or the file is not uploaded.
+                                    After every upload a copy of your file with a Feedback column is downloaded.</p>
+                                <div class="stu-import-buttons">
+                                    <button type="button" class="btn-secondary" onclick="downloadStudentTemplate()">Download Template</button>
+                                    <button type="button" class="btn-submit" onclick="uploadStudentList()">Upload Students</button>
+                                </div>
+                            </div>
+                            <div id="studentImportResult" class="stu-import-result" hidden></div>
+                            <div class="section-title" style="margin-top: 22px;">Students added most recently</div>
+                            <div class="table-wrap"><table class="data-table">
+                                <thead><tr><th>Student Name</th><th>AdmNo</th><th>Course</th><th>Phone Number</th></tr></thead>
+                                <tbody id="studentImportRecent"></tbody>
+                            </table></div>
                         </div>
                     </div>
 
@@ -4105,10 +4153,11 @@
         // and Upload Student Photos (administrators only)
         function showStudentListTab(paneId) {
             if (paneId === 'studentPhotosPane' && !allowed('students', 'photos')) return;
+            if (paneId === 'studentImportPane' && !allowed('students', 'add')) return;
             [['manageStudentPane', 'tabManageStudent'], ['studentApplicationsPane', 'tabStudentApplications'],
                 ['studentStatusPane', 'tabStudentStatus'],
                 ['studentContactsPane', 'tabStudentContacts'], ['studentDeferralsPane', 'tabStudentDeferrals'],
-                ['studentPhotosPane', 'tabStudentPhotos']]
+                ['studentPhotosPane', 'tabStudentPhotos'], ['studentImportPane', 'tabStudentImport']]
                 .forEach(([pane, tab]) => {
                     document.getElementById(pane).style.display = pane === paneId ? 'block' : 'none';
                     document.getElementById(tab).classList.toggle('active', pane === paneId);
@@ -4116,7 +4165,136 @@
             if (paneId === 'studentStatusPane') renderStatusList();
             if (paneId === 'studentApplicationsPane') renderApplicationsList();
             if (paneId === 'studentDeferralsPane') renderDeferralList();
+            if (paneId === 'studentImportPane') renderRecentStudents();
             if (paneId === 'studentContactsPane') fillContactsFilters().then(renderContactsList);
+        }
+
+        /* ---------- Import Students: many students at once from the Excel template (excel-tools.js) ----------
+           The red columns (*) are the boxes the student form requires: every row must have them, right, or NOTHING is
+           imported and each problem is listed. Empty AdmNo: the next number of the student's course. After every
+           upload a copy of the file with a Feedback column is downloaded. No welcome email is sent: Reset Password on a
+           student's record gives them a Student Portal password. */
+        async function studentImportColumns() {
+            const campuses = await getSettingLabels('campuses');
+            return [
+                { title: 'First Name', field: 'firstName', required: true },
+                { title: 'Second Name', field: 'middleName' },
+                { title: 'Last Name', field: 'lastName', required: true },
+                { title: 'Gender', field: 'gender', required: true, choices: ['FEMALE', 'MALE'] },
+                { title: 'Date of Birth', field: 'dob', required: true, kind: 'date', help: `Day/month/year, e.g. 15/04/2005 (${MIN_STUDENT_AGE} to ${MAX_STUDENT_AGE} years old)` },
+                { title: 'AdmNo', field: 'admNo', help: 'Leave empty to number the student automatically for their course; each AdmNo only once' },
+                { title: 'Student Email', field: 'email', required: true, kind: 'email' },
+                { title: 'ID/Birth Certificate No.', field: 'idBirthCert', required: true },
+                { title: 'Phone Number', field: 'phone', required: true, kind: 'phone', help: 'A Kenyan mobile number, e.g. 0712345678' },
+                { title: 'Postal Address', field: 'postalAddress' },
+                { title: 'Nationality', field: 'nationality', required: true, choices: COUNTRIES, help: 'The country, e.g. Kenya (pick from the list)' },
+                { title: 'Passport No.', field: 'passportNo' },
+                { title: 'Area of Specialization', field: 'specialization' },
+                { title: 'Emergency Contact Name', field: 'emergencyName', required: true, help: 'Contact Full Name' },
+                { title: 'Emergency Relationship', field: 'emergencyRelationship', required: true, help: 'e.g. Mother, Brother, Guardian' },
+                { title: 'Emergency Phone', field: 'emergencyPhone', required: true, help: 'Primary Phone Number of the contact' },
+                { title: 'Emergency Alternative Phone', field: 'emergencyAltPhone' },
+                { title: 'Emergency Email', field: 'emergencyEmail', kind: 'email' },
+                { title: 'Emergency Address', field: 'emergencyAddress', help: 'Physical / Postal Address of the contact' },
+                { title: 'Campus', field: 'campus', required: campuses.length > 0, choices: campuses, help: 'As in Settings > Organisation Setup > Campuses' },
+                { title: 'Admission Course', field: 'admissionCourse', required: true, choices: await getSettingLabels('courses'), help: 'As in Settings > Program Setup > Courses' },
+                { title: 'Study Session', field: 'studySession', choices: await getSettingLabels('studySessions') },
+                { title: 'Enrollment', field: 'enrollment', required: true, choices: await getSettingLabels('enrollmentTypes') },
+                { title: 'Student Type', field: 'studentType', required: true, choices: await getSettingLabels('studentTypes') },
+                { title: 'Batch', field: 'group', required: true, choices: await batchNames(), help: 'As in Settings > Organisation Setup > Batches' }
+            ];
+        }
+
+        async function downloadStudentTemplate() {
+            try { await FewaExcel.template('student-import-template.xlsx', await studentImportColumns(), 'Students'); }
+            catch (err) { alert(err.message); }
+        }
+
+        function studentImportFileChosen() {
+            const file = document.getElementById('studentImportFile').files[0];
+            document.getElementById('studentImportChosen').textContent = file ? file.name : 'Choose the filled-in template';
+            document.getElementById('studentImportResult').hidden = true;
+        }
+
+        function showStudentImportResult(html, bad) {
+            const box = document.getElementById('studentImportResult');
+            box.innerHTML = html;
+            box.classList.toggle('bad', !!bad);
+            box.hidden = false;
+        }
+
+        async function uploadStudentList() {
+            if (!allowed('students', 'add')) return;
+            const file = document.getElementById('studentImportFile').files[0];
+            if (!file) return alert('Choose the filled-in template first (click the box above).');
+            if (file.size > 10 * 1024 * 1024) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try { rows = await FewaExcel.read(file); } catch { return alert('The file could not be read. Save it as .xlsx from Excel and try again.'); }
+            const columns = await studentImportColumns();
+            const { missingColumns, people } = FewaExcel.check(rows, columns);
+            const sendFeedback = results => FewaExcel.feedback(file.name, rows[0] || [], people.map(p => rows[p.index + 1]), results);
+            if (missingColumns.length) return showStudentImportResult(`<b>Nothing was imported.</b> The file has no ${missingColumns.join(', ')} column` +
+                `${missingColumns.length === 1 ? '' : 's'}: download the template again and fill in every red column.`, true);
+            if (!people.length) return showStudentImportResult('<b>Nothing was imported.</b> The file has no student rows under the headings.', true);
+
+            // Age, and AdmNo used already (by a student, or higher up in the file)
+            const taken = new Set((await getAll('students')).map(st => String(st.admNo || '').trim().toLowerCase()));
+            for (const p of people) {
+                const v = p.values;
+                if (v.dob) { const age = checkStudentAge(v.dob); if (age) p.problems.push(age); }
+                const adm = String(v.admNo || '').trim().toLowerCase();
+                if (adm && taken.has(adm)) p.problems.push(`AdmNo ${v.admNo} is already used`);
+                if (adm) taken.add(adm);
+            }
+            const problems = people.filter(p => p.problems.length);
+            const name = p => [p.values.firstName, p.values.lastName].filter(Boolean).join(' ') || 'no name';
+            if (problems.length) {
+                sendFeedback(people.map(p => p.problems.length ? { ok: false, text: 'NOT imported: ' + p.problems.join('; ') }
+                    : { ok: false, text: 'NOT imported: this row is fine, but the file has rows to correct (nothing was imported)' }));
+                return showStudentImportResult(`<b>Nothing was imported.</b> Every red (*) column must be filled in correctly on every row. ` +
+                    `Correct ${problems.length === 1 ? 'this row' : `these ${problems.length} rows`} in Excel, save and upload again ` +
+                    '(a copy of your file with a Feedback column has been downloaded):<ul>' +
+                    problems.slice(0, 40).map(p => `<li>${escapeHtml(`Row ${p.line} (${name(p)}): ${p.problems.join('; ')}`)}</li>`).join('') +
+                    (problems.length > 40 ? `<li>and ${problems.length - 40} more rows</li>` : '') + '</ul>', true);
+            }
+            if (!confirm(`Add ${people.length} student${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
+                return sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: the upload was cancelled' })));
+            }
+
+            // One by one, so each empty AdmNo gets the next number of its course
+            const results = [];
+            let added = 0;
+            for (const p of people) {
+                try {
+                    const v = { ...p.values };
+                    v.admNo = String(v.admNo || '').trim() || await nextAdmissionNumber(v.admissionCourse);
+                    const now = new Date().toISOString();
+                    const student = { ...v, id: newId(), activeStudent: 'yes', photo: null, createdAt: now, updatedAt: now, statusRecordedAt: now };
+                    await putOne('students', withStatusHistory(student, {}));
+                    await noteSequenceNumber(student);
+                    results.push({ ok: true, text: `Imported: AdmNo ${student.admNo}` });
+                    added++;
+                } catch (error) {
+                    results.push({ ok: false, text: 'NOT imported: ' + error.message });
+                }
+            }
+            sendFeedback(results);
+            document.getElementById('studentImportFile').value = '';
+            studentImportFileChosen();
+            showStudentImportResult(`<b>${added} student${added === 1 ? '' : 's'} added.</b> ` +
+                (added < people.length ? `${people.length - added} could not be saved (see the Feedback column). ` : '') +
+                'They have no Student Portal password yet: Reset Password on a student\'s record gives them one. ' +
+                'A copy of your file with a Feedback column has been downloaded.', added < people.length);
+            renderRecentStudents();
+            if (typeof renderStatusList === 'function') renderStatusList();
+        }
+
+        // Students added most recently: the 10 newest records
+        async function renderRecentStudents() {
+            const recent = (await getAll('students')).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 10);
+            document.getElementById('studentImportRecent').innerHTML = recent.length ? recent.map(st => `<tr>
+                <td>${escapeHtml(fullName(st))}</td><td>${escapeHtml(st.admNo || '')}</td><td>${escapeHtml(st.admissionCourse || '')}</td>
+                <td>${escapeHtml(st.phone || '')}</td></tr>`).join('') : '<tr class="empty-row"><td colspan="4">No students yet.</td></tr>';
         }
 
         /* ---------- Upload Student Photos: many student photos at once (administrators only) ----------

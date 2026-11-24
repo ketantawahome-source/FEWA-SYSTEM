@@ -12,6 +12,7 @@
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="countries.js"></script>
+    <script src="excel-tools.js?v=20261125a"></script>
     <script>
         requireLogin();
         // Only administrators manage staff
@@ -106,7 +107,67 @@
             border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0; cursor: pointer; }
         .staff-tab:hover { color: #3c8dbc; }
         .staff-tab.active { color: #222; background: #edf4fb; border-color: #e3e6ea; border-top-color: #3c8dbc; border-bottom-color: #edf4fb; }
-        #staffAccrHost[hidden], #staffAccrHost [hidden] { display: none !important; }
+        #staffAccrHost[hidden], #staffAccrHost [hidden], #staffResetHost[hidden], #staffResetHost [hidden],
+        #staffImportHost[hidden], #staffImportHost [hidden], #staffPhotosHost[hidden], #staffPhotosHost [hidden] { display: none !important; }
+        #staffPhotosHost, #staffPhotosHost * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #staffPhotosHost { padding: 22px 8px 30px; }
+        #staffPhotosHost .import-upload { font-size: 15px; min-height: 38px !important; padding: 0 14px; }
+        .photos-notes { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: #555; margin-top: 8px; }
+        .photos-submit { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #555; }
+        @media (max-width: 700px) { .photos-submit { flex-direction: column; align-items: flex-start; } }
+        /* Import tab (as the reference screen): a dashed box to choose the file, the two buttons under it, then the newest staff */
+        #staffImportHost, #staffImportHost * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #staffImportHost { padding: 22px 8px 30px; }
+        .import-banner { font-size: 17px; font-weight: 700; padding: 8px 12px; border-left: 5px solid #a9d3ee; border-radius: 3px; margin: 0; }
+        .import-box { width: 630px; max-width: 100%; margin-top: 16px; }
+        .import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 152px;
+            border: 2px dashed #c3c8d0; border-radius: 8px; background: #f1f6fb; cursor: pointer; color: #222; }
+        .import-drop:hover { background: #e8f1f9; }
+        .import-drop svg { width: 46px; height: 46px; color: #3c8dbc; }
+        .import-drop span { font-size: 15px; font-weight: 700; text-decoration: underline; text-align: center; padding: 0 12px; word-break: break-word; }
+        .import-note { font-size: 13px; color: #555; margin: 8px 0 0; line-height: 1.6; }
+        .import-note + .import-note { margin-top: 2px; }
+        .import-must { color: #c0392b; font-weight: 700; }
+        .import-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+        .import-template { font-size: 15px; padding: 0 14px; min-height: 38px; background: #f4f4f4; color: #333; border: 1px solid #d6d9de; border-radius: 3px; cursor: pointer; }
+        .import-template:hover { background: #e9e9e9; }
+        #staffImportHost .import-upload { font-size: 15px; min-height: 38px !important; padding: 0 14px; }
+        .import-result { margin: 18px 0 0; padding: 12px 16px; border-radius: 3px; font-size: 15px; background: #eaf6ee; border-left: 5px solid #2e8b57; color: #1e4d33; }
+        .import-result.bad { background: #fdf0ef; border-left-color: #c0392b; color: #6b1f17; }
+        .import-result ul { margin: 6px 0 0 18px; padding: 0; }
+        .import-recent-title { font-size: 21px; font-weight: 400; color: #333; margin: 24px 0 8px; }
+        .import-recent { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; color: #333; }
+        .import-recent th { text-align: left; font-weight: 700; padding: 10px 9px; border-bottom: 2px solid #e3e6ea; }
+        .import-recent td { padding: 10px 9px; border-top: 1px solid #f0f1f3; overflow-wrap: anywhere; }
+        .import-recent td.import-name { text-transform: uppercase; }
+        @media (max-width: 700px) {
+            .import-recent thead { display: none; }
+            .import-recent tr { display: block; padding: 8px 0; border-top: 1px solid #e3e6ea; }
+            .import-recent td { display: block; padding: 2px 4px; border: 0; }
+            .import-buttons { justify-content: flex-start; flex-wrap: wrap; }
+        }
+        /* Reset Password tab (as the reference screen): bold labels on the left, the orange button under the box */
+        #staffResetHost, #staffResetHost * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #staffResetHost { padding: 30px 8px 40px; }
+        #staffResetHost .pw-result { margin: 0 8px 22px; }
+        .reset-banner { font-size: 20px; font-weight: 700; padding: 10px 12px; border-left: 5px solid #a9d3ee; border-radius: 3px; margin: 0 8px; }
+        .reset-form { display: grid; grid-template-columns: 156px minmax(0, 660px); column-gap: 0; row-gap: 28px; align-items: center;
+            margin: 28px 0 0; padding: 0 20px; }
+        .reset-form label, .reset-label { font-size: 20px; font-weight: 700; color: #333; }
+        .reset-form select { font-size: 20px; padding: 8px 22px; min-height: 51px; border: 1px solid #d2d6dc; border-radius: 2px; color: #333;
+            background: #fff; width: 100%; box-sizing: border-box; }
+        .reset-sends { font-size: 20px; color: #333; white-space: pre-wrap; }
+        .reset-button { font-size: 21px; padding: 0 18px; min-height: 50px; background: #f39c12; color: #fff; border: 1px solid #e08e0b;
+            border-radius: 3px; cursor: pointer; margin-top: -6px; }
+        .reset-button:hover { background: #e08e0b; }
+        @media (max-width: 700px) {
+            .reset-form { grid-template-columns: minmax(0, 1fr); row-gap: 8px; padding: 0 8px; }
+            .reset-form > span:empty { display: none; }
+            .reset-form label, .reset-label, .reset-sends, .reset-form select { font-size: 17px; }
+            .reset-label { margin-top: 12px; }
+            .reset-button { font-size: 18px; margin-top: 14px; }
+            .reset-banner { font-size: 17px; }
+        }
         .accr-new { margin-top: 18px; font-size: 17px; }
         #staffForm[hidden], #staffSaveTop[hidden] { display: none !important; }
         #staffAccrHost #accrSection { box-shadow: none; padding: 14px 0 0; margin: 0; }
@@ -349,7 +410,7 @@
                             <!-- Shown while a member of staff is open (were on the Staff List) -->
                             <span id="staffPasswordState" class="staff-note" style="margin: 0;"></span>
                             <button type="button" id="staffResetLink" class="btn-secondary" style="display: none;"
-                                onclick="resetStaffPassword(staffForm.elements.id.value)">Reset Password</button>
+                                onclick="showStaffTab('reset')">Reset Password</button>
                             <button type="button" id="staffDelete" class="btn-secondary staff-delete" style="display: none;"
                                 onclick="deleteStaff(staffForm.elements.id.value)">Delete</button>
                             <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
@@ -360,13 +421,57 @@
                     <div class="staff-tabs" role="tablist">
                         <button type="button" role="tab" id="staffTabBio" class="staff-tab active" onclick="showStaffTab('bio')">Biodata</button>
                         <button type="button" role="tab" id="staffTabAccr" class="staff-tab" onclick="showStaffTab('accr')">Staff Accreditation</button>
+                        <button type="button" role="tab" id="staffTabReset" class="staff-tab" onclick="showStaffTab('reset')">Reset Password</button>
+                        <button type="button" role="tab" id="staffTabImport" class="staff-tab" onclick="showStaffTab('import')">Import</button>
+                        <button type="button" role="tab" id="staffTabPhotos" class="staff-tab" onclick="showStaffTab('photos')">Staff Photos</button>
                     </div>
-                    <div id="staffAccrHost" hidden>
-                        <div id="staffAccrNew" class="staff-bio-banner accr-new" hidden>This new staff member is not saved yet: save them first (Save Details on the
-                            Biodata tab) to enter their own qualifications. Any other staff member can be chosen below.</div>
+                    <!-- Staff Photos tab: many staff photos at once, each named by the staff member's National ID number -->
+                    <div id="staffPhotosHost" hidden>
+                        <div class="staff-bio-banner import-banner">Upload several staff photos at once: name each photo by the staff member's National ID number.</div>
+                        <div class="import-box">
+                            <label class="import-drop" for="staffPhotoFiles">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.48-1.6A4.75 4.75 0 0 1 17.25 19z" fill="currentColor"/>
+                                    <path d="M12 16.5v-6m0 0-2.6 2.6M12 10.5l2.6 2.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span id="staffPhotosChosen">Choose photos</span>
+                            </label>
+                            <input type="file" id="staffPhotoFiles" multiple accept=".jpg,.jpeg,.png,image/jpeg,image/png" hidden onchange="staffPhotosChosen()">
+                            <div class="photos-notes"><span>JPG or PNG; several at once</span><span>Name each file by the National ID number, e.g. 12345678.jpg</span></div>
+                            <div class="photos-submit">
+                                <span>A photo whose name matches no staff member's ID number is listed in a file that downloads afterwards.</span>
+                                <button type="button" class="staff-finder-add import-upload" onclick="uploadStaffPhotos()">Upload Photos</button>
+                            </div>
+                        </div>
+                        <div id="staffPhotosResult" class="import-result" hidden></div>
                     </div>
-                    <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
-                        <input type="hidden" name="id">
+                    <!-- Import tab: many staff members at once from the Excel template (one staff member per row) -->
+                    <div id="staffImportHost" hidden>
+                        <div class="staff-bio-banner import-banner">Add many staff members at once: download the template, fill in one staff member per row and upload it.</div>
+                        <div class="import-box">
+                            <label class="import-drop" id="importDrop" for="importFile">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 19a4.5 4.5 0 0 1-.6-8.96 6 6 0 0 1 11.48-1.6A4.75 4.75 0 0 1 17.25 19z" fill="currentColor"/>
+                                    <path d="M12 16.5v-6m0 0-2.6 2.6M12 10.5l2.6 2.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                <span id="importFileName">Choose the filled-in template</span>
+                            </label>
+                            <input type="file" id="importFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden
+                                onchange="importFileChosen()">
+                            <p class="import-note">Excel (.xls or .xlsx), one staff member per row</p>
+                            <p class="import-note">Columns: title, first, second and last name, gender, date of birth, marital status, phone, email, personal email,
+                                position, system role, date of employment, staff number, ID, PIN, NSSF, SHA (NHIF), bank, branch, account</p>
+                            <p class="import-note import-must">The red columns (marked *) must be filled in on every row, or the file is not uploaded.</p>
+                            <div class="import-buttons">
+                                <button type="button" class="import-template" onclick="downloadStaffTemplate()">Download Template</button>
+                                <button type="button" class="staff-finder-add import-upload" onclick="uploadStaffList()">Upload Staff List</button>
+                            </div>
+                        </div>
+                        <div id="importResult" class="import-result" hidden></div>
+                        <h3 class="import-recent-title">Staff added most recently</h3>
+                        <table class="import-recent">
+                            <thead><tr><th>Staff Name</th><th>Email</th><th>Phone Number</th><th>Staff Rank</th></tr></thead>
+                            <tbody id="importRecentBody"></tbody>
+                        </table>
+                    </div>
+                    <!-- Reset Password tab: any staff member gets a new temporary password (shown once, emailed to them) -->
+                    <div id="staffResetHost" hidden>
                         <!-- After Reset Password: the temporary password, shown once -->
                         <div id="staffResetResult" class="pw-result" hidden>
                             <div id="staffResetNote" class="pw-note"></div>
@@ -379,6 +484,22 @@
                                     Send on WhatsApp</a>
                             </div>
                         </div>
+                        <div class="staff-bio-banner reset-banner">Select a staff member to send them a new temporary password.</div>
+                        <div class="reset-form">
+                            <label for="resetStaff">Staff Member</label>
+                            <select id="resetStaff" onchange="showResetSendsTo()"></select>
+                            <span class="reset-label">Sends To:</span>
+                            <span id="resetSendsTo" class="reset-sends">Select a staff member to see their email and phone.</span>
+                            <span></span>
+                            <div><button type="button" class="reset-button" onclick="resetChosenStaff()">Reset Password</button></div>
+                        </div>
+                    </div>
+                    <div id="staffAccrHost" hidden>
+                        <div id="staffAccrNew" class="staff-bio-banner accr-new" hidden>This new staff member is not saved yet: save them first (Save Details on the
+                            Biodata tab) to enter their own qualifications. Any other staff member can be chosen below.</div>
+                    </div>
+                    <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
+                        <input type="hidden" name="id">
                         <div class="staff-bio-banner">Manage all the bio data about each staff member</div>
                         <div class="staff-bio">
                             <!-- ===== Left: Biodata, Contact details, Next of kin, Access control ===== -->
@@ -1036,6 +1157,243 @@
             document.getElementById('staffResetWhatsApp').removeAttribute('href');
         }
 
+        /* ---------- Import tab: many staff members from the Excel template (excel-tools.js) ----------
+           Each row becomes a staff account (Active, Access Level Staff, no password yet: Reset Password gives them one)
+           with its bio data details. The columns marked * (red in the template) are the boxes the Biodata form
+           requires: every row must have them, right, or NOTHING is imported and each problem is listed. After every
+           upload a copy of the file with a Feedback column is downloaded. */
+        const importColumns = () => [
+            { title: 'Title', field: 'title', required: true, choices: STAFF_CHOICES.title, help: 'Mr, Mrs, Ms, Miss, Dr, Prof or Rev (pick from the list)' },
+            { title: 'First Name', field: 'firstName', required: true },
+            { title: 'Second Name', field: 'secondName' },
+            { title: 'Last Name', field: 'lastName', required: true },
+            { title: 'Gender', field: 'gender', required: true, choices: ['MALE', 'FEMALE'], help: 'MALE or FEMALE (pick from the list)' },
+            { title: 'Date of Birth', field: 'dateOfBirth', required: true, kind: 'date', help: 'Day/month/year, e.g. 15/04/1990' },
+            { title: 'Marital Status', field: 'maritalStatus', required: true, choices: STAFF_CHOICES.maritalStatus },
+            { title: 'Phone', field: 'phone', required: true, kind: 'phone', help: 'A Kenyan mobile number, e.g. 0712345678' },
+            { title: 'Email', field: 'username', required: true, kind: 'email', help: 'The email they log in with (a different one for each staff member)' },
+            { title: 'Personal Email', field: 'personalEmail', required: true, kind: 'email', help: 'Their own email (may be the same as Email)' },
+            { title: 'Position', field: 'staffRank', required: true, choices: STAFF_CHOICES.staffRank, open: true, help: 'Their staff rank, e.g. Trainer (pick from the list or type another)' },
+            { title: 'System Role', field: 'jobTitle', required: true, choices: staffRoles, help: 'As in Settings > Access Management > Roles (pick from the list)' },
+            { title: 'Date of Employment', field: 'dateEmployed', required: true, kind: 'date', help: 'Day/month/year, e.g. 01/09/2026' },
+            { title: 'Staff Number', field: 'staffNumber' },
+            { title: 'ID Number', field: 'idNumber', help: 'National ID number' },
+            { title: 'KRA PIN', field: 'pinNumber' },
+            { title: 'NSSF Number', field: 'nssfNumber' },
+            { title: 'SHA (NHIF) Number', field: 'shaNumber' },
+            { title: 'Bank', field: 'bank', choices: STAFF_CHOICES.bank, open: true, help: 'Pick from the list or type another' },
+            { title: 'Branch', field: 'bankBranch' },
+            { title: 'Account Number', field: 'bankAccount' }
+        ];
+
+        function downloadStaffTemplate() {
+            FewaExcel.template('staff-import-template.xlsx', importColumns(), 'Staff').catch(err => alert(err.message));
+        }
+
+        function importFileChosen() {
+            const file = document.getElementById('importFile').files[0];
+            document.getElementById('importFileName').textContent = file ? file.name : 'Choose the filled-in template';
+            document.getElementById('importResult').hidden = true;
+        }
+
+        function showImportResult(html, bad) {
+            const box = document.getElementById('importResult');
+            box.innerHTML = html;
+            box.classList.toggle('bad', !!bad);
+            box.hidden = false;
+        }
+
+        async function uploadStaffList() {
+            const file = document.getElementById('importFile').files[0];
+            if (!file) return alert('Choose the filled-in template first (click the box above).');
+            if (file.size > 10 * 1024 * 1024) return alert('The file is bigger than 10 MB.');
+            let rows;
+            try { rows = await FewaExcel.read(file); } catch { return alert('The file could not be read. Save it as .xlsx from Excel and try again.'); }
+            const columns = importColumns();
+            const { missingColumns, people } = FewaExcel.check(rows, columns);
+            // The feedback file: each staff row of the upload with what happened to it
+            const sendFeedback = results => FewaExcel.feedback(file.name, rows[0] || [], people.map(p => rows[p.index + 1]), results);
+            if (missingColumns.length) return showImportResult(`<b>Nothing was imported.</b> The file has no ${missingColumns.join(', ')} column` +
+                `${missingColumns.length === 1 ? '' : 's'}: download the template again and fill in every red column.`, true);
+            if (!people.length) return showImportResult('<b>Nothing was imported.</b> The file has no staff rows under the headings.', true);
+
+            // Emails already used (by a staff member, or higher up in the file)
+            const used = new Set(getAccounts().map(a => a.username.trim().toLowerCase()));
+            for (const p of people) {
+                const v = p.values;
+                if (v.dateOfBirth && v.dateOfBirth > new Date().toISOString().slice(0, 10)) p.problems.push('Date of Birth is in the future');
+                if (v.username && used.has(v.username)) p.problems.push(`Email ${v.username} is already used`);
+                if (v.username) used.add(v.username);
+            }
+            const problems = people.filter(p => p.problems.length);
+            if (problems.length) {
+                sendFeedback(people.map(p => p.problems.length ? { ok: false, text: 'NOT imported: ' + p.problems.join('; ') }
+                    : { ok: false, text: 'NOT imported: this row is fine, but the file has rows to correct (nothing was imported)' }));
+                return showImportResult(`<b>Nothing was imported.</b> Every red (*) column must be filled in correctly on every row. ` +
+                    `Correct ${problems.length === 1 ? 'this row' : `these ${problems.length} rows`} in Excel, save and upload again ` +
+                    '(a copy of your file with a Feedback column has been downloaded):<ul>' +
+                    problems.slice(0, 40).map(p => `<li>${escapeHtml(`Row ${p.line} (${[p.values.firstName, p.values.lastName].filter(Boolean).join(' ') || 'no name'}): ${p.problems.join('; ')}`)}</li>`).join('') +
+                    (problems.length > 40 ? `<li>and ${problems.length - 40} more rows</li>` : '') + '</ul>', true);
+            }
+            if (!confirm(`Add ${people.length} staff member${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
+                return sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: the upload was cancelled' })));
+            }
+
+            // All the accounts in one save, then each one's bio data details
+            const now = Date.now();
+            const added = people.map((p, i) => ({
+                id: newAccountId(), createdAt: new Date(now + i).toISOString(), salt: null, hash: null,
+                firstName: p.values.firstName, lastName: p.values.lastName, username: p.values.username, phone: p.values.phone,
+                jobTitle: p.values.jobTitle, role: 'Staff', status: 'Active'
+            }));
+            try {
+                saveAccounts([...getAccounts(), ...added]);
+            } catch (error) {
+                sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: ' + error.message })));
+                return showImportResult('<b>Nothing was imported:</b> ' + escapeHtml(error.message), true);
+            }
+            const results = [];
+            for (const [i, p] of people.entries()) {
+                const details = Object.fromEntries(['title', 'secondName', 'gender', 'dateOfBirth', 'maritalStatus', 'personalEmail', 'staffRank',
+                    'dateEmployed', 'staffNumber', 'idNumber', 'pinNumber', 'nssfNumber', 'shaNumber', 'bank', 'bankBranch', 'bankAccount']
+                    .map(f => [f, p.values[f] || '']));
+                try {
+                    const saved = await api('PUT', '/staff-details/' + encodeURIComponent(added[i].id), details);
+                    staffDetails[added[i].id] = { id: added[i].id, ...((saved && saved.details) || details) };
+                    results.push({ ok: true, text: 'Imported' });
+                } catch (error) {
+                    results.push({ ok: false, text: 'Account added, but the bio data was NOT saved (' + error.message + '): open them and fill it in' });
+                }
+            }
+            sendFeedback(results);
+            const detailsFailed = results.filter(r => !r.ok).length;
+            document.getElementById('importFile').value = '';
+            importFileChosen();
+            showImportResult(`<b>${added.length} staff member${added.length === 1 ? '' : 's'} added.</b> They have no password yet: ` +
+                'give each one a temporary password on the Reset Password tab (or they can use Forgot password on the sign-in page). ' +
+                'A copy of your file with a Feedback column has been downloaded.' +
+                (detailsFailed ? ` <br>The bio data of ${detailsFailed} of them could NOT be saved: open them and fill it in.` : ''), !!detailsFailed);
+            renderStaffList();
+            renderRecentStaff();
+        }
+
+        /* ---------- Staff Photos tab: many staff photos at once ----------
+           Each photo's file name (without .jpg / .png) must be a staff member's National ID number (ID Number in their
+           Biodata); it becomes their photo, replacing any they had. Every photo is listed in a feedback file afterwards. */
+        const STAFF_PHOTO_MAX = 5 * 1024 * 1024;
+        const idKey = text => String(text || '').replace(/\s+/g, '').toLowerCase();
+
+        function staffPhotosChosen() {
+            const files = document.getElementById('staffPhotoFiles').files;
+            document.getElementById('staffPhotosChosen').textContent = files.length
+                ? `${files.length} photo${files.length === 1 ? '' : 's'} chosen` : 'Choose photos';
+            document.getElementById('staffPhotosResult').hidden = true;
+        }
+
+        async function uploadStaffPhotos() {
+            const files = [...document.getElementById('staffPhotoFiles').files];
+            if (!files.length) return alert('Choose the photos first (click the box above).');
+            // Who each ID number belongs to (an ID number two staff members share is not used)
+            const owners = new Map();
+            for (const a of getAccounts()) {
+                const key = idKey((staffDetails[a.id] || {}).idNumber);
+                if (key) owners.set(key, owners.has(key) ? null : a);
+            }
+            const used = new Set();
+            const plan = files.map(file => {
+                const name = file.name.replace(/\.[^.]+$/, '');
+                const key = idKey(name);
+                const owner = owners.get(key);
+                let problem = '';
+                if (!/\.(jpe?g|png)$/i.test(file.name) || !['image/jpeg', 'image/png'].includes(file.type)) problem = 'Not a JPG or PNG picture';
+                else if (file.size > STAFF_PHOTO_MAX) problem = 'Bigger than 5MB';
+                else if (owner === undefined) problem = `No staff member has the ID number ${name}`;
+                else if (owner === null) problem = `Two or more staff members have the ID number ${name}: add this photo on their Biodata`;
+                else if (used.has(key)) problem = 'Another photo in this upload has the same ID number';
+                if (!problem) used.add(key);
+                return { file, name, owner, problem };
+            });
+            const sendFeedback = () => FewaExcel.feedback('staff photos', ['Photo file', 'ID Number', 'Staff member'],
+                plan.map(p => [p.file.name, p.name, p.owner ? accountName(p.owner) : '']),
+                plan.map(p => p.done ? { ok: true, text: 'Uploaded' } : { ok: false, text: 'NOT uploaded: ' + (p.problem || 'the upload was cancelled') }));
+            const ready = plan.filter(p => !p.problem);
+            const skipped = plan.length - ready.length;
+            if (!ready.length) {
+                sendFeedback();
+                return showStaffPhotosResult(`<b>No photo was uploaded:</b> none of the ${plan.length} file name${plan.length === 1 ? ' is' : 's are'} a staff member's ` +
+                    'National ID number. A file listing each photo and why has been downloaded.', true);
+            }
+            if (!confirm(`Upload ${ready.length} staff photo${ready.length === 1 ? '' : 's'}?` +
+                (skipped ? `\n\n${skipped} photo${skipped === 1 ? '' : 's'} will be skipped (listed in the file downloaded afterwards).` : '') +
+                '\n\nA photo replaces the one the staff member has now.')) {
+                sendFeedback();
+                return;
+            }
+            for (const p of ready) {
+                const before = staffDetails[p.owner.id] || {};
+                // Their other details go along unchanged (the server saves all of a staff member's details together)
+                const details = Object.fromEntries([...DETAIL_FIELDS, 'courseAccess'].map(f => [f, before[f] || '']));
+                try {
+                    details.photo = await packRecord(p.file);
+                    const saved = await api('PUT', '/staff-details/' + encodeURIComponent(p.owner.id), details);
+                    staffDetails[p.owner.id] = { id: p.owner.id, ...((saved && saved.details) || before) };
+                    p.done = true;
+                } catch (error) {
+                    p.problem = error.message;
+                }
+            }
+            sendFeedback();
+            const done = plan.filter(p => p.done).length;
+            document.getElementById('staffPhotoFiles').value = '';
+            staffPhotosChosen();
+            showStaffPhotosResult(`<b>${done} staff photo${done === 1 ? '' : 's'} uploaded.</b>` +
+                (plan.length - done ? ` ${plan.length - done} ${plan.length - done === 1 ? 'was' : 'were'} not uploaded.` : '') +
+                ' A file listing each photo and what happened to it has been downloaded.', done < plan.length);
+        }
+
+        function showStaffPhotosResult(html, bad) {
+            const box = document.getElementById('staffPhotosResult');
+            box.innerHTML = html;
+            box.classList.toggle('bad', !!bad);
+            box.hidden = false;
+        }
+
+        // Staff added most recently: the 10 newest accounts
+        function renderRecentStaff() {
+            const recent = getAccounts().slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 10);
+            document.getElementById('importRecentBody').innerHTML = recent.length ? recent.map(a => `<tr>
+                <td class="import-name">${escapeHtml([a.firstName, (staffDetails[a.id] || {}).secondName, a.lastName].filter(Boolean).join(' ') || accountName(a))}</td><td>${escapeHtml(a.username)}</td>
+                <td>${escapeHtml(a.phone || '')}</td><td>${escapeHtml((staffDetails[a.id] || {}).staffRank || '')}</td></tr>`).join('')
+                : '<tr><td colspan="4">No staff yet.</td></tr>';
+        }
+
+        // Reset Password tab: every staff member (name and staff number), the open one chosen to start with
+        function showResetTab(openId) {
+            const select = document.getElementById('resetStaff');
+            const keep = document.getElementById('staffResetResult').hidden ? '' : select.value;
+            select.innerHTML = '<option value="">-- select one --</option>' + getAccounts()
+                .sort((a, b) => accountName(a).localeCompare(accountName(b)))
+                .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(accountName(a))}${(staffDetails[a.id] || {}).staffNumber
+                    ? ' (' + escapeHtml(staffDetails[a.id].staffNumber) + ')' : ''}${a.status === 'Inactive' ? ' - Inactive' : ''}</option>`).join('');
+            const want = keep || openId;
+            select.value = want && [...select.options].some(o => o.value === want) ? want : '';
+            showResetSendsTo(true);
+        }
+
+        // Sends To: the email (their username) and phone of the chosen staff member
+        function showResetSendsTo(keepResult) {
+            if (keepResult !== true) hideStaffResetResult();
+            const account = getAccounts().find(a => a.id === document.getElementById('resetStaff').value);
+            document.getElementById('resetSendsTo').textContent = !account ? 'Select a staff member to see their email and phone.'
+                : `Email: ${account.username}` + (account.phone ? `     Phone: ${account.phone}` : '     (no phone number on their record)');
+        }
+
+        function resetChosenStaff() {
+            const id = document.getElementById('resetStaff').value;
+            if (!id) return alert('Choose the staff member first.');
+            resetStaffPassword(id);
+        }
+
         async function resetStaffPassword(id) {
             const account = getAccounts().find(a => a.id === id);
             if (!account) return;
@@ -1072,7 +1430,9 @@
             const phone = String(result.phone || '').replace(/\D/g, '');
             document.getElementById('staffResetWhatsApp').href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
             document.getElementById('staffResetResult').hidden = false;
-            document.getElementById('staffPasswordState').textContent = 'Password: temporary (must change at sign-in)';
+            // The header's password note is about the staff member who is open
+            if (id === document.getElementById('staffForm').elements['id'].value)
+                document.getElementById('staffPasswordState').textContent = 'Password: temporary (must change at sign-in)';
             window.scrollTo(0, 0);
             document.getElementById('main-wrapper').scrollTop = 0;
             // The accounts list (from the server) now says they must change it
@@ -1103,13 +1463,22 @@
 
         async function showStaffTab(tab) {
             const id = document.getElementById('staffForm').elements['id'].value;
-            const accr = tab === 'accr';
-            document.getElementById('staffTabBio').classList.toggle('active', !accr);
+            const accr = tab === 'accr', reset = tab === 'reset', bulk = tab === 'import', photos = tab === 'photos';
+            const bio = !accr && !reset && !bulk && !photos;
+            document.getElementById('staffTabPhotos').classList.toggle('active', photos);
+            document.getElementById('staffPhotosHost').hidden = !photos;
+            document.getElementById('staffTabBio').classList.toggle('active', bio);
             document.getElementById('staffTabAccr').classList.toggle('active', accr);
-            document.getElementById('staffForm').hidden = accr;
-            document.getElementById('staffSaveTop').hidden = accr;
+            document.getElementById('staffTabReset').classList.toggle('active', reset);
+            document.getElementById('staffTabImport').classList.toggle('active', bulk);
+            document.getElementById('staffForm').hidden = !bio;
+            document.getElementById('staffSaveTop').hidden = !bio;
+            document.getElementById('staffResetHost').hidden = !reset;
+            document.getElementById('staffImportHost').hidden = !bulk;
             const host = document.getElementById('staffAccrHost');
             host.hidden = !accr;
+            if (reset) return showResetTab(id);
+            if (bulk) return renderRecentStaff();
             if (!accr) return;
             prepareAccreditation();
             const section = document.getElementById('accrSection');

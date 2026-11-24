@@ -531,7 +531,7 @@ async function uploadExamRows() {
     const lines = rows.slice(1).map((r, i) => ({ r, n: i + 2 })).filter(({ r }) => r.some(Boolean)).map(({ r, n }) => {
         const get = name => { const at = header.indexOf(name); return at >= 0 ? r[at] || '' : ''; };
         const result = up.row(get);
-        return { n, cells: up.headers.map(h => get(key(h))), record: typeof result === 'string' ? null : result, note: typeof result === 'string' ? result : '' };
+        return { n, r, cells: up.headers.map(h => get(key(h))), record: typeof result === 'string' ? null : result, note: typeof result === 'string' ? result : '' };
     });
     if (!lines.length) return alert('The file has no rows under the headings.');
     // Rows like an earlier row of the file are left out; rows like one in the list replace it
@@ -551,8 +551,12 @@ async function uploadExamRows() {
             <td class="${l.done ? 'units-result-ok' : l.record ? 'units-result-warn' : 'units-result-bad'}">${escapeHtml(l.done ? 'Saved' : l.note)}</td></tr>`).join('');
     };
     showLines();
-    if (!good.length) return alert('No row can be saved. The table shows why for each row.');
-    if (!confirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}${lines.length > good.length ? ` (${lines.length - good.length} cannot be saved and are left out)` : ''}?`)) return;
+    // After every upload: the file's rows again with a Feedback column (excel-tools.js)
+    const feedback = () => window.FewaExcel && FewaExcel.feedback(f.name, rows[0] || [], lines.map(l => l.r), lines.map(l => l.done
+        ? { ok: true, text: l.existing ? 'Saved (replaced the one in the list)' : 'Saved' }
+        : { ok: false, text: 'NOT saved: ' + (l.record ? 'the upload was cancelled or stopped' : l.note) }));
+    if (!good.length) { feedback(); return alert('No row can be saved. The table shows why for each row.'); }
+    if (!confirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}${lines.length > good.length ? ` (${lines.length - good.length} cannot be saved and are left out)` : ''}?`)) return feedback();
     try {
         for (const l of good) {
             await fewaDB.put(t.store, { ...(l.existing || {}), ...l.record, id: (l.existing || {}).id || newId(),
@@ -561,6 +565,7 @@ async function uploadExamRows() {
         }
         showToast(`${good.length} row${good.length === 1 ? '' : 's'} saved.`);
     } catch (err) { alert('Not every row could be saved: ' + err.message); }
+    feedback();
     showLines();
     $('examFile').value = '';
     chosenExamFile();

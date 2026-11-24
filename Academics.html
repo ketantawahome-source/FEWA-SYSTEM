@@ -10,6 +10,7 @@
     <script src="backup.js?v=20261104f"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="excel-tools.js?v=20261125a"></script>
     <script src="exams.js"></script>
     <script>
         requireLogin();
@@ -1012,6 +1013,12 @@
             } catch (err) { alert('The offer could not be removed: ' + err.message); }
         }
 
+        /* After every Excel upload a copy of the file's rows is downloaded with a Feedback column: what happened to each
+           row and, when it did not go in, why (excel-tools.js). verdict(line) gives { ok, text }. */
+        function uploadFeedback(file, rows, lines, verdict) {
+            if (window.FewaExcel) FewaExcel.feedback(file.name, rows[0] || [], rows.slice(1), lines.map(verdict));
+        }
+
         // ----- Upload units on offer (Excel) -----
         const OFFER_HEADERS = ['Course', 'Batch', 'Period', 'Group category', 'Unit code', 'Lecturer staff number'];
 
@@ -1107,8 +1114,10 @@
                     (already ? `, ${already} already on offer` : '') + (bad ? `, ${bad} with a problem (not added)` : '');
             };
             show();
-            if (!good.length) return alert('Nothing to add: see the Result column.');
-            if (!confirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return;
+            const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: 'Put on offer' }
+                : { ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ') : l.already ? 'already on offer' : 'the upload was cancelled or stopped') });
+            if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
+            if (!confirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return feedback();
             try {
                 for (const l of good) {
                     await save('unit_offers', { id: newId(), term: l.term, unitCode: l.unit.code, course: l.course, batch: l.batch,
@@ -1117,6 +1126,7 @@
                 }
                 showToast(`${good.length} unit${good.length === 1 ? '' : 's'} put on offer.`);
             } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            feedback();
             await loadData();
             show();
         }
@@ -1467,10 +1477,12 @@
                     (already ? `, ${already} already on the course` : '') + (bad ? `, ${bad} with a problem (not added)` : '');
             };
             show();
-            if (!good.length) return alert('Nothing to add: see the Result column.');
+            const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: l.unit ? 'Added to the course' : 'Added to the course (new unit)' }
+                : { ok: false, text: 'NOT added: ' + (l.problems.length ? l.problems.join('; ') : l.already ? 'already on the course' : 'the upload was cancelled or stopped') });
+            if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
             const newUnits = [...new Set(good.filter(l => !l.unit).map(l => l.code))];
             if (!confirm(`Add ${good.length} unit${good.length === 1 ? '' : 's'} to the courses` +
-                (newUnits.length ? ` (and ${newUnits.length} new unit${newUnits.length === 1 ? '' : 's'} to the Units register)` : '') + '?')) return;
+                (newUnits.length ? ` (and ${newUnits.length} new unit${newUnits.length === 1 ? '' : 's'} to the Units register)` : '') + '?')) return feedback();
             try {
                 const created = new Map();
                 for (const l of good) {
@@ -1486,6 +1498,7 @@
                 }
                 showToast(`${good.length} unit${good.length === 1 ? '' : 's'} added to the courses.`);
             } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            feedback();
             await loadData();
             show();
         }
@@ -1693,8 +1706,10 @@
                     (replace ? ` (${replace} replacing hours already saved)` : '') + (bad ? `, ${bad} with a problem (not saved)` : '');
             };
             show();
-            if (!good.length) return alert('Nothing to save: see the Result column.');
-            if (!confirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return;
+            const feedback = () => uploadFeedback(file, rows, lines, l => l.done ? { ok: true, text: l.existing ? 'Hours changed' : 'Hours added' }
+                : { ok: false, text: 'NOT saved: ' + (l.problems.length ? l.problems.join('; ') : 'the upload was cancelled or stopped') });
+            if (!good.length) { feedback(); return alert('Nothing to save: see the Result column.'); }
+            if (!confirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return feedback();
             try {
                 for (const l of good) {
                     await save('unit_hours', { ...(l.existing || {}), id: (l.existing || {}).id || newId(), course: l.course,
@@ -1705,6 +1720,7 @@
                 }
                 showToast(`Hours saved for ${good.length} unit${good.length === 1 ? '' : 's'}.`);
             } catch (err) { alert('Not every line could be saved: ' + err.message); }
+            feedback();
             await loadData();
             show();
         }
@@ -2010,8 +2026,10 @@
             $('uploadSummary').textContent = `${lines.length} row${lines.length === 1 ? '' : 's'}: ${counts.ok} ready, ` +
                 `${counts.skip} already registered or repeated, ${counts.bad} with a problem (shown in red, not registered).`;
             showLines();
-            if (!counts.ok) return alert('No row can be registered. The table shows why for each row.');
-            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?` + (counts.bad ? `\n\n${counts.bad} row${counts.bad === 1 ? ' has a' : 's have'} a problem and will be left out.` : ''))) return;
+            const feedback = () => uploadFeedback(file, rows, lines, l => l.result === 'done' ? { ok: true, text: 'Registered' }
+                : { ok: false, text: 'NOT registered: ' + (l.result === 'ok' ? 'the upload was cancelled or stopped' : l.note) });
+            if (!counts.ok) { feedback(); return alert('No row can be registered. The table shows why for each row.'); }
+            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?` + (counts.bad ? `\n\n${counts.bad} row${counts.bad === 1 ? ' has a' : 's have'} a problem and will be left out.` : ''))) return feedback();
 
             let done = 0;
             try {
@@ -2036,6 +2054,7 @@
             } catch (err) {
                 $('uploadSummary').textContent = `${done} of ${counts.ok} were registered, then this went wrong: ${err.message}. Upload the file again to register the rest.`;
             }
+            feedback();
             showLines();
             $('uploadFile').value = '';
             chosenFile();
