@@ -92,6 +92,15 @@
         .bio-school-list label { display: flex; align-items: center; gap: 10px; font-size: 17px; color: #333; margin: 10px 0; cursor: pointer; }
         .bio-school-list input { width: 18px; height: 18px; margin: 0; }
         .bio-save { text-align: center; margin-top: 22px; }
+        /* Biodata | Staff Accreditation tabs on the staff member's page (as the Exam Management tabs) */
+        .staff-tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid #e3e6ea; margin: 16px 0 4px; }
+        .staff-tab { padding: 11px 22px 10px; margin: 0 0 -1px; font-size: 18px; font-weight: 400; color: #333; background: transparent;
+            border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0; cursor: pointer; }
+        .staff-tab:hover { color: #3c8dbc; }
+        .staff-tab.active { color: #222; background: #edf4fb; border-color: #e3e6ea; border-top-color: #3c8dbc; border-bottom-color: #edf4fb; }
+        #staffAccrHost[hidden] { display: none; }
+        #staffForm[hidden], #staffSaveTop[hidden] { display: none !important; }
+        #staffAccrHost #accrSection { box-shadow: none; padding: 14px 0 0; margin: 0; }
         /* Staff Accreditation: labels on the left of each box, two pairs a row (as the reference screen) */
         #accrSection, #accrSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #accrSection { border-top: 0; border-radius: 4px; padding: 18px 14px 24px; }
@@ -333,9 +342,14 @@
                                 onclick="deleteStaff(staffForm.elements.id.value)">Delete</button>
                             <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
                                 onclick="resetStaffForm()">Cancel</button>
-                            <button type="submit" form="staffForm" class="staff-finder-add bio-save-top">Save Details</button>
+                            <button type="submit" form="staffForm" id="staffSaveTop" class="staff-finder-add bio-save-top">Save Details</button>
                         </div>
                     </div>
+                    <div class="staff-tabs" role="tablist">
+                        <button type="button" role="tab" id="staffTabBio" class="staff-tab active" onclick="showStaffTab('bio')">Biodata</button>
+                        <button type="button" role="tab" id="staffTabAccr" class="staff-tab" onclick="showStaffTab('accr')">Staff Accreditation</button>
+                    </div>
+                    <div id="staffAccrHost" hidden></div>
                     <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
                         <input type="hidden" name="id">
                         <!-- After Reset Password: the temporary password, shown once -->
@@ -815,6 +829,7 @@
             document.getElementById('staffDelete').style.display = 'none';
             document.getElementById('staffPasswordState').textContent = '';
             hideStaffResetResult();
+            showStaffTab('bio');
             // Back to step 1: the form closes until someone is chosen or "Add new staff member" is pressed
             showStaffPage(false);
         }
@@ -897,6 +912,7 @@
             // Their password and the buttons that were on the Staff List
             const me = currentAccount();
             hideStaffResetResult();
+            showStaffTab('bio');
             document.getElementById('staffPasswordState').textContent = 'Password: ' + (account.mustChangePassword ? 'temporary (must change at sign-in)' : account.hash ? 'set'
                 : account.adminResetRequired ? 'cancelled, send a reset link' : 'not set yet');
             document.getElementById('staffResetLink').style.display = 'inline-block';
@@ -1052,14 +1068,46 @@
             "Master's Degree", 'PhD', 'Professional Certification', 'Short Course', 'Trade Test', 'Other'];
         let qualifications = [];
 
-        function showAccreditationPage() {
-            document.title = 'Staff Accreditation - FEWA Beauty & Fashion College';
-            document.getElementById('staffTab').hidden = true;
-            document.getElementById('accreditationTab').hidden = false;
+        /* The staff member's page has two tabs: Biodata (the form) and Staff Accreditation (their qualifications:
+           the same section as Staff Management > Staff Accreditation, moved in here for the person who is open) */
+        let accreditationReady = false;
+        function prepareAccreditation() {
+            if (accreditationReady) return;
+            accreditationReady = true;
             const years = [];
             for (let y = new Date().getFullYear(); y >= 1960; y--) years.push(y);
             document.getElementById('accrYear').innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
             fillQualificationChoices();
+        }
+
+        async function showStaffTab(tab) {
+            const id = document.getElementById('staffForm').elements['id'].value;
+            if (tab === 'accr' && !id) return alert('Save this staff member first, then add their qualifications under Staff Accreditation.');
+            const accr = tab === 'accr';
+            document.getElementById('staffTabBio').classList.toggle('active', !accr);
+            document.getElementById('staffTabAccr').classList.toggle('active', accr);
+            document.getElementById('staffForm').hidden = accr;
+            document.getElementById('staffSaveTop').hidden = accr;
+            const host = document.getElementById('staffAccrHost');
+            host.hidden = !accr;
+            if (!accr) return;
+            prepareAccreditation();
+            const section = document.getElementById('accrSection');
+            if (section.parentElement !== host) host.appendChild(section);
+            // Only this staff member: chosen and fixed
+            const staffBox = document.getElementById('accrStaff');
+            await loadQualifications();
+            staffBox.value = id;
+            staffBox.disabled = true;
+            clearQualificationForm();
+            renderQualifications();
+        }
+
+        function showAccreditationPage() {
+            document.title = 'Staff Accreditation - FEWA Beauty & Fashion College';
+            document.getElementById('staffTab').hidden = true;
+            document.getElementById('accreditationTab').hidden = false;
+            prepareAccreditation();
             clearQualificationForm();
             loadQualifications();
         }
