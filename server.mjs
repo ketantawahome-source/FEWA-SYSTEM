@@ -182,8 +182,10 @@ async function inTransaction(work) {
    renamed in pgAdmin are followed. "extra" holds the fields that have no column; "position" is the server's own. */
 // Academic Management > Manage Units (database/8-academics.sql): record stores like deferrals
 const ACADEMIC_STORES = ['units', 'programme_units', 'unit_offers', 'unit_registrations', 'unit_lecturers', 'unit_hours', 'period_schedules',
-    'exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
-const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register', 'schedule.view', 'schedule.edit', 'exams.view', 'exams.edit'];
+    'exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types',
+    'attendance_registers'];
+const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register', 'schedule.view', 'schedule.edit', 'exams.view', 'exams.edit',
+    'attendance.view', 'attendance.mark'];
 // Academic tables written with Edit Semester Schedule / Edit Exam Management (the rest: Edit Units)
 const SCHEDULE_STORES = ['period_schedules'];
 const EXAM_STORES = ['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
@@ -212,7 +214,7 @@ const SCHEMA_OF = {
     units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics',
     unit_lecturers: 'academics', unit_hours: 'academics', period_schedules: 'academics',
     exam_groups: 'academics', exam_types: 'academics', grading_systems: 'academics', group_exam_types: 'academics',
-    award_setups: 'academics', course_exam_groups: 'academics', exam_paper_types: 'academics'
+    award_setups: 'academics', course_exam_groups: 'academics', exam_paper_types: 'academics', attendance_registers: 'academics'
 };
 const SCHEMAS = [...new Set(Object.values(SCHEMA_OF))];
 // A table's full name, e.g. T('courses') -> "settings"."courses"
@@ -1387,6 +1389,8 @@ async function rightsToWrite(store, id, method) {
     // Manage Units: registering students is its own right; the rest (units, programme units, offers) is editing
     if (store === 'programme_units') return ['academics.edit', 'settings.edit', method === 'DELETE' ? 'settings.delete' : 'settings.add'];
     if (SCHEDULE_STORES.includes(store)) return ['schedule.edit'];
+    // Roll Call Management: taking (and correcting or removing) a register
+    if (store === 'attendance_registers') return ['attendance.mark'];
     if (EXAM_STORES.includes(store)) return ['exams.edit'];
     if (ACADEMIC_STORES.includes(store)) return store === 'unit_registrations' ? ['academics.register'] : ['academics.edit'];
     if (method === 'DELETE') return store === 'settings' ? ['settings.delete'] : ['students.delete'];
@@ -1963,13 +1967,32 @@ async function logOutEveryone() {
    passwords) and the switches are rows of private_settings.server_keys, so no page, backup or office copy has them:
      global_settings_password  {"salt": ..., "hash": ...}
      global_controls           {"systemOpen", "closedMessage", "staffLogins", "studentLogins", "applications",
-                                "shortCourses" (the Short Courses tab and a course's short course fields shown)}
+                                "shortCourses" (the Short Courses tab and a course's short course fields shown),
+                                "attendanceBackdating" (registers may be taken for past days), "attendanceBackdateDays" (how many)}
    The first password can only be set by a logged-in Administrator. A forgotten password: delete the row
    'global_settings_password' in pgAdmin (Supabase), then an Administrator sets a new one. */
 const GLOBAL_COOKIE = 'fewa_global';
 const GLOBAL_MINUTES = 30;
 const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogins: true, studentLogins: true, applications: true,
-    shortCourses: true };
+    shortCourses: true, attendanceBackdating: false, attendanceBackdateDays: 0 };
+
+/* Roll Call Management: a register may be taken (or changed or removed) for today only, or, when Global Settings allows
+   backdating, for up to that many days back. Days are counted in Kenya time. */
+const kenyaToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
+async function attendanceBackDays() {
+    const controls = await globalControls().catch(() => DEFAULT_CONTROLS);
+    return controls.attendanceBackdating ? Math.max(0, Math.min(365, parseInt(controls.attendanceBackdateDays, 10) || 0)) : 0;
+}
+async function attendanceDayProblem(day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return 'The register has no valid date.';
+    const today = kenyaToday(), back = await attendanceBackDays();
+    const earliest = new Date(Date.parse(today + 'T12:00:00Z') - back * 86400000).toISOString().slice(0, 10);
+    if (day > today) return 'A register cannot be taken for a day still to come.';
+    if (day < earliest) return back
+        ? `Registers can only be taken or changed for today and the ${back} day${back === 1 ? '' : 's'} before it (Global Settings).`
+        : 'Registers can only be taken or changed for today: backdating of attendance is switched off (Global Settings).';
+    return '';
+}
 
 async function readServerKey(name) {
     const { rows } = await pool.query(`SELECT value FROM private_settings.server_keys WHERE name = $1`, [name]);
@@ -2075,8 +2098,13 @@ async function handleGlobal(req, res, session, action, method) {
     if (method === 'PUT' && action === 'controls') {
         const current = await globalControls();
         const next = { ...current };
-        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses']) {
+        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses', 'attendanceBackdating']) {
             if (typeof body[key] === 'boolean') next[key] = body[key];
+        }
+        if (body.attendanceBackdateDays !== undefined) {
+            const days = Number(body.attendanceBackdateDays);
+            if (!Number.isInteger(days) || days < 0 || days > 365) throw Object.assign(new Error('The number of days must be a whole number from 0 to 365.'), { status: 400 });
+            next.attendanceBackdateDays = days;
         }
         if (body.closedMessage !== undefined) next.closedMessage = String(body.closedMessage).trim().slice(0, 500);
         await writeServerKey('global_controls', JSON.stringify(next));
@@ -2269,6 +2297,8 @@ async function handleApi(req, res, parts) {
             admin: !!admin, studentId: session.kind === 'student' ? session.studentId : null,
             // Global Settings: the short courses part shown or hidden
             shortCourses: (await globalControls().catch(() => DEFAULT_CONTROLS)).shortCourses !== false,
+            // Roll Call: how many days back a register may be taken (0: today only)
+            attendanceBackDays: await attendanceBackDays(),
             resetEmail: session.kind === 'reset' ? session.email : null
         });
     }
@@ -2377,8 +2407,23 @@ async function handleApi(req, res, parts) {
         }
         if (!fullAccess) throw forbidden();
         if ((method === 'PUT' || method === 'DELETE') && b && staff && !await staffCan(session, ...await rightsToWrite(a, b, method))) throw forbidden();
+        // Roll Call: registers only for the days Global Settings allows (a register already saved too)
+        const registerDayCheck = async (...days) => {
+            for (const day of days) {
+                const problem = await attendanceDayProblem(day);
+                if (problem) throw Object.assign(new Error(problem), { status: 400 });
+            }
+        };
+        if (a === 'attendance_registers' && b && method === 'DELETE') {
+            const before = await getRecord(a, b);
+            if (before) await registerDayCheck(before.registerDate);
+        }
         if (method === 'PUT' && b) {
             const body = await readBody(req);
+            if (a === 'attendance_registers') {
+                const before = await getRecord(a, b);
+                await registerDayCheck(body && body.registerDate, ...(before ? [before.registerDate] : []));
+            }
             const saved = await putRecord(a, b, a === 'students' ? await keepStudentLogin(body) : body);
             mirrorChanged(STORE_TABLES[a]);
             return send(res, 200, hidePasswords(a, saved));

@@ -63,6 +63,25 @@
                     </li>
                 </ul>
             </li>
+            <!-- Roll Call Management: class registers (RollCall.html) -->
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'rollcallSubmenu')">Roll Call Management</a>
+                <ul id="rollcallSubmenu" class="submenu">
+                    <li class="submenu-item" id="menuRcStatus" onclick="location.href = 'RollCall.html?tab=status'">
+                        <span class="icon-circle"></span> Attendance Status
+                    </li>
+                    <li class="submenu-item" id="menuRcTaken" onclick="location.href = 'RollCall.html?tab=taken'">
+                        <span class="icon-circle"></span> Registers taken
+                    </li>
+                    <li class="submenu-item" id="menuRcNotTaken" onclick="location.href = 'RollCall.html?tab=nottaken'">
+                        <span class="icon-circle"></span> Registers not taken
+                    </li>
+                    <li class="submenu-item" id="menuRcMark" onclick="location.href = 'RollCall.html?tab=mark'">
+                        <span class="icon-circle"></span> Mark Register
+                    </li>
+                </ul>
+            </li>
+
 
             <li class="nav-item has-submenu">
                 <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">

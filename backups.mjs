@@ -217,7 +217,8 @@ const EXPORT_PARTS = {
         ['unit_lecturers', 'academics/unit_lecturers.csv', null],
         ['unit_hours', 'academics/unit_hours.csv', null],
         ['period_schedules', 'academics/period_schedules.csv', null],
-        ...['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'].map(t => [t, `academics/${t}.csv`, null])],
+        ...['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types',
+            'attendance_registers'].map(t => [t, `academics/${t}.csv`, null])],
     settings: EXPORT_SETTINGS.map(table => [table, `settings/${table}.csv`, null])
 };
 let downloadRunning = false;

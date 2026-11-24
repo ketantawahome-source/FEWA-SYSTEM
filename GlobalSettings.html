@@ -164,6 +164,11 @@
             { control: 'applications', name: 'ONLINE_APPLICATIONS_ENABLED', yesNo: true,
               description: 'NO: the online application form says applications are closed.',
               off: 'Close online applications?' },
+            { control: 'attendanceBackdating', name: 'ATTENDANCE_BACKDATING_ENABLED', yesNo: true,
+              description: 'YES: Roll Call registers may be taken (or corrected) for past days, up to ATTENDANCE_BACKDATE_DAYS back. NO: only for today.',
+              off: 'Switch off backdating of attendance? Registers can then only be taken or changed for today.' },
+            { control: 'attendanceBackdateDays', name: 'ATTENDANCE_BACKDATE_DAYS', number: true,
+              description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365), e.g. 7: today and the 7 days before it.' },
             { control: 'shortCourses', name: 'SHORT_COURSES_ENABLED', yesNo: true,
               description: 'NO hides the Short Courses tab (Settings > Program Setup) and the short course choices on a course. Nothing saved is deleted.',
               off: 'Hide the short courses part? Staff see the change the next time they open or refresh a page.' }
@@ -210,7 +215,7 @@
             if (mode !== 'none') $('gatePassword').focus();
         }
 
-        const valueText = (s, value) => s.yesNo ? (value ? 'YES' : 'NO') : String(value || '');
+        const valueText = (s, value) => s.yesNo ? (value ? 'YES' : 'NO') : s.number ? String(Number(value) || 0) : String(value || '');
 
         // One row per setting: name | value | ticked when changed | description
         function drawSettings() {
@@ -225,6 +230,12 @@
                 if (s.yesNo) {
                     input = document.createElement('select');
                     for (const v of ['YES', 'NO']) input.add(new Option(v, v));
+                } else if (s.number) {
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '0';
+                    input.max = '365';
+                    input.step = '1';
                 } else {
                     input = document.createElement('textarea');
                     input.maxLength = 500;
@@ -341,7 +352,8 @@
             for (const s of SETTINGS) {
                 if (!$('tick-' + s.control).checked) continue;
                 const text = $('value-' + s.control).value;
-                const value = s.yesNo ? text === 'YES' : text.trim();
+                const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
+                if (s.number && !(Number.isInteger(value) && value >= 0 && value <= 365)) return status(`${s.name} must be a whole number from 0 to 365.`, false);
                 changes[s.control] = value;
                 if (s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
             }

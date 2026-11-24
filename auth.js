@@ -128,7 +128,10 @@ const ROLE_OPERATIONS = [
     ['schedule.edit', 'Edit Semester Schedule', 'Ability to add, change, auto populate and remove the periods (semesters) of a batch, with their dates and accounts status.', 'academics.edit'],
     ['exams.view', 'Access Exam Management', 'Ability to open Academic Management > Exam Management and see the exam setup.', 'academics.view'],
     ['exams.edit', 'Edit Exam Management', 'Ability to add, change and remove exam types, exam groups, grading systems, group exam types, awards setup, course exam groups and exam paper types, and to upload group exam types.', 'academics.edit'],
-    ['students.photos', 'Upload Student Photos in Bulk', 'Ability to upload many student photos at once (Student Hub > Upload Student Photos).']
+    ['students.photos', 'Upload Student Photos in Bulk', 'Ability to upload many student photos at once (Student Hub > Upload Student Photos).'],
+    // Roll Call Management (RollCall.html)
+    ['attendance.view', 'Access Roll Call Management', 'Ability to open Roll Call Management: attendance status, registers taken and registers not taken.', 'academics.view'],
+    ['attendance.mark', 'Mark Registers', 'Ability to take a class register (Mark Register), and to correct or remove a register taken.', 'academics.register']
 ].map(([key, name, remarks, from]) => ({ key, name, remarks, from })).sort((a, b) => a.name.localeCompare(b.name));
 
 /* Whether saved rights include an operation. A role saved before an operation existed ("known" lists the operations
@@ -536,6 +539,8 @@ const NAV_ICONS = {
     'Manage Finance': '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',
     // An open book
     'Academic Management': '<path d="M2 5c3-1.3 6.5-1.3 10 1 3.5-2.3 7-2.3 10-1v14c-3-1.3-6.5-1.3-10 1-3.5-2.3-7-2.3-10-1z"/><path d="M12 6v14"/>',
+    // A clipboard with a tick
+    'Roll Call Management': '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 13l2.5 2.5 4.5-5"/>',
     'Reports': '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
     'Staff Management': '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.7 0 4.5 2 5 5"/>',
     'Settings': '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>'
@@ -628,7 +633,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
     const subItemPart = { 'Student Hub': 'students', 'Student Queries': 'queries', 'Student Documents': 'documents', 'Excel Reports': 'reports.excel',
         'Standard Reports': 'reports.standard', 'Performance Reports': 'reports.performance', 'Student Reports': 'reports.students',
-        'Finance Reports': 'reports.finance', 'Manage Units': 'academics', 'Semester Schedule': 'schedule', 'Exam Management': 'exams' };
+        'Finance Reports': 'reports.finance', 'Manage Units': 'academics', 'Semester Schedule': 'schedule', 'Exam Management': 'exams',
+        'Attendance Status': 'attendance', 'Registers taken': 'attendance', 'Registers not taken': 'attendance', 'Mark Register': 'attendance.mark' };
     sidebar.querySelectorAll('.menu-list > .nav-item').forEach(item => {
         const label = item.querySelector('.nav-label');
         const part = label && menuPart[label.textContent.trim()];

@@ -274,3 +274,34 @@ ALTER TABLE academics.group_exam_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.award_setups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.course_exam_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academics.exam_paper_types ENABLE ROW LEVEL SECURITY;
+
+
+-- ---------- Roll Call Management (RollCall.html): one register per class session ----------
+-- A register: the day, the session, the course, batch, period and unit, the lecturer, and each student's mark in
+-- "marks" ([{ studentId, admNo, name, status: Present | Absent | Late | Excused, remark }]) with the counts beside it.
+CREATE TABLE IF NOT EXISTS academics.attendance_registers (
+    id              text PRIMARY KEY,
+    register_date   date,
+    session         text,            -- Morning, Afternoon, Evening or Full day
+    course          text,
+    batch           text,
+    period          text,            -- SEMESTER 1, 2...
+    unit_code       text,
+    unit_title      text,
+    lecturer        text,            -- the lecturer's username (staff code)
+    lecturer_name   text,
+    marks           jsonb,
+    present         integer,
+    absent          integer,
+    late            integer,
+    excused         integer,
+    total           integer,
+    taken_by        text,
+    taken_at        timestamptz,
+    updated_at      timestamptz,
+    updated_by      text,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS attendance_registers_date ON academics.attendance_registers (register_date);
+ALTER TABLE academics.attendance_registers ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE academics.attendance_registers IS 'Roll Call Management: class registers (attendance marks of each student).';

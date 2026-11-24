@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roll Call Management - FEWA Beauty & Fashion College</title>
+    <script src="db.js"></script>
+    <script src="auth.js"></script>
+    <script src="backup.js?v=20261104f"></script>
+    <script src="icons.js"></script>
+    <script src="notify.js"></script>
+    <script src="topbar-search.js?v=20261111c"></script>
+    <script src="excel-tools.js?v=20261125b"></script>
+    <script>
+        requireLogin();
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+    </script>
+    <link rel="stylesheet" href="styles.css?v=20261125b">
+    <style>
+        /* Roll Call Management: the Source Sans look of the newer screens */
+        .rc-section, .rc-section * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        .rc-section[hidden] { display: none; }
+        .rc-section { padding: 20px 22px 26px; }
+        .rc-banner { background: #eef6fc; color: #2f6f8f; text-align: center; font-size: 15px; font-weight: 700; padding: 9px 12px;
+            border-left: 5px solid #a9d3ee; border-radius: 3px; }
+        .rc-rule { margin: 8px 2px 0; font-size: 13px; color: #6b5b7b; }
+        .rc-filters { display: grid; grid-template-columns: 120px minmax(0, 1fr) 120px minmax(0, 1fr); gap: 12px 18px; align-items: center; margin: 18px 0 6px; }
+        .rc-filters-wide { grid-template-columns: 70px minmax(0, 1fr) 70px minmax(0, 1fr) 70px minmax(0, 1fr); }
+        .rc-filters label { font-size: 14px; font-weight: 700; color: #333; }
+        .rc-filters .req { color: #d9302c; }
+        .rc-filters input, .rc-filters select { width: 100%; box-sizing: border-box; font-size: 14px; padding: 7px 10px; min-height: 38px;
+            border: 1px solid #d2d6dc; border-radius: 4px; background: #fff; color: #333; }
+        .rc-filters .rc-check { grid-column: span 2; display: flex; align-items: center; gap: 8px; font-weight: 400; }
+        .rc-filters .rc-check input { width: auto; min-height: 0; }
+        .rc-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .rc-buttons .btn-submit, .rc-listbuttons .btn-submit, .rc-listbuttons .btn-secondary { margin: 0; }
+        .rc-note { margin: 16px 0 0; padding: 10px 14px; background: #fff8e6; border-left: 4px solid #e0a800; border-radius: 3px; font-size: 14px; color: #5a4300; }
+        .rc-note[hidden], #mkList[hidden] { display: none; }
+        .rc-listbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0 10px; }
+        .rc-listbuttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .rc-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .rc-chip { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #efeaf4; color: #3b2a50; }
+        .rc-chip-present { background: #e3f4e8; color: #1e6b3a; }
+        .rc-chip-absent { background: #fbe3e1; color: #a12a1e; }
+        .rc-chip-late { background: #fff1d6; color: #8a5a00; }
+        .rc-chip-excused { background: #e6eefb; color: #2b4f8a; }
+        .rc-count { font-size: 13px; color: #666; margin: 12px 0 6px; }
+        /* The class list: one line per student, the four marks as buttons */
+        .rc-marks { border: 1px solid #e6e1ec; border-radius: 6px; overflow: hidden; }
+        .rc-mark-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto minmax(120px, 220px); gap: 12px; align-items: center;
+            padding: 8px 12px; border-top: 1px solid #f0ecf4; border-left: 4px solid transparent; }
+        .rc-mark-row:first-child { border-top: 0; }
+        .rc-mark-row.rc-absent { background: #fff6f5; border-left-color: #d9534f; }
+        .rc-mark-row.rc-late { background: #fffaf0; border-left-color: #e0a800; }
+        .rc-mark-row.rc-excused { background: #f5f8fe; border-left-color: #5b84c4; }
+        .rc-mark-row.rc-present { border-left-color: #3c9a5f; }
+        .rc-mark-no { color: #888; font-size: 13px; text-align: right; }
+        .rc-mark-who b { display: block; font-size: 15px; color: #222; }
+        .rc-mark-who small { color: #777; font-size: 13px; }
+        .rc-mark-status { display: flex; gap: 4px; flex-wrap: wrap; }
+        .rc-pill { position: relative; cursor: pointer; }
+        .rc-pill input { position: absolute; opacity: 0; pointer-events: none; }
+        .rc-pill span { display: inline-block; min-width: 74px; text-align: center; padding: 6px 8px; border: 1px solid #d6d0de; border-radius: 4px;
+            font-size: 13px; font-weight: 700; color: #555; background: #fff; }
+        .rc-pill input:focus-visible + span { outline: 2px solid #3c8dbc; outline-offset: 1px; }
+        .rc-pill-present.on span { background: #2e8b57; border-color: #2e8b57; color: #fff; }
+        .rc-pill-absent.on span { background: #c9302c; border-color: #c9302c; color: #fff; }
+        .rc-pill-late.on span { background: #e0a800; border-color: #e0a800; color: #fff; }
+        .rc-pill-excused.on span { background: #4a73b5; border-color: #4a73b5; color: #fff; }
+        .rc-pill input:disabled + span { cursor: default; opacity: .8; }
+        .rc-mark-remark { width: 100%; box-sizing: border-box; font-size: 13px; padding: 6px 9px; border: 1px solid #d6d0de; border-radius: 4px; }
+        .rc-save-bottom { justify-content: flex-end; margin-top: 14px; }
+        .rc-table td.num, .rc-table th.num { text-align: right; }
+        .rc-actions { white-space: nowrap; }
+        .rc-pct { font-weight: 700; }
+        .rc-state { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+        .rc-good { color: #1e6b3a; } .rc-state.rc-good { background: #e3f4e8; }
+        .rc-risk { color: #8a5a00; } .rc-state.rc-risk { background: #fff1d6; }
+        .rc-poor { color: #a12a1e; } .rc-state.rc-poor { background: #fbe3e1; }
+        @media (max-width: 900px) {
+            .rc-filters, .rc-filters-wide { grid-template-columns: 110px minmax(0, 1fr); }
+            .rc-filters > span:empty { display: none; }
+            .rc-filters .rc-buttons { grid-column: 1 / -1; }
+        }
+        @media (max-width: 700px) {
+            .rc-section { padding: 16px 12px 20px; }
+            .rc-filters, .rc-filters-wide { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+            .rc-filters label:not(.rc-check) { margin-top: 8px; }
+            .rc-filters .rc-check { grid-column: auto; margin-top: 10px; }
+            /* Each student a small card: name, then the four buttons across, then the remark */
+            .rc-mark-row { grid-template-columns: 26px minmax(0, 1fr); gap: 8px 10px; padding: 10px; }
+            .rc-mark-status, .rc-mark-remark { grid-column: 1 / -1; }
+            .rc-mark-status { display: grid; grid-template-columns: repeat(4, 1fr); }
+            .rc-pill span { min-width: 0; width: 100%; box-sizing: border-box; padding: 9px 2px; }
+            .rc-listbuttons { width: 100%; }
+            .rc-listbuttons button { flex: 1; }
+            .rc-save-bottom button { width: 100%; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar Navigation: other sections live on StudentAdmissions.html and Staff.html -->
+    <div id="sidebar">
+        <div class="brand">FEWA BEAUTY & FASHION COLLEGE</div>
+        <ul class="menu-list">
+            <li class="nav-item"><a href="Dashboard.html">Dashboard</a></li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'studentsSubmenu')">Students Management</a>
+                <ul id="studentsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('students')">
+                        <span class="icon-circle"></span> Student Hub
+                    </li>
+                    <li class="submenu-item" onclick="openSection('documents')">
+                        <span class="icon-circle"></span> Student Documents
+                    </li>
+                    <li class="submenu-item" onclick="openSection('queries')">
+                        <span class="icon-circle"></span> Student Queries
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'financeSubmenu')">Manage Finance</a>
+                <ul id="financeSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('finance')">
+                        <span class="icon-circle"></span> Payments
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-details')">
+                        <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                </ul>
+            </li>
+            <!-- Academic Management: units, programme units, units on offer, unit registration (Academics.html) -->
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'academicsSubmenu')">Academic Management</a>
+                <ul id="academicsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="location.href = 'Academics.html'">
+                        <span class="icon-circle"></span> Manage Units
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'Academics.html?page=schedule'">
+                        <span class="icon-circle"></span> Semester Schedule
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'Academics.html?page=exams'">
+                        <span class="icon-circle"></span> Exam Management
+                    </li>
+                </ul>
+            </li>
+            <!-- Roll Call Management: class registers (RollCall.html) -->
+            <li class="nav-item has-submenu active">
+                <a href="#" onclick="toggleSubmenu(event, 'rollcallSubmenu')">Roll Call Management</a>
+                <ul id="rollcallSubmenu" class="submenu open">
+                    <li class="submenu-item" id="menuRcStatus" onclick="location.href = 'RollCall.html?tab=status'">
+                        <span class="icon-circle"></span> Attendance Status
+                    </li>
+                    <li class="submenu-item" id="menuRcTaken" onclick="location.href = 'RollCall.html?tab=taken'">
+                        <span class="icon-circle"></span> Registers taken
+                    </li>
+                    <li class="submenu-item" id="menuRcNotTaken" onclick="location.href = 'RollCall.html?tab=nottaken'">
+                        <span class="icon-circle"></span> Registers not taken
+                    </li>
+                    <li class="submenu-item" id="menuRcMark" onclick="location.href = 'RollCall.html?tab=mark'">
+                        <span class="icon-circle"></span> Mark Register
+                    </li>
+                </ul>
+            </li>
+
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'reportsSubmenu')">
+                    <span class="icon-bar"></span> <span style="margin-left: 6px;">Reports</span>
+                </a>
+                <ul id="reportsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('reports-all')">
+                        <span class="icon-circle"></span> All Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-standard')">
+                        <span class="icon-circle"></span> Standard Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-performance')">
+                        <span class="icon-circle"></span> Performance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-class')">
+                        <span class="icon-circle"></span> Student Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-finance')">
+                        <span class="icon-circle"></span> Finance Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-hr')">
+                        <span class="icon-circle"></span> HR & Payroll Reports
+                    </li>
+                    <li class="submenu-item" onclick="openSection('reports-excel')">
+                        <span class="icon-circle"></span> Excel Reports
+                    </li>
+                </ul>
+            </li>
+
+            <!-- Staff Management (administrators only) -->
+            <li id="staffNavItem" class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
+                <ul id="staffSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="location.href = 'Staff.html'">
+                        <span class="icon-circle"></span> Staff List
+                    </li>
+                </ul>
+            </li>
+
+            <li class="nav-item has-submenu">
+                <a href="#" onclick="toggleSubmenu(event, 'settingsSubmenu')">Settings</a>
+                <ul id="settingsSubmenu" class="submenu">
+                    <li class="submenu-item" onclick="openSection('settings-access')">
+                        <span class="icon-circle"></span> Access Management
+                    </li>
+                    <li class="submenu-item" onclick="location.href = 'ChangePassword.html'">
+                        <span class="icon-circle"></span> Change Password
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-general')">
+                        <span class="icon-circle"></span> Institution Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-organisation')">
+                        <span class="icon-circle"></span> Organisation Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-setup')">
+                        <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-backups')">
+                        <span class="icon-circle"></span> System Data Backups
+                    </li>
+                    <li class="submenu-item admin-only" onclick="openSection('settings-update')">
+                        <svg class="submenu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg> System Update
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div id="main-wrapper">
+        <div id="topbar">
+            <div class="search-box">
+                <input type="text" placeholder="Search for a student... (name or AdmNo)"
+                    onkeydown="if (event.key === 'Enter') searchStudents(this.value)">
+            </div>
+            <!-- auth.js turns this into the profile menu -->
+            <div class="topbar-user">
+                <div class="user-info">
+                    <span id="currentUserName">Administrator</span>
+                    <span id="currentUserEmail"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <div id="rcNoRight" class="form-section rc-section" hidden>
+                <div class="settings-banner info-banner" id="rcNoRightText"></div>
+            </div>
+
+            <!-- ===== Mark Register: take the register of a class session ===== -->
+            <div id="rcMark" class="form-section rc-section" hidden>
+                <div class="rc-banner">Take the register of a class: choose the day, the class and the unit, press Load Class List, mark each student and Save Register.</div>
+                <p class="rc-rule" id="mkDateRule"></p>
+                <div class="rc-filters">
+                    <label for="mkDate">Date <span class="req">*</span></label>
+                    <input type="date" id="mkDate" onchange="markChoicesChanged()">
+                    <label for="mkSession">Session <span class="req">*</span></label>
+                    <select id="mkSession" onchange="markChoicesChanged(true)">
+                        <option>Morning</option><option>Afternoon</option><option>Evening</option><option>Full day</option>
+                    </select>
+                    <label for="mkCourse">Course <span class="req">*</span></label>
+                    <select id="mkCourse" onchange="markChoicesChanged()"></select>
+                    <label for="mkBatch">Batch <span class="req">*</span></label>
+                    <select id="mkBatch" onchange="markChoicesChanged()"></select>
+                    <label for="mkPeriod">Period <span class="req">*</span></label>
+                    <select id="mkPeriod" onchange="markChoicesChanged(true)"></select>
+                    <label for="mkUnit">Unit <span class="req">*</span></label>
+                    <select id="mkUnit" onchange="markChoicesChanged(true)"></select>
+                    <label for="mkLecturer">Lecturer</label>
+                    <select id="mkLecturer"></select>
+                    <span></span>
+                    <div class="rc-buttons"><button type="button" class="btn-submit" onclick="loadClassList()">Load Class List</button></div>
+                </div>
+                <div id="mkList" hidden>
+                    <div id="mkNote" class="rc-note" hidden></div>
+                    <div class="rc-listbar">
+                        <div class="rc-chips" id="mkCounts"></div>
+                        <div class="rc-listbuttons">
+                            <button type="button" class="btn-secondary" onclick="markAll('Present')">Mark all present</button>
+                            <button type="button" class="btn-submit" id="mkSave" onclick="saveRegister()">Save Register</button>
+                        </div>
+                    </div>
+                    <div class="rc-marks" id="mkRows"></div>
+                    <div class="rc-buttons rc-save-bottom"><button type="button" class="btn-submit" onclick="saveRegister()">Save Register</button></div>
+                </div>
+            </div>
+
+            <!-- ===== Registers taken ===== -->
+            <div id="rcTaken" class="form-section rc-section" hidden>
+                <div class="rc-banner">The registers taken: choose the days (and a course, batch or unit to narrow the list). The pencil opens a register to correct it.</div>
+                <div class="rc-filters rc-filters-wide">
+                    <label for="tkFrom">From</label><input type="date" id="tkFrom" onchange="renderTaken()">
+                    <label for="tkTo">To</label><input type="date" id="tkTo" onchange="renderTaken()">
+                    <label for="tkCourse">Course</label><select id="tkCourse" onchange="renderTaken()"></select>
+                    <label for="tkBatch">Batch</label><select id="tkBatch" onchange="renderTaken()"></select>
+                    <label for="tkUnit">Unit</label><select id="tkUnit" onchange="renderTaken()"></select>
+                    <label for="tkSearch">Find</label><input type="search" id="tkSearch" placeholder="Unit, lecturer or course" oninput="renderTaken()">
+                </div>
+                <div class="rc-count" id="tkCount"></div>
+                <div class="table-wrap"><table class="data-table rc-table">
+                    <thead><tr><th>Date</th><th>Session</th><th>Course</th><th>Batch</th><th>Period</th><th>Unit</th><th>Lecturer</th>
+                        <th class="num">Present</th><th class="num">Absent</th><th class="num">Late</th><th class="num">Excused</th><th class="num">Attendance</th><th></th></tr></thead>
+                    <tbody id="tkRows"></tbody>
+                </table></div>
+            </div>
+
+            <!-- ===== Registers not taken ===== -->
+            <div id="rcNotTaken" class="form-section rc-section" hidden>
+                <div class="rc-banner">Units on offer whose register was not taken: each unit on offer in the period running on that day (Semester Schedule), for a class that has students.</div>
+                <div class="rc-filters rc-filters-wide">
+                    <label for="ntFrom">From</label><input type="date" id="ntFrom" onchange="renderNotTaken()">
+                    <label for="ntTo">To</label><input type="date" id="ntTo" onchange="renderNotTaken()">
+                    <label for="ntCourse">Course</label><select id="ntCourse" onchange="renderNotTaken()"></select>
+                    <label for="ntBatch">Batch</label><select id="ntBatch" onchange="renderNotTaken()"></select>
+                    <label class="rc-check"><input type="checkbox" id="ntWeekends" onchange="renderNotTaken()"> Include Saturdays and Sundays</label>
+                </div>
+                <div class="rc-count" id="ntCount"></div>
+                <div class="table-wrap"><table class="data-table rc-table">
+                    <thead><tr><th>Date</th><th>Course</th><th>Batch</th><th>Period</th><th>Unit</th><th>Lecturer</th><th class="num">Students</th><th></th></tr></thead>
+                    <tbody id="ntRows"></tbody>
+                </table></div>
+            </div>
+
+            <!-- ===== Attendance Status: each student's attendance ===== -->
+            <div id="rcStatus" class="form-section rc-section" hidden>
+                <div class="rc-banner">Each student's attendance in the registers taken. Present and Late count as attended; Excused is left out. Below 75% is at risk, below 50% poor.</div>
+                <div class="rc-filters rc-filters-wide">
+                    <label for="stCourse">Course</label><select id="stCourse" onchange="renderStatus()"></select>
+                    <label for="stBatch">Batch</label><select id="stBatch" onchange="renderStatus()"></select>
+                    <label for="stPeriod">Period</label><select id="stPeriod" onchange="renderStatus()"></select>
+                    <label for="stUnit">Unit</label><select id="stUnit" onchange="renderStatus()"></select>
+                    <label for="stFrom">From</label><input type="date" id="stFrom" onchange="renderStatus()">
+                    <label for="stTo">To</label><input type="date" id="stTo" onchange="renderStatus()">
+                    <label for="stShow">Show</label>
+                    <select id="stShow" onchange="renderStatus()">
+                        <option value="">All students</option><option value="risk">At risk or poor (below 75%)</option><option value="poor">Poor (below 50%)</option>
+                    </select>
+                    <label for="stSearch">Find</label><input type="search" id="stSearch" placeholder="Name or AdmNo" oninput="renderStatus()">
+                </div>
+                <div class="rc-listbar">
+                    <div class="rc-chips" id="stCounts"></div>
+                    <div class="rc-listbuttons"><button type="button" class="btn-secondary" onclick="downloadStatus()">Download Excel</button></div>
+                </div>
+                <div class="table-wrap"><table class="data-table rc-table">
+                    <thead><tr><th>AdmNo</th><th>Student Name</th><th>Course</th><th>Batch</th><th class="num">Registers</th><th class="num">Present</th>
+                        <th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">Attendance</th><th>Status</th></tr></thead>
+                    <tbody id="stRows"></tbody>
+                </table></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById(submenuId).classList.toggle('open');
+        }
+        function openSection(name) { location.href = 'StudentAdmissions.html?open=' + encodeURIComponent(name); }
+        function searchStudents(value) { if (value.trim()) location.href = 'StudentAdmissions.html?search=' + encodeURIComponent(value.trim()); }
+
+        /* ---------- Roll Call Management ----------
+           Registers (table academics.attendance_registers): one per day, session, course, batch, period and unit, with
+           each student's mark (Present, Absent, Late or Excused). Four screens, chosen in the sidebar (?tab=):
+           mark (Mark Register), taken (Registers taken), nottaken (Registers not taken) and status (Attendance Status).
+           The class list of a unit: the students registered for it in that period (Manage Units > registrations), or
+           every active student of the course and batch when none is registered. */
+        const $ = id => document.getElementById(id);
+        const params = new URLSearchParams(location.search);
+        const TAB = ['mark', 'taken', 'nottaken', 'status'].includes(params.get('tab')) ? params.get('tab') : 'status';
+        const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
+        const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+        const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        const today = () => new Date().toLocaleDateString('en-CA');
+        // Global Settings: how many days back a register may be taken (0: today only); the server checks it too
+        const BACK_DAYS = Number(fewaSession.attendanceBackDays) || 0;
+        const earliestDay = () => { const d = new Date(); d.setDate(d.getDate() - BACK_DAYS); return d.toLocaleDateString('en-CA'); };
+        const dayAllowed = day => !!day && day >= earliestDay() && day <= today();
+        const backdateRule = () => BACK_DAYS ? `today and the ${BACK_DAYS} day${BACK_DAYS === 1 ? '' : 's'} before it`
+            : 'today only (backdating of attendance is switched off in Global Settings)';
+        const dayText = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        const studentName = s => [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
+        const pct = (attended, counted) => counted ? Math.round(attended * 100 / counted) : null;
+        const pctText = p => p === null ? '-' : p + '%';
+        const pctClass = p => p === null ? '' : p >= 75 ? 'rc-good' : p >= 50 ? 'rc-risk' : 'rc-poor';
+
+        let students = [], units = [], offers = [], registrations = [], schedules = [], registers = [];
+        let courses = [], batches = [], periods = [], lecturers = [];
+
+        async function settingNames(key, label = i => i.name, usable = () => true) {
+            const record = await fewaDB.getOne('settings', key).catch(() => null);
+            return record ? (record.items || []).filter(usable).map(label).filter(Boolean) : [];
+        }
+
+        async function loadData() {
+            const read = store => fewaDB.getAll(store).catch(() => []);
+            [students, units, offers, registrations, schedules, registers] = await Promise.all(
+                ['students', 'units', 'unit_offers', 'unit_registrations', 'period_schedules', 'attendance_registers'].map(read));
+            courses = await settingNames('courses', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, c => c.enabled !== 'NO');
+            const batchRecord = await fewaDB.getOne('settings', 'batches').catch(() => null);
+            batches = [...new Set([...((batchRecord && batchRecord.items) || []).filter(b => b.name)
+                .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name),
+                ...students.map(s => s.group).filter(Boolean)])].filter(g => !/^DEFAULT( GROUP)?$/i.test(String(g).trim()));
+            const most = Math.max(3, ...schedules.map(s => Number(String(s.period || '').replace(/\D+/g, '')) || 0),
+                ...offers.map(o => Number(String(o.term || '').replace(/\D+/g, '')) || 0));
+            periods = Array.from({ length: most }, (_, i) => `SEMESTER ${i + 1}`);
+            lecturers = getAccounts().filter(a => a.status !== 'Inactive').map(a => ({ username: a.username, name: accountName(a) }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+            units.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+        }
+
+        const unitOf = code => units.find(u => same(u.code, code));
+        const unitLabel = code => { const u = unitOf(code); return u ? `${u.code} - ${u.title || ''}` : code; };
+        const activeStudents = () => students.filter(s => s.activeStudent !== 'no');
+
+        // The period running on a day for a batch (and course), from the Semester Schedule
+        function periodOn(day, batch, course) {
+            const running = schedules.filter(s => s.batch === batch && s.startDate && s.endDate
+                && String(s.startDate).slice(0, 10) <= day && day <= String(s.endDate).slice(0, 10));
+            const best = running.find(s => s.course === course) || running.find(s => !s.course);
+            return best ? best.period : '';
+        }
+
+        function fill(select, values, placeholder, keep = select.value) {
+            select.innerHTML = (placeholder !== null ? `<option value="">${escapeHtml(placeholder)}</option>` : '') +
+                values.map(v => Array.isArray(v) ? v : [v, v]).map(([v, t]) => `<option value="${escapeHtml(v)}">${escapeHtml(t)}</option>`).join('');
+            if ([...select.options].some(o => o.value === keep)) select.value = keep;
+        }
+
+        /* ---------- Mark Register ---------- */
+        let markList = null; // { register (when one was taken already), rows: [{ student, status, remark }] }
+
+        // The units of a class in a period: on offer for it, or registered by its students
+        function classUnits(course, batch, period) {
+            const codes = new Set(offers.filter(o => same(o.course, course) && (!o.batch || same(o.batch, batch)) && same(o.term, period)).map(o => o.unitCode));
+            const ids = new Set(activeStudents().filter(s => same(s.admissionCourse, course) && same(s.group, batch)).map(s => s.id));
+            registrations.filter(r => ids.has(r.studentId) && same(r.term, period)).forEach(r => codes.add(r.unitCode));
+            return [...codes].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+        }
+
+        function markChoicesChanged(keepPeriod) {
+            const course = $('mkCourse').value, batch = $('mkBatch').value;
+            if (!keepPeriod && course && batch) {
+                const running = periodOn($('mkDate').value || today(), batch, course);
+                if (running) $('mkPeriod').value = running;
+            }
+            const codes = course && batch && $('mkPeriod').value ? classUnits(course, batch, $('mkPeriod').value) : [];
+            fill($('mkUnit'), codes.map(c => [c, unitLabel(c)]), codes.length ? '-- select unit --'
+                : course && batch ? '-- no unit on offer or registered for this class --' : '-- choose the course and batch first --');
+            // The unit's lecturer on the offer, when known
+            const offer = offers.find(o => same(o.course, course) && (!o.batch || same(o.batch, batch)) && same(o.term, $('mkPeriod').value) && same(o.unitCode, $('mkUnit').value));
+            if (offer && offer.lecturer) $('mkLecturer').value = offer.lecturer;
+            $('mkList').hidden = true;
+            markList = null;
+        }
+
+        function findRegister(day, session, course, batch, period, unit) {
+            return registers.find(r => r.registerDate === day && same(r.session, session) && same(r.course, course) && same(r.batch, batch)
+                && same(r.period, period) && same(r.unitCode, unit));
+        }
+
+        function loadClassList() {
+            const day = $('mkDate').value, session = $('mkSession').value, course = $('mkCourse').value, batch = $('mkBatch').value,
+                period = $('mkPeriod').value, unit = $('mkUnit').value;
+            const missing = [!day && 'Date', !course && 'Course', !batch && 'Batch', !period && 'Period', !unit && 'Unit'].filter(Boolean);
+            if (missing.length) return alert('Choose the ' + missing.join(', ') + ' first.');
+            if (day > today()) return alert('A register cannot be taken for a day still to come.');
+            const existing = findRegister(day, session, course, batch, period, unit);
+            if (!dayAllowed(day) && !existing) return alert(`No register was taken that day, and registers can only be taken for ${backdateRule()}.`);
+            const classStudents = activeStudents().filter(s => same(s.admissionCourse, course) && same(s.group, batch));
+            const registered = new Set(registrations.filter(r => same(r.term, period) && same(r.unitCode, unit)).map(r => r.studentId));
+            let list = classStudents.filter(s => registered.has(s.id));
+            const notes = [];
+            if (!list.length) {
+                list = classStudents;
+                if (list.length) notes.push('No student of this class is registered for this unit in this period, so every active student of the course and batch is listed.');
+            }
+            // A register taken before keeps its students (even one who has left since)
+            const saved = new Map(((existing && existing.marks) || []).map(m => [m.studentId, m]));
+            for (const m of saved.values()) if (!list.some(s => s.id === m.studentId)) {
+                list.push(students.find(s => s.id === m.studentId) || { id: m.studentId, admNo: m.admNo, firstName: m.name });
+            }
+            if (!list.length) return alert('This class has no active students (course and batch as on the student records).');
+            list.sort((a, b) => String(a.admNo).localeCompare(String(b.admNo), undefined, { numeric: true }));
+            if (existing) {
+                notes.unshift(`This register was taken on ${new Date(existing.takenAt || existing.updatedAt).toLocaleString('en-GB')}` +
+                    (existing.takenBy ? ` by ${existing.takenBy}` : '') + ': saving changes it.');
+                if (existing.lecturer) $('mkLecturer').value = existing.lecturer;
+            }
+            // A register older than the days allowed is shown, but cannot be changed
+            const locked = !dayAllowed(day);
+            if (locked) notes.push(`It can no longer be changed: registers can only be taken or changed for ${backdateRule()}.`);
+            markList = { locked, register: existing || null, rows: list.map(s => ({ student: s,
+                status: (saved.get(s.id) || {}).status || 'Present', remark: (saved.get(s.id) || {}).remark || '' })) };
+            $('mkNote').hidden = !notes.length;
+            $('mkNote').textContent = notes.join(' ');
+            document.querySelectorAll('#mkList .btn-submit, #mkList .btn-secondary').forEach(b => { b.disabled = locked; });
+            $('mkList').hidden = false;
+            renderMarks();
+        }
+
+        function renderMarks() {
+            const mayMark = can('attendance', 'mark') && !markList.locked;
+            $('mkRows').innerHTML = markList.rows.map((row, i) => `
+                <div class="rc-mark-row rc-${row.status.toLowerCase()}">
+                    <span class="rc-mark-no">${i + 1}</span>
+                    <span class="rc-mark-who"><b>${escapeHtml(studentName(row.student))}</b><small>${escapeHtml(row.student.admNo || '')}</small></span>
+                    <span class="rc-mark-status" role="radiogroup" aria-label="Attendance of ${escapeHtml(studentName(row.student))}">${STATUSES.map(st => `
+                        <label class="rc-pill rc-pill-${st.toLowerCase()}${row.status === st ? ' on' : ''}">
+                            <input type="radio" name="mk${i}" value="${st}"${row.status === st ? ' checked' : ''}${mayMark ? '' : ' disabled'}
+                                onchange="setMark(${i}, this.value)"><span>${st}</span></label>`).join('')}</span>
+                    <input type="text" class="rc-mark-remark" placeholder="Remark" maxlength="120" value="${escapeHtml(row.remark)}"
+                        oninput="markList.rows[${i}].remark = this.value"${mayMark ? '' : ' disabled'}>
+                </div>`).join('');
+            renderMarkCounts();
+        }
+
+        function setMark(i, status) {
+            markList.rows[i].status = status;
+            const row = $('mkRows').children[i];
+            row.className = `rc-mark-row rc-${status.toLowerCase()}`;
+            row.querySelectorAll('.rc-pill').forEach(p => p.classList.toggle('on', p.querySelector('input').value === status));
+            renderMarkCounts();
+        }
+
+        function markAll(status) {
+            if (!markList) return;
+            markList.rows.forEach(r => { r.status = status; });
+            renderMarks();
+        }
+
+        function countsOf(rows) {
+            const c = Object.fromEntries(STATUSES.map(s => [s, 0]));
+            rows.forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
+            return c;
+        }
+
+        function renderMarkCounts() {
+            const c = countsOf(markList.rows);
+            $('mkCounts').innerHTML = `<span class="rc-chip">${markList.rows.length} students</span>` +
+                STATUSES.map(s => `<span class="rc-chip rc-chip-${s.toLowerCase()}">${s}: ${c[s]}</span>`).join('');
+        }
+
+        async function saveRegister() {
+            if (!markList || !allowed('attendance', 'mark')) return;
+            const day = $('mkDate').value;
+            if (day > today()) return alert('A register cannot be taken for a day still to come.');
+            if (!dayAllowed(day)) return alert(`Registers can only be taken or changed for ${backdateRule()}.`);
+            const lecturer = lecturers.find(l => l.username === $('mkLecturer').value);
+            const c = countsOf(markList.rows);
+            const before = markList.register;
+            const now = new Date().toISOString(), me = currentUser() || '';
+            const record = {
+                ...(before || {}), id: before ? before.id : newId(),
+                registerDate: day, session: $('mkSession').value, course: $('mkCourse').value, batch: $('mkBatch').value,
+                period: $('mkPeriod').value, unitCode: $('mkUnit').value, unitTitle: (unitOf($('mkUnit').value) || {}).title || '',
+                lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '',
+                marks: markList.rows.map(r => ({ studentId: r.student.id, admNo: r.student.admNo || '', name: studentName(r.student),
+                    status: r.status, remark: r.remark.trim() })),
+                present: c.Present, absent: c.Absent, late: c.Late, excused: c.Excused, total: markList.rows.length,
+                takenBy: before ? before.takenBy : me, takenAt: before ? before.takenAt : now, updatedAt: now, updatedBy: me
+            };
+            const button = $('mkSave');
+            button.disabled = true;
+            try {
+                await fewaDB.put('attendance_registers', record);
+                registers = registers.filter(r => r.id !== record.id).concat(record);
+                markList.register = record;
+                showToast(`Register ${before ? 'updated' : 'saved'}: ${c.Present} present, ${c.Absent} absent, ${c.Late} late, ${c.Excused} excused.`);
+                $('mkNote').hidden = false;
+                $('mkNote').textContent = 'This register is saved. Changes made now are saved when you press Save Register again.';
+            } catch (error) {
+                alert('The register was NOT saved: ' + error.message);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        // Opens a register (or a class not yet registered) in Mark Register
+        function openInMark(values) {
+            location.href = 'RollCall.html?tab=mark&' + new URLSearchParams(values).toString();
+        }
+
+        /* ---------- Registers taken ---------- */
+        function renderTaken() {
+            const from = $('tkFrom').value, to = $('tkTo').value, course = $('tkCourse').value, batch = $('tkBatch').value,
+                unit = $('tkUnit').value, term = $('tkSearch').value.trim().toLowerCase();
+            const list = registers.filter(r => (!from || r.registerDate >= from) && (!to || r.registerDate <= to)
+                && (!course || same(r.course, course)) && (!batch || same(r.batch, batch)) && (!unit || same(r.unitCode, unit))
+                && (!term || [r.unitCode, r.unitTitle, r.lecturerName, r.course, r.batch].join(' ').toLowerCase().includes(term)))
+                .sort((a, b) => b.registerDate.localeCompare(a.registerDate) || String(a.course).localeCompare(String(b.course)));
+            const mayMark = can('attendance', 'mark');
+            $('tkCount').textContent = `${list.length} register${list.length === 1 ? '' : 's'}`;
+            $('tkRows').innerHTML = list.length ? list.map(r => {
+                const p = pct((r.present || 0) + (r.late || 0), (r.total || 0) - (r.excused || 0));
+                return `<tr>
+                    <td>${escapeHtml(dayText(r.registerDate))}</td><td>${escapeHtml(r.session || '')}</td><td>${escapeHtml(r.course)}</td>
+                    <td>${escapeHtml(r.batch)}</td><td>${escapeHtml(r.period)}</td><td>${escapeHtml(unitLabel(r.unitCode))}</td>
+                    <td>${escapeHtml(r.lecturerName || '')}</td><td class="num">${r.present || 0}</td><td class="num">${r.absent || 0}</td>
+                    <td class="num">${r.late || 0}</td><td class="num">${r.excused || 0}</td><td class="num"><span class="rc-pct ${pctClass(p)}">${pctText(p)}</span></td>
+                    <td class="rc-actions">${iconButton('edit', 'Open this register', `openInMark(${escapeHtml(JSON.stringify({ date: r.registerDate,
+                        session: r.session, course: r.course, batch: r.batch, period: r.period, unit: r.unitCode }))})`)}${mayMark
+                        && dayAllowed(r.registerDate) ? iconButton('delete', 'Remove this register', `deleteRegister('${escapeHtml(r.id)}')`) : ''}</td></tr>`;
+            }).join('') : '<tr class="empty-row"><td colspan="13">No register was taken in these days.</td></tr>';
+        }
+
+        async function deleteRegister(id) {
+            if (!allowed('attendance', 'mark')) return;
+            const r = registers.find(x => x.id === id);
+            if (!r || !confirm(`Remove the register of ${unitLabel(r.unitCode)} (${r.course}, ${r.batch}) on ${dayText(r.registerDate)}?\n\n` +
+                'The attendance marks it holds are removed too.')) return;
+            try {
+                await fewaDB.remove('attendance_registers', id);
+                registers = registers.filter(x => x.id !== id);
+                showToast('Register removed.');
+                renderTaken();
+            } catch (error) { alert('The register could not be removed: ' + error.message); }
+        }
+
+        /* ---------- Registers not taken ---------- */
+        function renderNotTaken() {
+            let from = $('ntFrom').value || today(), to = $('ntTo').value || from;
+            if (to < from) [from, to] = [to, from];
+            const course = $('ntCourse').value, batch = $('ntBatch').value, weekends = $('ntWeekends').checked;
+            const days = [];
+            for (let d = new Date(from + 'T12:00:00'); d.toLocaleDateString('en-CA') <= to && days.length < 62; d.setDate(d.getDate() + 1)) {
+                if (weekends || (d.getDay() !== 0 && d.getDay() !== 6)) days.push(d.toLocaleDateString('en-CA'));
+            }
+            // Active students per course and batch
+            const classSize = new Map();
+            for (const s of activeStudents()) {
+                const key = `${String(s.admissionCourse).toLowerCase()}|${String(s.group).toLowerCase()}`;
+                classSize.set(key, (classSize.get(key) || 0) + 1);
+            }
+            const batchesOf = c => [...new Set(activeStudents().filter(s => same(s.admissionCourse, c)).map(s => s.group).filter(Boolean))];
+            const rows = [];
+            for (const day of days) {
+                for (const o of offers) {
+                    if (course && !same(o.course, course)) continue;
+                    for (const b of (o.batch ? [o.batch] : batchesOf(o.course))) {
+                        if (batch && !same(b, batch)) continue;
+                        const size = classSize.get(`${String(o.course).toLowerCase()}|${String(b).toLowerCase()}`) || 0;
+                        if (!size || !same(periodOn(day, b, o.course), o.term)) continue;
+                        if (registers.some(r => r.registerDate === day && same(r.course, o.course) && same(r.batch, b) && same(r.period, o.term) && same(r.unitCode, o.unitCode))) continue;
+                        if (rows.some(x => x.day === day && same(x.course, o.course) && same(x.batch, b) && same(x.unit, o.unitCode))) continue;
+                        rows.push({ day, course: o.course, batch: b, period: o.term, unit: o.unitCode, lecturer: o.lecturerName || '', size });
+                    }
+                }
+            }
+            const mayMark = can('attendance', 'mark');
+            $('ntCount').textContent = `${rows.length} register${rows.length === 1 ? '' : 's'} not taken` +
+                (days.length ? ` (${days.length} day${days.length === 1 ? '' : 's'})` : '');
+            $('ntRows').innerHTML = rows.length ? rows.map(x => `<tr>
+                <td>${escapeHtml(dayText(x.day))}</td><td>${escapeHtml(x.course)}</td><td>${escapeHtml(x.batch)}</td><td>${escapeHtml(x.period)}</td>
+                <td>${escapeHtml(unitLabel(x.unit))}</td><td>${escapeHtml(x.lecturer)}</td><td class="num">${x.size}</td>
+                <td>${mayMark && dayAllowed(x.day) ? `<button type="button" class="btn-small" onclick="openInMark(${escapeHtml(JSON.stringify({ date: x.day, course: x.course,
+                    batch: x.batch, period: x.period, unit: x.unit }))})">Mark now</button>` : ''}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="8">${offers.length ? 'Every register of these days was taken.'
+                    : 'No unit is on offer yet (Academic Management > Manage Units > Units on offer).'}</td></tr>`;
+        }
+
+        /* ---------- Attendance Status ---------- */
+        let statusRows = [];
+        function renderStatus() {
+            const course = $('stCourse').value, batch = $('stBatch').value, period = $('stPeriod').value, unit = $('stUnit').value,
+                from = $('stFrom').value, to = $('stTo').value, show = $('stShow').value, term = $('stSearch').value.trim().toLowerCase();
+            const chosen = registers.filter(r => (!course || same(r.course, course)) && (!batch || same(r.batch, batch))
+                && (!period || same(r.period, period)) && (!unit || same(r.unitCode, unit))
+                && (!from || r.registerDate >= from) && (!to || r.registerDate <= to));
+            const byStudent = new Map();
+            for (const r of chosen) for (const m of r.marks || []) {
+                const row = byStudent.get(m.studentId) || { id: m.studentId, admNo: m.admNo, name: m.name, course: r.course, batch: r.batch,
+                    registers: 0, Present: 0, Absent: 0, Late: 0, Excused: 0 };
+                row.registers++;
+                row[m.status] = (row[m.status] || 0) + 1;
+                byStudent.set(m.studentId, row);
+            }
+            statusRows = [...byStudent.values()].map(row => {
+                const s = students.find(x => x.id === row.id);
+                if (s) Object.assign(row, { admNo: s.admNo, name: studentName(s), course: s.admissionCourse, batch: s.group });
+                row.pct = pct(row.Present + row.Late, row.registers - row.Excused);
+                row.state = row.pct === null ? 'Excused only' : row.pct >= 75 ? 'Good' : row.pct >= 50 ? 'At risk' : 'Poor';
+                return row;
+            }).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            const shown = statusRows.filter(r => (!show || (r.pct !== null && r.pct < (show === 'poor' ? 50 : 75)))
+                && (!term || `${r.name} ${r.admNo}`.toLowerCase().includes(term)));
+            const n = state => statusRows.filter(r => r.state === state).length;
+            $('stCounts').innerHTML = `<span class="rc-chip">${chosen.length} register${chosen.length === 1 ? '' : 's'}</span>` +
+                `<span class="rc-chip">${statusRows.length} student${statusRows.length === 1 ? '' : 's'}</span>` +
+                `<span class="rc-chip rc-chip-present">Good: ${n('Good')}</span><span class="rc-chip rc-chip-late">At risk: ${n('At risk')}</span>` +
+                `<span class="rc-chip rc-chip-absent">Poor: ${n('Poor')}</span>`;
+            $('stRows').innerHTML = shown.length ? shown.map(r => `<tr>
+                <td>${escapeHtml(r.admNo || '')}</td><td>${escapeHtml(r.name || '')}</td><td>${escapeHtml(r.course || '')}</td><td>${escapeHtml(r.batch || '')}</td>
+                <td class="num">${r.registers}</td><td class="num">${r.Present}</td><td class="num">${r.Late}</td><td class="num">${r.Absent}</td>
+                <td class="num">${r.Excused}</td><td class="num"><span class="rc-pct ${pctClass(r.pct)}">${pctText(r.pct)}</span></td>
+                <td><span class="rc-state ${pctClass(r.pct)}">${escapeHtml(r.state)}</span></td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="11">${registers.length ? 'No student matches.' : 'No register has been taken yet (Mark Register).'}</td></tr>`;
+        }
+
+        function downloadStatus() {
+            if (!statusRows.length) return alert('There is nothing to download: no student is listed.');
+            const head = ['AdmNo', 'Student Name', 'Course', 'Batch', 'Registers', 'Present', 'Late', 'Absent', 'Excused', 'Attendance %', 'Status'];
+            FewaExcel.writeWorkbook(`attendance-status-${today()}.xlsx`, [{ name: 'Attendance', freeze: true,
+                widths: [16, 30, 22, 22, 11, 10, 8, 9, 10, 13, 12],
+                rows: [head.map(h => ({ v: h, s: 9 })), ...statusRows.map(r => [r.admNo, r.name, r.course, r.batch, String(r.registers),
+                    String(r.Present), String(r.Late), String(r.Absent), String(r.Excused), r.pct === null ? '' : String(r.pct), r.state])] }])
+                .catch(err => alert(err.message));
+        }
+
+        /* ---------- Opening the page ---------- */
+        function showCurrentUser() {
+            const account = currentAccount();
+            $('currentUserName').innerText = account ? accountName(account) : 'Administrator';
+            $('currentUserEmail').innerText = account ? account.username : '';
+            $('staffNavItem').style.display = isAdmin() ? '' : 'none';
+        }
+
+        async function start() {
+            showCurrentUser();
+            const menu = { mark: 'menuRcMark', taken: 'menuRcTaken', nottaken: 'menuRcNotTaken', status: 'menuRcStatus' }[TAB];
+            document.getElementById(menu).classList.add('active');
+            const need = TAB === 'mark' ? ['attendance', 'mark'] : ['attendance', 'view'];
+            if (!can(...need)) {
+                $('rcNoRight').hidden = false;
+                $('rcNoRightText').textContent = `You do not have the right to ${TAB === 'mark' ? 'mark registers' : 'open Roll Call Management'}. ` +
+                    'Ask an administrator to assign it to your role under Settings > Access Management > Role Operations.';
+                return;
+            }
+            document.title = { mark: 'Mark Register', taken: 'Registers taken', nottaken: 'Registers not taken', status: 'Attendance Status' }[TAB] +
+                ' - FEWA Beauty & Fashion College';
+            await loadData();
+            const courseChoices = courses.map(c => [c, c]), batchChoices = batches.map(b => [b, b]);
+            const usedUnits = [...new Set([...offers.map(o => o.unitCode), ...registers.map(r => r.unitCode)].filter(Boolean))]
+                .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).map(c => [c, unitLabel(c)]);
+            if (TAB === 'mark') {
+                $('rcMark').hidden = false;
+                $('mkDate').max = today();
+                $('mkDate').min = earliestDay();
+                $('mkDateRule').textContent = 'Registers can be taken for ' + backdateRule() + '.';
+                $('mkDate').value = params.get('date') || today();
+                fill($('mkCourse'), courseChoices, '-- select course --', params.get('course') || '');
+                fill($('mkBatch'), batchChoices, '-- select batch --', params.get('batch') || '');
+                fill($('mkPeriod'), periods, '-- select period --', params.get('period') || '');
+                fill($('mkLecturer'), lecturers.map(l => [l.username, l.name]), '-- select lecturer --',
+                    lecturers.some(l => same(l.username, currentUser())) ? lecturers.find(l => same(l.username, currentUser())).username : '');
+                if (params.get('session')) $('mkSession').value = params.get('session');
+                markChoicesChanged(!!params.get('period'));
+                if (params.get('unit')) {
+                    $('mkUnit').value = params.get('unit');
+                    if ($('mkUnit').value) loadClassList();
+                }
+            } else if (TAB === 'taken') {
+                $('rcTaken').hidden = false;
+                const t = today();
+                $('tkFrom').value = t.slice(0, 8) + '01';
+                $('tkTo').value = t;
+                fill($('tkCourse'), courseChoices, 'All courses');
+                fill($('tkBatch'), batchChoices, 'All batches');
+                fill($('tkUnit'), usedUnits, 'All units');
+                renderTaken();
+            } else if (TAB === 'nottaken') {
+                $('rcNotTaken').hidden = false;
+                const monday = new Date();
+                monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+                $('ntFrom').value = monday.toLocaleDateString('en-CA');
+                $('ntTo').value = today();
+                fill($('ntCourse'), courseChoices, 'All courses');
+                fill($('ntBatch'), batchChoices, 'All batches');
+                renderNotTaken();
+            } else {
+                $('rcStatus').hidden = false;
+                fill($('stCourse'), courseChoices, 'All courses');
+                fill($('stBatch'), batchChoices, 'All batches');
+                fill($('stPeriod'), periods, 'All periods');
+                fill($('stUnit'), usedUnits, 'All units');
+                renderStatus();
+            }
+        }
+        start();
+    </script>
+
+</body>
+
+</html>
