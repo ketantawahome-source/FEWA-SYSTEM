@@ -5406,6 +5406,14 @@ body.login-page .login-loading.success .loading-title::before {
     color: rgba(255, 255, 255, 0.8);
 }
 
+/* The top bar stays at the top of the window on every page, while scrolling and on every module (user's wish) */
+#topbar {
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    flex-shrink: 0;
+}
+
 /* The footer stays at the bottom of the window on every page, even while the page is scrolled */
 .system-footer {
     position: sticky;

@@ -941,9 +941,30 @@ async function setOwnPassword(session, password) {
     if (!passwordAcceptable(password)) return { result: 'weak' };
     if (account.hash && await passwordMatches(password, account.salt, account.hash)) return { result: 'same' };
     const { salt, hash } = await newPasswordDetails(password);
-    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false WHERE id = $3`, [salt, hash, account.id]);
+    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false, must_change_password = false WHERE id = $3`,
+        [salt, hash, account.id]);
     await endOtherSessions('staff', account.id, session.tokenHash);
     return { result: 'ok' };
+}
+
+/* Staff Management > Reset Password (administrators): a new temporary password, made here, set at once and shown to
+   the administrator once (to read out or send on WhatsApp), and emailed to the staff member's username. They are
+   logged out everywhere and must choose their own password when they next sign in (must_change_password). */
+async function resetStaffPasswordOnServer({ id } = {}) {
+    const { rows } = await pool.query(`SELECT * FROM ${T('staff')} WHERE id = $1`, [String(id || '')]);
+    if (!rows.length) return { result: 'none' };
+    const account = recordFromRow(rows[0]);
+    if (account.status === 'Inactive') return { result: 'inactive' };
+    const password = temporaryPassword();
+    const { salt, hash } = await newPasswordDetails(password);
+    await pool.query(`UPDATE ${T('staff')} SET salt = $1, hash = $2, admin_reset_required = false, must_change_password = true WHERE id = $3`,
+        [salt, hash, account.id]);
+    await endOtherSessions('staff', account.id, '');
+    const name = [account.firstName, account.lastName].filter(Boolean).join(' ') || account.username;
+    const emailed = await sendSystemEmail(account.username, `Hello ${name}, your FEWA staff password has been reset. ` +
+        `Sign in at ${PUBLIC_SITE} with your username ${account.username} and the temporary password ${password}. ` +
+        'You will be asked to choose your own password when you sign in.');
+    return { result: 'ok', password, username: account.username, phone: account.phone || '', emailed, site: PUBLIC_SITE };
 }
 
 // A temporary password nobody can guess, made here (no letters or numbers that look alike, e.g. O and 0)
@@ -1217,13 +1238,14 @@ function accountsForSession(text, full) {
 async function keepPasswords(text, setup) {
     if (text == null || setup) return text;
     const accounts = JSON.parse(text);
-    const { rows } = await pool.query(`SELECT id, salt, hash, admin_reset_required FROM ${T('staff')}`);
+    const { rows } = await pool.query(`SELECT id, salt, hash, admin_reset_required, must_change_password FROM ${T('staff')}`);
     const saved = new Map(rows.map(r => [r.id, r]));
     return JSON.stringify(accounts.map(a => {
         if (!a) return a;
         if (a.hash === null && a.adminResetRequired === true && a.status === 'Inactive') return { ...a, salt: null };
         const row = saved.get(String(a.id));
-        return { ...a, salt: row ? row.salt : null, hash: row ? row.hash : null, adminResetRequired: row ? row.admin_reset_required : a.adminResetRequired ?? null };
+        return { ...a, salt: row ? row.salt : null, hash: row ? row.hash : null, adminResetRequired: row ? row.admin_reset_required : a.adminResetRequired ?? null,
+            mustChangePassword: row ? row.must_change_password : null };
     }));
 }
 
@@ -2162,6 +2184,10 @@ async function handleApi(req, res, parts) {
     // No staff account yet, and the request comes from this computer: setting the system up
     const setup = await setupNeeded() && isLocalRequest(req);
     const fullAccess = setup || staff;
+    // Signed in with a temporary password (Reset Password): only choosing their own password, until they do
+    if (staff && session.account.mustChangePassword && !['session', 'password', 'values', 'health', 'global'].includes(area)) {
+        return send(res, 403, { error: 'Choose your own password first (you signed in with a temporary password).' });
+    }
 
     if (area === 'health' && method === 'GET') return send(res, 200, { ok: true, mirror: mirrorState });
     if (area === 'global') return await handleGlobal(req, res, session, a, method);
@@ -2206,6 +2232,12 @@ async function handleApi(req, res, parts) {
         if (staff && !await staffCan(session, 'students.edit', 'students.add', 'students.password')) throw forbidden();
         const result = await setStudentPasswordOnServer(session, await readBody(req, SMALL_BODY_BYTES) || {});
         mirrorChanged(['students']);
+        return send(res, 200, result);
+    }
+    if (area === 'staff-password-reset' && method === 'POST') {
+        if (!admin) throw forbidden();
+        const result = await resetStaffPasswordOnServer(await readBody(req, SMALL_BODY_BYTES) || {});
+        mirrorChanged(['staff']);
         return send(res, 200, result);
     }
     if (area === 'password-link' && method === 'POST') {

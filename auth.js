@@ -943,7 +943,10 @@ function requireLogin() {
     if (!account || account.status === 'Inactive') {
         sessionStorage.removeItem(AUTH_SESSION_KEY);
         location.replace('login.html');
+        return;
     }
+    // Signed in with a temporary password (Staff Management > Reset Password): they choose their own first
+    if (account.mustChangePassword && !/ChangePassword\.html$/i.test(location.pathname)) location.replace('ChangePassword.html');
 }
 
 // A staff member who is deactivated while logged in (from another tab or computer session) is

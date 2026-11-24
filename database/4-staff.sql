@@ -76,6 +76,8 @@ ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS deduct_helb text;              
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS exam_supervisor text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS photo jsonb;                    -- reference to the picture in files.stored_files
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS signature jsonb;                -- reference to the picture in files.stored_files
+-- After an administrator's Reset Password: the temporary password works once, then they must choose their own
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS must_change_password boolean;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS details_updated_at timestamptz;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS details_updated_by text;        -- the administrator who last saved them
 COMMENT ON TABLE staff.staff IS 'The staff: login account and personal & employment details, one row per staff member.';

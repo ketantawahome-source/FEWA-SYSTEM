@@ -17,7 +17,7 @@
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261124a">
+    <link rel="stylesheet" href="styles.css?v=20261124b">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
@@ -54,26 +54,45 @@
         /* The staff member's bio data, laid out as the reference screen: two columns of sections */
         #staffFormSection, #staffFormSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #staffFormSection { border-top: 0; border-radius: 4px; }
-        .staff-bio-banner { background: #eef6fc; color: #2f6f8f; text-align: center; font-size: 13px; font-weight: 600; padding: 8px; border-radius: 3px; }
-        .staff-bio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 32px; }
-        .bio-title { color: #1f5f8b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px;
-            border-bottom: 1px solid #e8eaee; padding: 0 0 6px; margin: 22px 0 10px; }
-        .bio-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 20px; align-items: start; }
-        .bio-grid .form-group label { font-size: 12px; font-weight: 700; color: #333; }
-        .bio-grid .form-group input, .bio-grid .form-group select { font-size: 13px; padding: 6px 10px; min-height: 32px; border-radius: 3px; }
-        .bio-hint { color: #777; font-size: 11px; margin: 4px 0 0; display: block; }
-        .bio-upload { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px;
-            border: 1px dashed #9cc3dc; background: #f3f8fc; border-radius: 4px; cursor: pointer; color: #1f5f8b !important; font-size: 12px !important; padding: 6px; }
+        #staffFormTitle { font-size: 22px !important; font-weight: 600; color: #222 !important; letter-spacing: 0; }
+        #staffFormSection .list-toolbar-actions .btn-secondary { font-size: 17px; min-height: 50px; padding: 0 18px; }
+        #staffPasswordState { font-size: 15px; }
+        /* Reset Password: the green note and the temporary password box (as the reference screen) */
+        .pw-result { background: #e6f3fa; border: 1px solid #cde6f3; border-left: 5px solid #1aa0d8; border-radius: 3px; padding: 10px 14px 14px; margin-bottom: 18px; }
+        .pw-result[hidden] { display: none; }
+        .pw-note { background: #2e8b57; color: #fff; font-weight: 700; font-size: 17px; text-align: center; padding: 10px 16px; border-radius: 3px; }
+        .pw-box { padding: 12px 18px 0; font-size: 17px; color: #1d3c4f; }
+        .pw-line { margin: 8px 0 10px; color: #333; }
+        .pw-line code { background: #fbeef0; color: #c7254e; padding: 2px 6px; border-radius: 3px; font-family: Consolas, 'Courier New', monospace !important; font-size: 15px; }
+        .pw-line .pw-password { font-size: 19px; letter-spacing: 0.5px; }
+        .pw-gap { margin-left: 12px; }
+        .pw-whatsapp { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border: 1px solid #c9ced6; border-radius: 999px;
+            background: #fff; color: #1d3c4f; font-weight: 700; text-decoration: none; font-size: 17px; }
+        .pw-whatsapp:hover { background: #f1f8f4; }
+        .pw-whatsapp svg { width: 20px; height: 20px; }
+        .staff-bio-banner { background: #eef6fc; color: #2f6f8f; text-align: center; font-size: 19px; font-weight: 600; padding: 12px; border-radius: 3px;
+            border-left: 4px solid #a9d3ee; }
+        .staff-bio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 44px; padding: 0 16px; }
+        .bio-title { color: #222; font-weight: 600; font-size: 23px; text-transform: uppercase; letter-spacing: 0.2px;
+            border-bottom: 1px solid #eef0f3; padding: 0 0 14px; margin: 34px 0 18px; }
+        .bio-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 44px; align-items: start; }
+        .bio-grid .form-group label { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px; }
+        .bio-grid .form-group input, .bio-grid .form-group select { font-size: 17px; padding: 10px 22px; min-height: 51px; border-radius: 2px;
+            border: 1px solid #d2d6dc; color: #333; background-color: #fff; }
+        .bio-grid .req { color: #d9302c; }
+        .bio-hint { color: #777; font-size: 14px; margin: 6px 0 0; display: block; }
+        .bio-upload { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 84px;
+            border: 1px dashed #9cc3dc; background: #f3f8fc; border-radius: 4px; cursor: pointer; color: #1f5f8b !important; font-size: 16px !important; padding: 8px; }
         .bio-upload img { max-height: 70px; max-width: 100%; }
-        .bio-upload-icon { font-size: 18px; color: #3c8dbc; line-height: 1; }
-        .bio-filter { width: 100%; padding: 6px 10px; border: 1px solid #d6d9de; border-radius: 3px; font-size: 13px; }
-        .bio-school-links { font-size: 12px; margin: 6px 0; color: #777; }
+        .bio-upload-icon { font-size: 24px; color: #3c8dbc; line-height: 1; }
+        .bio-filter { width: 100%; padding: 10px 18px; border: 1px solid #d2d6dc; border-radius: 2px; font-size: 18px; min-height: 51px; }
+        .bio-school-links { font-size: 18px; margin: 12px 0; color: #666; }
         .bio-school-links a { color: #1f5f8b; font-weight: 600; text-decoration: none; }
-        .bio-school-list { border: 1px solid #e3e6ea; border-radius: 3px; padding: 8px 10px; min-height: 60px; max-height: 180px; overflow-y: auto; }
-        .bio-school-list label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; margin: 3px 0; cursor: pointer; }
-        .bio-school-list input { width: auto; margin: 0; }
+        .bio-school-list { border: 1px solid #e8eaee; border-radius: 2px; padding: 12px 20px; min-height: 80px; max-height: 260px; overflow-y: auto; }
+        .bio-school-list label { display: flex; align-items: center; gap: 10px; font-size: 17px; color: #333; margin: 10px 0; cursor: pointer; }
+        .bio-school-list input { width: 18px; height: 18px; margin: 0; }
         .bio-save { text-align: center; margin-top: 22px; }
-        .bio-save .staff-finder-add, .bio-save-top { min-height: 36px !important; font-size: 14px; padding: 0 16px; }
+        .bio-save .staff-finder-add, .bio-save-top { min-height: 50px !important; font-size: 19px; padding: 0 18px; }
         @media (max-width: 1000px) { .staff-bio { grid-template-columns: minmax(0, 1fr); } }
         @media (max-width: 600px) { .bio-grid { grid-template-columns: minmax(0, 1fr); } }
         .staff-delete { color: #b3261e !important; border-color: #e3b5b1 !important; }
@@ -242,7 +261,7 @@
                             <!-- Shown while a member of staff is open (were on the Staff List) -->
                             <span id="staffPasswordState" class="staff-note" style="margin: 0;"></span>
                             <button type="button" id="staffResetLink" class="btn-secondary" style="display: none;"
-                                onclick="sendStaffPasswordLink(staffForm.elements.id.value)">Send Reset Link</button>
+                                onclick="resetStaffPassword(staffForm.elements.id.value)">Reset Password</button>
                             <button type="button" id="staffDelete" class="btn-secondary staff-delete" style="display: none;"
                                 onclick="deleteStaff(staffForm.elements.id.value)">Delete</button>
                             <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
@@ -252,6 +271,18 @@
                     </div>
                     <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
                         <input type="hidden" name="id">
+                        <!-- After Reset Password: the temporary password, shown once -->
+                        <div id="staffResetResult" class="pw-result" hidden>
+                            <div id="staffResetNote" class="pw-note"></div>
+                            <div class="pw-box">
+                                <div><b>Temporary password (shown once).</b> Read it out or send it on WhatsApp; it will not be shown again.</div>
+                                <div class="pw-line">Username: <code id="staffResetUser"></code>
+                                    <span class="pw-gap">Password:</span> <code id="staffResetPassword" class="pw-password"></code></div>
+                                <a id="staffResetWhatsApp" class="pw-whatsapp" target="_blank" rel="noopener">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5c.2 2.6 2.2 5 4.9 5.7l.9-1.1 1.8.8c-.2 1.1-1 1.7-2 1.6-3.4-.4-6.1-3.2-6.4-6.6 0-.9.6-1.7 1.6-1.9l.8 1.8z" fill="currentColor"/></svg>
+                                    Send on WhatsApp</a>
+                            </div>
+                        </div>
                         <div class="staff-bio-banner">Manage all the bio data about each staff member</div>
                         <div class="staff-bio">
                             <!-- ===== Left: Biodata, Contact details, Next of kin, Access control ===== -->
@@ -714,6 +745,7 @@
             document.getElementById('staffResetLink').style.display = 'none';
             document.getElementById('staffDelete').style.display = 'none';
             document.getElementById('staffPasswordState').textContent = '';
+            hideStaffResetResult();
             // Back to step 1: the form closes until someone is chosen or "Add new staff member" is pressed
             showStaffPage(false);
         }
@@ -795,7 +827,8 @@
             document.getElementById('staffCancelEdit').style.display = 'inline-block';
             // Their password and the buttons that were on the Staff List
             const me = currentAccount();
-            document.getElementById('staffPasswordState').textContent = 'Password: ' + (account.hash ? 'set'
+            hideStaffResetResult();
+            document.getElementById('staffPasswordState').textContent = 'Password: ' + (account.mustChangePassword ? 'temporary (must change at sign-in)' : account.hash ? 'set'
                 : account.adminResetRequired ? 'cancelled, send a reset link' : 'not set yet');
             document.getElementById('staffResetLink').style.display = 'inline-block';
             document.getElementById('staffDelete').style.display = me && me.id === id ? 'none' : 'inline-block';
@@ -890,6 +923,50 @@
             const result = await sendPasswordLink(account.username, { newStaff: !account.hash, byAdmin: true });
             if (result === 'sent') showToast(PASSWORD_LINK_MESSAGES.sent(account.username));
             else alert(PASSWORD_LINK_MESSAGES[result](account.username));
+        }
+
+        /* ---------- Reset Password: a temporary password, shown once here and emailed to them ---------- */
+        function hideStaffResetResult() {
+            document.getElementById('staffResetResult').hidden = true;
+            document.getElementById('staffResetPassword').textContent = '';
+            document.getElementById('staffResetWhatsApp').removeAttribute('href');
+        }
+
+        async function resetStaffPassword(id) {
+            const account = getAccounts().find(a => a.id === id);
+            if (!account) return;
+            if (account.status === 'Inactive') {
+                return alert(`${accountName(account)} is Inactive. Set their Status to Active and save first, then reset their password.`);
+            }
+            if (!confirm(`Reset the password of ${accountName(account)}?\n\nTheir current password stops working at once and they are ` +
+                'logged out. A temporary password is shown here once and emailed to them; they choose their own when they sign in.')) return;
+            let result;
+            try {
+                result = await api('POST', '/staff-password-reset', { id });
+            } catch (error) {
+                return alert('The password was NOT reset: ' + error.message);
+            }
+            if (!result || result.result !== 'ok') {
+                return alert(result && result.result === 'inactive' ? `${accountName(account)} is Inactive, so the password was not reset.`
+                    : 'The password was NOT reset. Close this staff member and open them again, then try once more.');
+            }
+            document.getElementById('staffResetNote').textContent = 'Password reset. The temporary password is shown below, once, and ' +
+                (result.emailed ? `was also sent by email (${result.username}).` : `could NOT be emailed to ${result.username} (email sending is not working).`) +
+                ' They will be asked to choose a new password when they sign in.';
+            document.getElementById('staffResetUser').textContent = result.username;
+            document.getElementById('staffResetPassword').textContent = result.password;
+            // WhatsApp to their phone number (+2547... -> 2547...), with the sign-in details written out
+            const message = `Hello ${accountName(account)}, your FEWA staff password has been reset. Sign in at ${result.site} ` +
+                `with your username ${result.username} and the temporary password ${result.password}. ` +
+                'You will be asked to choose your own password when you sign in.';
+            const phone = String(result.phone || '').replace(/\D/g, '');
+            document.getElementById('staffResetWhatsApp').href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+            document.getElementById('staffResetResult').hidden = false;
+            document.getElementById('staffPasswordState').textContent = 'Password: temporary (must change at sign-in)';
+            window.scrollTo(0, 0);
+            document.getElementById('main-wrapper').scrollTop = 0;
+            // The accounts list (from the server) now says they must change it
+            if (typeof refreshServerValues === 'function') refreshServerValues();
         }
 
         async function deleteStaff(id) {
