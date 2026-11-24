@@ -11,35 +11,72 @@
     <script src="email-config.js"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
+    <script src="countries.js"></script>
     <script>
         requireLogin();
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
     <link rel="stylesheet" href="styles.css?v=20261124a">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
     <style>
         /* Find or add a member of staff: the first step, before the staff form opens */
-        .staff-finder-title { font-size: 20px; font-weight: 400; color: #333; padding: 2px 0 14px; margin: -4px -4px 18px;
-            border-bottom: 1px solid #e8eaee; }
-        .staff-finder-label { display: block; font-weight: 700; color: #24103a; margin: 22px 0 8px; font-size: 15px; }
-        .staff-finder-row { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
-        .staff-finder-row input { flex: 1 1 320px; max-width: 760px; padding: 10px 16px; font-size: 15px; border: 1px solid #d6d9de;
-            border-right: 0; border-radius: 3px 0 0 3px; min-height: 46px; }
-        .staff-finder-edit { padding: 0 18px; font-size: 15px; background: #f4f4f4; color: #222; border: 1px solid #d6d9de;
+        /* Laid out as the reference screen: Source Sans, a plain white card, the title on a thin rule
+           (styles.css gives every element Segoe UI, so the font is set on everything inside) */
+        #staffFinder, #staffFinder * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #staffFinder { border-top: 0; border-radius: 4px; padding: 0 0 52px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+        #staffFinder > :not(.staff-finder-title) { margin-left: 30px; margin-right: 30px; }
+        .staff-finder-title { font-size: 24px; font-weight: 400; color: #333; padding: 16px 16px 14px; margin: 0 0 24px;
+            border-bottom: 1px solid #eef0f3; }
+        #staffFinder .settings-banner.info-banner { font-size: 17px; padding: 26px 24px; margin-bottom: 0; }
+        .staff-finder-label { display: block; font-weight: 700; color: #333; margin: 30px 30px 8px; font-size: 17px; }
+        .staff-finder-row { display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap; }
+        .staff-finder-row input { flex: 0 1 758px; min-width: 160px; padding: 10px 18px; font-size: 17px; border: 1px solid #d6d9de;
+            border-right: 0; border-radius: 3px 0 0 3px; min-height: 51px; color: #333; }
+        .staff-finder-edit { padding: 0 18px; font-size: 17px; min-height: 51px !important; background: #f4f4f4; color: #222; border: 1px solid #d6d9de;
             border-radius: 0 3px 3px 0; cursor: pointer; min-height: 46px; }
         .staff-finder-edit:hover { background: #e9e9e9; }
-        .staff-finder-or { align-self: center; color: #888; padding: 0 70px; font-size: 15px; }
-        .staff-finder-add { padding: 0 18px; font-size: 16px; background: #1b7f3b; color: #fff; border: 1px solid #176c32;
+        .staff-finder-or { align-self: center; color: #888; padding: 0 clamp(16px, 5vw, 76px); font-size: 17px; }
+        .staff-finder-add { flex: 0 0 auto; white-space: nowrap; padding: 0 18px; font-size: 17px; min-height: 51px !important; background: #1b7f3b; color: #fff; border: 1px solid #176c32;
             border-radius: 3px; cursor: pointer; min-height: 46px; }
         .staff-finder-add:hover { background: #176c32; }
-        .staff-finder-hint { color: #666; font-size: 14px; margin: 8px 0 0; }
+        .staff-finder-hint { color: #666; font-size: 17px; margin: 10px 30px 0; }
         @media (max-width: 700px) {
+            .staff-finder-row { flex-wrap: wrap; }
             .staff-finder-row input { border-right: 1px solid #d6d9de; border-radius: 3px; }
             .staff-finder-edit { border-radius: 3px; margin-top: 8px; }
             .staff-finder-or { padding: 8px 14px; }
             .staff-finder-add { margin-top: 8px; }
         }
-        #staffFormSection[hidden] { display: none; }
+        #staffFormSection[hidden], #staffListSection[hidden] { display: none; }
+        /* The staff member's bio data, laid out as the reference screen: two columns of sections */
+        #staffFormSection, #staffFormSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #staffFormSection { border-top: 0; border-radius: 4px; }
+        .staff-bio-banner { background: #eef6fc; color: #2f6f8f; text-align: center; font-size: 13px; font-weight: 600; padding: 8px; border-radius: 3px; }
+        .staff-bio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 32px; }
+        .bio-title { color: #1f5f8b; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px;
+            border-bottom: 1px solid #e8eaee; padding: 0 0 6px; margin: 22px 0 10px; }
+        .bio-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 20px; align-items: start; }
+        .bio-grid .form-group label { font-size: 12px; font-weight: 700; color: #333; }
+        .bio-grid .form-group input, .bio-grid .form-group select { font-size: 13px; padding: 6px 10px; min-height: 32px; border-radius: 3px; }
+        .bio-hint { color: #777; font-size: 11px; margin: 4px 0 0; display: block; }
+        .bio-upload { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px;
+            border: 1px dashed #9cc3dc; background: #f3f8fc; border-radius: 4px; cursor: pointer; color: #1f5f8b !important; font-size: 12px !important; padding: 6px; }
+        .bio-upload img { max-height: 70px; max-width: 100%; }
+        .bio-upload-icon { font-size: 18px; color: #3c8dbc; line-height: 1; }
+        .bio-filter { width: 100%; padding: 6px 10px; border: 1px solid #d6d9de; border-radius: 3px; font-size: 13px; }
+        .bio-school-links { font-size: 12px; margin: 6px 0; color: #777; }
+        .bio-school-links a { color: #1f5f8b; font-weight: 600; text-decoration: none; }
+        .bio-school-list { border: 1px solid #e3e6ea; border-radius: 3px; padding: 8px 10px; min-height: 60px; max-height: 180px; overflow-y: auto; }
+        .bio-school-list label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; margin: 3px 0; cursor: pointer; }
+        .bio-school-list input { width: auto; margin: 0; }
+        .bio-save { text-align: center; margin-top: 22px; }
+        .bio-save .staff-finder-add, .bio-save-top { min-height: 36px !important; font-size: 14px; padding: 0 16px; }
+        @media (max-width: 1000px) { .staff-bio { grid-template-columns: minmax(0, 1fr); } }
+        @media (max-width: 600px) { .bio-grid { grid-template-columns: minmax(0, 1fr); } }
+        .staff-delete { color: #b3261e !important; border-color: #e3b5b1 !important; }
     </style>
 </head>
 
@@ -181,12 +218,12 @@
                 <!-- Step 1: find the person to edit, or add a new one (the form below opens after) -->
                 <div class="form-section" id="staffFinder">
                     <div class="staff-finder-title">Find or add a member of staff</div>
-                    <div class="settings-banner info-banner">Type part of the person's name, ID number, email or phone, then
+                    <div class="settings-banner info-banner">Type part of the person's name, staff number, email or phone, then
                         choose them from the list to open their record, or add a new member of staff.</div>
                     <label class="staff-finder-label" for="staffFind">Find a staff member to edit</label>
                     <div class="staff-finder-row">
                         <input type="text" id="staffFind" list="staffFindOptions" autocomplete="off"
-                            placeholder="Name, ID number, email or phone"
+                            placeholder="Name, staff number, email or phone"
                             onkeydown="if (event.key === 'Enter') { event.preventDefault(); editFoundStaff(); }"
                             onchange="if (findStaffMatch(this.value)) editFoundStaff()">
                         <datalist id="staffFindOptions"></datalist>
@@ -201,107 +238,191 @@
                     <div class="list-toolbar">
                         <div id="staffFormTitle" class="section-title" style="margin: 0; border: none; padding: 0;">Add
                             Staff Member</div>
-                        <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
-                            onclick="resetStaffForm()">Cancel</button>
+                        <div class="list-toolbar-actions">
+                            <!-- Shown while a member of staff is open (were on the Staff List) -->
+                            <span id="staffPasswordState" class="staff-note" style="margin: 0;"></span>
+                            <button type="button" id="staffResetLink" class="btn-secondary" style="display: none;"
+                                onclick="sendStaffPasswordLink(staffForm.elements.id.value)">Send Reset Link</button>
+                            <button type="button" id="staffDelete" class="btn-secondary staff-delete" style="display: none;"
+                                onclick="deleteStaff(staffForm.elements.id.value)">Delete</button>
+                            <button type="button" id="staffCancelEdit" class="btn-secondary" style="display: none;"
+                                onclick="resetStaffForm()">Cancel</button>
+                            <button type="submit" form="staffForm" class="staff-finder-add bio-save-top">Save Details</button>
+                        </div>
                     </div>
                     <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
                         <input type="hidden" name="id">
-                        <div class="grid-3">
-                            <div class="form-group">
-                                <label>First Name <span class="req">*</span></label>
-                                <input type="text" name="firstName" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Last Name <span class="req">*</span></label>
-                                <input type="text" name="lastName" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Email (Username) <span class="req">*</span></label>
-                                <input type="email" name="username" required placeholder="e.g. jane@fewacollege.ac.ke">
-                            </div>
-                            <div class="form-group">
-                                <label>Phone Number <span class="req">*</span></label>
-                                <input type="tel" name="phone" required placeholder="e.g. 0712 345 678">
-                            </div>
-                            <div class="form-group">
-                                <label>Role <span class="req">*</span></label>
-                                <!-- Options come from Settings > Access Management > Roles -->
-                                <select name="jobTitle" required></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Access Level <span class="req">*</span></label>
-                                <select name="role" required>
-                                    <option value="Staff">Staff</option>
-                                    <option value="Administrator">Administrator</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Status <span class="req">*</span></label>
-                                <select name="status" required>
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
-                                </select>
-                            </div>
-                        </div>
+                        <div class="staff-bio-banner">Manage all the bio data about each staff member</div>
+                        <div class="staff-bio">
+                            <!-- ===== Left: Biodata, Contact details, Next of kin, Access control ===== -->
+                            <div class="staff-bio-col">
+                                <div class="bio-title">Biodata</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>First Name <span class="req">*</span></label>
+                                        <input type="text" name="firstName" required maxlength="60"></div>
+                                    <div class="form-group"><label>Second Name</label>
+                                        <input type="text" name="secondName" maxlength="60"></div>
+                                    <div class="form-group"><label>Last Name <span class="req">*</span></label>
+                                        <input type="text" name="lastName" required maxlength="60"></div>
+                                    <div class="form-group"><label>Preferred Name</label>
+                                        <input type="text" name="preferredName" maxlength="60"></div>
+                                    <div class="form-group"><label>Title <span class="req">*</span></label>
+                                        <select name="title" required data-choices="title"></select></div>
+                                    <div class="form-group"><label>Gender <span class="req">*</span></label>
+                                        <select name="gender" required>
+                                            <option value="">-- select one --</option>
+                                            <option value="FEMALE">FEMALE</option>
+                                            <option value="MALE">MALE</option>
+                                        </select></div>
+                                    <div class="form-group"><label>Date of Birth <span class="req">*</span></label>
+                                        <input type="date" name="dateOfBirth" required></div>
+                                    <div class="form-group"><label>Marital Status <span class="req">*</span></label>
+                                        <select name="maritalStatus" required data-choices="maritalStatus"></select></div>
+                                    <div class="form-group"><label>National ID</label>
+                                        <input type="text" name="idNumber" maxlength="40"></div>
+                                    <div class="form-group"><label>Passport No.</label>
+                                        <input type="text" name="passportNo" maxlength="40"></div>
+                                    <div class="form-group"><label>Nationality</label>
+                                        <select name="nationality"></select></div>
+                                    <div class="form-group"><label>Work email address</label>
+                                        <input type="email" name="workEmail" maxlength="120"></div>
+                                    <div class="form-group"><label>Ethnicity</label>
+                                        <select name="ethnicity" data-choices="ethnicity" data-placeholder="-- select Ethnicity --"></select></div>
+                                    <div class="form-group"><label>Signature</label>
+                                        <label class="bio-upload" for="staffSignatureFile">
+                                            <img id="staffSignaturePreview" alt="" hidden>
+                                            <span class="bio-upload-icon" aria-hidden="true">&#9729;</span>
+                                            <u id="staffSignatureText">Choose a signature</u>
+                                        </label>
+                                        <input type="file" id="staffSignatureFile" accept="image/jpeg,image/png" hidden
+                                            onchange="previewStaffImage(this, 'staffSignature')">
+                                        <small class="bio-hint">JPG or PNG, up to 10MB, saved with Save Details</small></div>
+                                    <div class="form-group"><label>Photo</label>
+                                        <label class="bio-upload" for="staffPhotoFile">
+                                            <img id="staffPhotoPreview" alt="" hidden>
+                                            <span class="bio-upload-icon" aria-hidden="true">&#9729;</span>
+                                            <u id="staffPhotoText">Choose a photo</u>
+                                        </label>
+                                        <input type="file" id="staffPhotoFile" accept="image/jpeg,image/png" hidden
+                                            onchange="previewStaffImage(this, 'staffPhoto')">
+                                        <small class="bio-hint">JPG or PNG, up to 10MB, saved with Save Details</small></div>
+                                    <div class="form-group"><label>Documents on record</label>
+                                        <div id="staffDocsOnRecord" class="bio-hint"></div></div>
+                                </div>
 
-                        <!-- Kept in the staff table (staff.staff); only administrators can see them; all optional -->
-                        <div class="section-title" style="margin-top: 18px;">Personal &amp; Employment Details</div>
-                        <div class="grid-3">
-                            <div class="form-group">
-                                <label>ID / Passport No.</label>
-                                <input type="text" name="idNumber" maxlength="40">
+                                <div class="bio-title">Contact Details</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>Phone No. <span class="req">*</span></label>
+                                        <input type="tel" name="phone" required placeholder="e.g. 0712 345 678"></div>
+                                    <div class="form-group"><label>Personal Email Address <span class="req">*</span></label>
+                                        <input type="email" name="personalEmail" required maxlength="120"></div>
+                                    <div class="form-group"><label>Postal Code</label>
+                                        <input type="text" name="postalCode" maxlength="20"></div>
+                                    <div class="form-group"><label>P.O. Box</label>
+                                        <input type="text" name="address" maxlength="200"></div>
+                                </div>
+
+                                <div class="bio-title">Next of Kin</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>Full Name</label>
+                                        <input type="text" name="nextOfKinName" maxlength="100"></div>
+                                    <div class="form-group"><label>Relationship</label>
+                                        <input type="text" name="nextOfKinRelationship" maxlength="60" placeholder="e.g. Spouse, Parent, Sibling"></div>
+                                    <div class="form-group"><label>Phone Number</label>
+                                        <input type="tel" name="nextOfKinPhone" maxlength="20" placeholder="e.g. 0712 345 678"></div>
+                                </div>
+
+                                <div class="bio-title">Access Control</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>Status <span class="req">*</span></label>
+                                        <select name="status" required>
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                        </select></div>
+                                    <div class="form-group"><label>System Role <span class="req">*</span></label>
+                                        <!-- Options come from Settings > Access Management > Roles -->
+                                        <select name="jobTitle" required></select></div>
+                                    <div class="form-group"><label>Username <span class="req">*</span></label>
+                                        <input type="email" name="username" required placeholder="The email they log in with"></div>
+                                    <div class="form-group"><label>Access Level <span class="req">*</span></label>
+                                        <select name="role" required>
+                                            <option value="Staff">Staff</option>
+                                            <option value="Administrator">Administrator</option>
+                                        </select></div>
+                                </div>
+                                <p class="bio-hint">Passwords are never typed here: a new staff member is emailed a link to set their
+                                    own password, and Send Reset Link (above) gives someone a new one.</p>
                             </div>
-                            <div class="form-group">
-                                <label>Gender</label>
-                                <select name="gender">
-                                    <option value="">-- select gender --</option>
-                                    <option value="FEMALE">FEMALE</option>
-                                    <option value="MALE">MALE</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Date of Birth</label>
-                                <input type="date" name="dateOfBirth">
-                            </div>
-                            <div class="form-group">
-                                <label>Department</label>
-                                <!-- Options come from Settings > Organisation Setup > Departments -->
-                                <select name="department"></select>
-                            </div>
-                            <div class="form-group">
-                                <label>Date Employed</label>
-                                <input type="date" name="dateEmployed">
-                            </div>
-                            <div class="form-group">
-                                <label>Physical / Postal Address</label>
-                                <input type="text" name="address" maxlength="200">
+
+                            <!-- ===== Right: School access, Employment history, Payroll details ===== -->
+                            <div class="staff-bio-col">
+                                <div class="bio-title">Staff School Access</div>
+                                <input type="text" id="staffSchoolFilter" class="bio-filter" placeholder="Type to filter schools"
+                                    autocomplete="off" oninput="renderSchoolAccess()">
+                                <div class="bio-school-links">
+                                    <a href="#" onclick="tickSchools(true); return false;">Select all</a> |
+                                    <a href="#" onclick="tickSchools(false); return false;">Clear all</a>
+                                    <span id="staffSchoolCount"></span>
+                                </div>
+                                <div id="staffSchoolList" class="bio-school-list"></div>
+
+                                <div class="bio-title">Employment History</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>Date of Employment <span class="req">*</span></label>
+                                        <input type="date" name="dateEmployed" required></div>
+                                    <div class="form-group"><label>Date Left</label>
+                                        <input type="date" name="dateLeft"></div>
+                                    <div class="form-group"><label>Department</label>
+                                        <!-- Options come from Settings > Organisation Setup > Departments -->
+                                        <select name="department"></select></div>
+                                    <div class="form-group"><label>Profession</label>
+                                        <select name="profession" data-choices="profession"></select></div>
+                                    <div class="form-group"><label>Staff Rank <span class="req">*</span></label>
+                                        <select name="staffRank" required data-choices="staffRank"></select></div>
+                                </div>
+
+                                <div class="bio-title">Payroll Details</div>
+                                <div class="bio-grid">
+                                    <div class="form-group"><label>Bank</label>
+                                        <select name="bank" data-choices="bank"></select></div>
+                                    <div class="form-group"><label>PIN Number</label>
+                                        <input type="text" name="pinNumber" maxlength="20"></div>
+                                    <div class="form-group"><label>Branch</label>
+                                        <input type="text" name="bankBranch" maxlength="80"></div>
+                                    <div class="form-group"><label>SHA Number (formerly NHIF)</label>
+                                        <input type="text" name="shaNumber" maxlength="30"></div>
+                                    <div class="form-group"><label>Bank Account</label>
+                                        <input type="text" name="bankAccount" maxlength="40"></div>
+                                    <div class="form-group"><label>SACCO No.</label>
+                                        <input type="text" name="saccoNo" maxlength="30"></div>
+                                    <div class="form-group"><label>Pension No.</label>
+                                        <input type="text" name="pensionNo" maxlength="30"></div>
+                                    <div class="form-group"><label>NSSF Number</label>
+                                        <input type="text" name="nssfNumber" maxlength="30"></div>
+                                    <div class="form-group"><label>Payroll/Staff Number</label>
+                                        <input type="text" name="staffNumber" maxlength="30"></div>
+                                    <div class="form-group"><label>Tax Exempt</label>
+                                        <select name="taxExempt" data-choices="yesNo" data-placeholder=""></select></div>
+                                    <div class="form-group"><label>Tax Exempt Reason</label>
+                                        <select name="taxExemptReason" data-choices="taxExemptReason"></select></div>
+                                    <div class="form-group"><label>Supervisor</label>
+                                        <input type="text" name="supervisor" maxlength="100"></div>
+                                    <div class="form-group"><label>Deduct HELB</label>
+                                        <select name="deductHelb" data-choices="yesNo" data-placeholder=""></select></div>
+                                    <div class="form-group"><label>Exam Supervisor Name</label>
+                                        <input type="text" name="examSupervisor" maxlength="100"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="section-title" style="margin-top: 18px;">Next of Kin</div>
-                        <div class="grid-3">
-                            <div class="form-group">
-                                <label>Full Name</label>
-                                <input type="text" name="nextOfKinName" maxlength="100">
-                            </div>
-                            <div class="form-group">
-                                <label>Relationship</label>
-                                <input type="text" name="nextOfKinRelationship" maxlength="60" placeholder="e.g. Spouse, Parent, Sibling">
-                            </div>
-                            <div class="form-group">
-                                <label>Phone Number</label>
-                                <input type="tel" name="nextOfKinPhone" maxlength="20" placeholder="e.g. 0712 345 678">
-                            </div>
-                        </div>
-                        <p class="staff-note">New staff are emailed a link to set their own password. Their email is
-                            their username.</p>
-                        <div class="action-bar">
-                            <button type="submit" id="staffSaveButton" class="btn-submit">Save Staff &amp; Send
-                                Password Link</button>
+                        <div class="bio-save">
+                            <button type="submit" id="staffSaveButton" class="staff-finder-add">Save Details</button>
                         </div>
                     </form>
                 </div>
 
-                <div class="form-section">
+                <!-- The list of staff is not shown (user's wish: the page shows only "Find or add a member of staff");
+                     a person is opened from the find box -->
+                <div class="form-section" id="staffListSection" hidden>
                     <div class="list-toolbar">
                         <div class="section-title" style="margin: 0; border: none; padding: 0;">Staff List</div>
                         <div class="list-toolbar-actions">
@@ -358,9 +479,11 @@
                 : '<span class="badge active">Active</span>';
         }
 
+        // The top bar search fills the find box (its list shows the people who fit)
         function searchFromTopbar(value) {
-            document.getElementById('staffSearch').value = value;
-            renderStaffList();
+            const box = document.getElementById('staffFind');
+            box.value = value;
+            box.focus();
         }
 
         /* ---------- Staff Management (administrators only) ---------- */
@@ -378,8 +501,109 @@
         /* Personal & employment details, in the staff table (staff.staff) but read and saved apart from the
            accounts list, which every staff member's browser gets (/api/staff-details, administrators only):
            { staff id: { idNumber, gender, dateOfBirth, department, dateEmployed, address, nextOfKin... } } */
-        const DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 'dateEmployed', 'address',
-            'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone'];
+        const DETAIL_FIELDS = ['secondName', 'preferredName', 'title', 'gender', 'dateOfBirth', 'maritalStatus', 'idNumber',
+            'passportNo', 'nationality', 'workEmail', 'ethnicity', 'personalEmail', 'postalCode', 'address',
+            'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone',
+            'dateEmployed', 'dateLeft', 'department', 'profession', 'staffRank',
+            'bank', 'bankBranch', 'pinNumber', 'bankAccount', 'shaNumber', 'saccoNo', 'pensionNo', 'nssfNumber', 'staffNumber',
+            'taxExempt', 'taxExemptReason', 'supervisor', 'deductHelb', 'examSupervisor'];
+        // Kept with the details but not a box of the form: the ticked schools (names joined by " | ") and the two pictures
+        const SCHOOL_SEPARATOR = ' | ';
+
+        // The choices of the bio data dropdowns (data-choices on each select)
+        const STAFF_CHOICES = {
+            title: ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Prof', 'Rev'],
+            maritalStatus: ['Single', 'Married', 'Divorced', 'Widowed', 'Separated'],
+            ethnicity: ['Kikuyu', 'Luhya', 'Kalenjin', 'Luo', 'Kamba', 'Somali', 'Kisii', 'Mijikenda', 'Meru', 'Maasai', 'Turkana',
+                'Embu', 'Taita', 'Teso', 'Kuria', 'Samburu', 'Pokomo', 'Borana', 'Other'],
+            profession: ['Trainer / Lecturer', 'Hairdresser', 'Beauty Therapist', 'Fashion Designer', 'Accountant', 'Administrator',
+                'Secretary', 'Librarian', 'ICT Officer', 'Driver', 'Cleaner', 'Security', 'Other'],
+            staffRank: ['Principal', 'Deputy Principal', 'Head of Department', 'Senior Trainer', 'Trainer', 'Assistant Trainer',
+                'Senior Officer', 'Officer', 'Support Staff', 'Intern'],
+            bank: ['Absa Bank Kenya', 'Bank of Africa', 'Co-operative Bank', 'Diamond Trust Bank (DTB)', 'Equity Bank', 'Family Bank',
+                'I&M Bank', 'KCB Bank', 'Kingdom Bank', 'National Bank of Kenya', 'NCBA Bank', 'Sidian Bank', 'Stanbic Bank',
+                'Standard Chartered Bank', 'Other'],
+            taxExemptReason: ['Disability', 'Other'],
+            yesNo: ['No', 'Yes']
+        };
+
+        // Fills every bio data dropdown; a saved value that is not in the list is kept as a choice
+        function fillStaffChoices(details = {}) {
+            const form = document.getElementById('staffForm');
+            form.querySelectorAll('select[data-choices]').forEach(select => {
+                const list = STAFF_CHOICES[select.dataset.choices] || [];
+                const current = details[select.name] || '';
+                const values = current && !list.includes(current) ? [...list, current] : list;
+                const placeholder = select.dataset.placeholder ?? '-- select one --';
+                select.innerHTML = (placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : '') +
+                    values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+                select.value = current || (placeholder ? '' : values[0]);
+            });
+            // Nationality: every country (countries.js), Kenya for a new staff member
+            const nationality = form.elements['nationality'];
+            const country = details.nationality || 'Kenya';
+            const countries = COUNTRIES.includes(country) ? COUNTRIES : [...COUNTRIES, country];
+            nationality.innerHTML = '<option value="">-- select one --</option>' +
+                countries.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            nationality.value = country;
+        }
+
+        /* ---------- Staff school access: the schools of Settings > Program Setup > Schools, ticked ---------- */
+        let staffSchools = [];
+        let ticked = new Set();
+        function renderSchoolAccess() {
+            const filter = document.getElementById('staffSchoolFilter').value.trim().toLowerCase();
+            const names = [...new Set([...staffSchools, ...ticked])];
+            document.getElementById('staffSchoolList').innerHTML = names.filter(n => !filter || n.toLowerCase().includes(filter))
+                .map(n => `<label><input type="checkbox" value="${escapeHtml(n)}" ${ticked.has(n) ? 'checked' : ''}
+                    onchange="this.checked ? ticked.add(this.value) : ticked.delete(this.value); countSchools()"> ${escapeHtml(n)}</label>`).join('')
+                || `<span class="bio-hint">${names.length ? 'No school fits that.' : 'No schools set up yet (Settings > Program Setup > Schools).'}</span>`;
+            countSchools();
+        }
+        function countSchools() {
+            const total = [...new Set([...staffSchools, ...ticked])].length;
+            document.getElementById('staffSchoolCount').textContent = ` ${ticked.size} of ${total} school${total === 1 ? '' : 's'} ticked`;
+        }
+        function tickSchools(on) {
+            document.querySelectorAll('#staffSchoolList input[type=checkbox]').forEach(box => {
+                box.checked = on;
+                on ? ticked.add(box.value) : ticked.delete(box.value);
+            });
+            countSchools();
+        }
+
+        /* ---------- Photo and signature: a picture chosen here is saved with Save Details ---------- */
+        const STAFF_IMAGE_MAX = 10 * 1024 * 1024;
+        function previewStaffImage(input, prefix) {
+            const file = input.files[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png'].includes(file.type)) { input.value = ''; return alert('Choose a JPG or PNG picture.'); }
+            if (file.size > STAFF_IMAGE_MAX) { input.value = ''; return alert('That picture is larger than 10MB. Choose a smaller one.'); }
+            showStaffImage(prefix, file, file.name);
+        }
+        function showStaffImage(prefix, blob, name) {
+            const img = document.getElementById(prefix + 'Preview');
+            if (img.src) URL.revokeObjectURL(img.src);
+            img.hidden = !blob;
+            if (blob) img.src = URL.createObjectURL(blob); else img.removeAttribute('src');
+            document.getElementById(prefix + 'Text').textContent = blob ? (name || 'Change') + ' (click to change)'
+                : prefix === 'staffPhoto' ? 'Choose a photo' : 'Choose a signature';
+        }
+        // The saved photo and signature of the staff member who is open
+        async function showSavedStaffImages(details) {
+            const id = document.getElementById('staffForm').elements['id'].value;
+            for (const [field, prefix] of [['photo', 'staffPhoto'], ['signature', 'staffSignature']]) {
+                const ref = details[field];
+                if (!ref || !ref.__file) continue;
+                const blob = await downloadFile(ref).catch(() => null);
+                // (another person may have been opened meanwhile)
+                if (blob && document.getElementById('staffForm').elements['id'].value === id) showStaffImage(prefix, blob, ref.name);
+            }
+        }
+        function showDocsOnRecord(details) {
+            const docs = [details.photo && details.photo.__file && 'Photo', details.signature && details.signature.__file && 'Signature'].filter(Boolean);
+            document.getElementById('staffDocsOnRecord').textContent = docs.length ? docs.join(', ') : 'None yet';
+        }
         let staffDetails = {};
 
         async function loadStaffDetails() {
@@ -395,11 +619,17 @@
         async function saveStaffDetails(id, form) {
             const details = Object.fromEntries(DETAIL_FIELDS.map(f => [f, form.elements[f].value.trim()]));
             if (details.nextOfKinPhone) details.nextOfKinPhone = normalizeKenyanPhone(details.nextOfKinPhone) || details.nextOfKinPhone;
+            details.schoolAccess = [...ticked].sort().join(SCHOOL_SEPARATOR);
             const before = staffDetails[id] || {};
-            if (DETAIL_FIELDS.every(f => (details[f] || '') === (before[f] || ''))) return true;
+            const photo = document.getElementById('staffPhotoFile').files[0];
+            const signature = document.getElementById('staffSignatureFile').files[0];
+            if (!photo && !signature && [...DETAIL_FIELDS, 'schoolAccess'].every(f => (details[f] || '') === (before[f] || ''))) return true;
             try {
-                await api('PUT', '/staff-details/' + encodeURIComponent(id), details);
-                staffDetails[id] = { ...details, id };
+                // A new picture goes as a file inside the details (db.js packs it); none = the saved one stays
+                if (photo) details.photo = await packRecord(photo);
+                if (signature) details.signature = await packRecord(signature);
+                const saved = await api('PUT', '/staff-details/' + encodeURIComponent(id), details);
+                staffDetails[id] = { id, ...((saved && saved.details) || details) };
                 return true;
             } catch (error) {
                 alert('The staff member was saved, but their personal & employment details were NOT saved: ' + error.message +
@@ -472,16 +702,25 @@
             form.elements['id'].value = '';
             fillRoleSelect();
             fillDepartmentSelect();
+            fillStaffChoices();
+            ticked = new Set();
+            document.getElementById('staffSchoolFilter').value = '';
+            renderSchoolAccess();
+            showStaffImage('staffPhoto', null);
+            showStaffImage('staffSignature', null);
+            showDocsOnRecord({});
             document.getElementById('staffFormTitle').innerText = 'Add Staff Member';
-            document.getElementById('staffSaveButton').innerText = 'Save Staff & Send Password Link';
             document.getElementById('staffCancelEdit').style.display = 'none';
+            document.getElementById('staffResetLink').style.display = 'none';
+            document.getElementById('staffDelete').style.display = 'none';
+            document.getElementById('staffPasswordState').textContent = '';
             // Back to step 1: the form closes until someone is chosen or "Add new staff member" is pressed
             document.getElementById('staffFormSection').hidden = true;
         }
 
         /* ---------- Find or add a member of staff ---------- */
-        // One line per person in the list under the find box: name - email - phone - ID number
-        const staffFindLabel = a => [accountName(a), a.username, a.phone, (staffDetails[a.id] || {}).idNumber].filter(Boolean).join(' - ');
+        // One line per person in the list under the find box: name - staff number - email - phone
+        const staffFindLabel = a => [accountName(a), (staffDetails[a.id] || {}).staffNumber, a.username, a.phone].filter(Boolean).join(' - ');
 
         function fillStaffFindOptions() {
             document.getElementById('staffFindOptions').innerHTML = getAccounts()
@@ -504,7 +743,7 @@
         function editFoundStaff() {
             const box = document.getElementById('staffFind');
             const text = box.value.trim();
-            if (text.length < 2) return alert('Type at least two characters of the name, ID number, email or phone.');
+            if (text.length < 2) return alert('Type at least two characters of the name, staff number, email or phone.');
             const found = findStaffMatch(text);
             if (!found) return alert('No single member of staff fits that. Type a little more, then choose the person from the list.');
             box.value = '';
@@ -527,10 +766,25 @@
                 form.elements[name].value = account[name] || '');
             const details = staffDetails[id] || {};
             fillDepartmentSelect(details.department || '');
-            DETAIL_FIELDS.forEach(name => form.elements[name].value = details[name] || '');
+            fillStaffChoices(details);
+            DETAIL_FIELDS.filter(name => !form.elements[name].dataset.choices && name !== 'nationality')
+                .forEach(name => form.elements[name].value = details[name] || '');
+            ['staffPhotoFile', 'staffSignatureFile'].forEach(f => document.getElementById(f).value = '');
+            showStaffImage('staffPhoto', null);
+            showStaffImage('staffSignature', null);
+            showDocsOnRecord(details);
+            showSavedStaffImages(details);
+            ticked = new Set(String(details.schoolAccess || '').split(SCHOOL_SEPARATOR).map(n => n.trim()).filter(Boolean));
+            document.getElementById('staffSchoolFilter').value = '';
+            renderSchoolAccess();
             document.getElementById('staffFormTitle').innerText = 'Edit Staff Member - ' + accountName(account);
-            document.getElementById('staffSaveButton').innerText = 'Save Changes';
             document.getElementById('staffCancelEdit').style.display = 'inline-block';
+            // Their password and the buttons that were on the Staff List
+            const me = currentAccount();
+            document.getElementById('staffPasswordState').textContent = 'Password: ' + (account.hash ? 'set'
+                : account.adminResetRequired ? 'cancelled, send a reset link' : 'not set yet');
+            document.getElementById('staffResetLink').style.display = 'inline-block';
+            document.getElementById('staffDelete').style.display = me && me.id === id ? 'none' : 'inline-block';
             document.getElementById('staffFormSection').hidden = false;
             document.getElementById('staffFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -637,6 +891,7 @@
             deleteStaffAccount(id); // removes their row in the staff table, details and all
             delete staffDetails[id];
             showToast(`${accountName(account)} deleted successfully.`);
+            if (document.getElementById('staffForm').elements['id'].value === id) resetStaffForm();
             renderStaffList();
         }
 
@@ -665,6 +920,9 @@
             if (roles) staffRoles = roles.items.map(i => i.name);
             const departments = await readSetting('departments');
             if (departments) staffDepartments = departments.items.map(i => i.name).filter(Boolean);
+            const schools = await readSetting('schools');
+            if (schools) staffSchools = schools.items.map(i => i.name).filter(Boolean);
+            renderSchoolAccess();
             // Refresh the dropdowns without losing a choice already picked in the form
             fillRoleSelect(document.getElementById('staffForm').elements['jobTitle'].value);
             fillDepartmentSelect(document.getElementById('staffForm').elements['department'].value);

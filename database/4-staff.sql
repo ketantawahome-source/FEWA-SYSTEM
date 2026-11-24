@@ -45,6 +45,37 @@ ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS address text;                  
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS next_of_kin_name text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS next_of_kin_relationship text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS next_of_kin_phone text;
+-- The bio data screen (Nov 2026): biodata, contacts, school access, employment history and payroll details
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS second_name text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS preferred_name text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS title text;                     -- Mr, Mrs, Ms, Dr...
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS marital_status text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS passport_no text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS nationality text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS work_email text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS ethnicity text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS personal_email text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS postal_code text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS school_access text;             -- the schools ticked, joined by " | "
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS date_left date;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS profession text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS staff_rank text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS bank text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS bank_branch text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS pin_number text;                -- KRA PIN
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS bank_account text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS sha_number text;                -- formerly NHIF
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS sacco_no text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS pension_no text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS nssf_number text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS staff_number text;              -- payroll / staff number
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS tax_exempt text;                -- No or Yes
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS tax_exempt_reason text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS supervisor text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS deduct_helb text;               -- No or Yes
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS exam_supervisor text;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS photo jsonb;                    -- reference to the picture in files.stored_files
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS signature jsonb;                -- reference to the picture in files.stored_files
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS details_updated_at timestamptz;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS details_updated_by text;        -- the administrator who last saved them
 COMMENT ON TABLE staff.staff IS 'The staff: login account and personal & employment details, one row per staff member.';

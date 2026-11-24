@@ -639,8 +639,16 @@ const ACCOUNTS_KEY = 'fewaAccounts';
    read and saved only through /api/staff-details (administrators only), and saving the accounts list keeps
    them as they are in the database. */
 const STAFF_DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 'dateEmployed', 'address',
-    'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone'];
-const STAFF_DETAIL_ONLY = [...STAFF_DETAIL_FIELDS, 'detailsUpdatedAt', 'detailsUpdatedBy'];
+    'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone',
+    // The bio data screen (Nov 2026): biodata, contacts, school access, employment history and payroll details
+    'secondName', 'preferredName', 'title', 'maritalStatus', 'passportNo', 'nationality', 'workEmail', 'ethnicity',
+    'personalEmail', 'postalCode', 'schoolAccess', 'dateLeft', 'profession', 'staffRank', 'bank', 'bankBranch', 'pinNumber',
+    'bankAccount', 'shaNumber', 'saccoNo', 'pensionNo', 'nssfNumber', 'staffNumber', 'taxExempt', 'taxExemptReason',
+    'supervisor', 'deductHelb', 'examSupervisor'];
+// Pictures kept with the details (a reference to the file in files.stored_files): JPG or PNG, up to 10MB
+const STAFF_DETAIL_FILES = ['photo', 'signature'];
+const STAFF_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const STAFF_DETAIL_ONLY = [...STAFF_DETAIL_FIELDS, ...STAFF_DETAIL_FILES, 'detailsUpdatedAt', 'detailsUpdatedBy'];
 const withoutDetails = record => Object.fromEntries(Object.entries(record).filter(([field]) => !STAFF_DETAIL_ONLY.includes(field)));
 const onlyDetails = record => Object.fromEntries(Object.entries(record).filter(([field]) => STAFF_DETAIL_ONLY.includes(field)));
 const ROLE_OPERATIONS_KEY = 'fewaRoleOperations';
@@ -667,6 +675,10 @@ async function setValue(key, value) {
             const saved = new Map((await client.query(`SELECT * FROM ${T('staff')}`)).rows
                 .map(row => [String(row.id), onlyDetails(recordFromRow(row))]));
             await client.query(`DELETE FROM ${T('staff')}`);
+            // The pictures of staff members no longer in the list are deleted with them
+            const staying = new Set((parsed || []).map(account => String(account.id || account.username)));
+            const goneFiles = [...saved].filter(([id]) => !staying.has(id)).flatMap(([, details]) => [...fileIdsIn(details)]);
+            if (goneFiles.length) await client.query(`DELETE FROM ${T('stored_files')} WHERE id = ANY($1)`, [goneFiles]);
             const columns = await tableColumns(client, 'staff');
             for (const [position, account] of (parsed || []).entries()) {
                 const id = String(account.id || account.username);
@@ -1348,7 +1360,7 @@ const STORE_TABLES = {
     ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, [store]])),
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
-const valueTables = key => key === ACCOUNTS_KEY ? ['staff']
+const valueTables = key => key === ACCOUNTS_KEY ? ['staff', 'stored_files']
     : key === ROLE_OPERATIONS_KEY ? ['role_operations'] : ['password_reset_codes'];
 // Files first, so a record copied across already finds its photo or document on the other side
 // (Login sessions stay in the main database only)
@@ -2322,20 +2334,38 @@ async function handleApi(req, res, parts) {
                 if (value.length > 300) throw Object.assign(new Error('One of the details is too long.'), { status: 400 });
                 if (value) details[field] = value;
             }
-            for (const field of ['dateOfBirth', 'dateEmployed']) {
+            for (const field of ['dateOfBirth', 'dateEmployed', 'dateLeft']) {
                 if (details[field] && (!/^\d{4}-\d{2}-\d{2}$/.test(details[field]) || isNaN(new Date(details[field])))) {
                     throw Object.assign(new Error('A date is not valid.'), { status: 400 });
                 }
             }
+            // A new photo or signature: checked, stored, and the one it replaces deleted
+            const pictures = {};
+            for (const field of STAFF_DETAIL_FILES) {
+                const file = body[field];
+                if (!file || !file.__newFile) continue;
+                if (!['image/jpeg', 'image/png'].includes(file.type)) throw Object.assign(new Error('The photo and signature must be JPG or PNG pictures.'), { status: 400 });
+                if (String(file.data || '').length * 3 / 4 > STAFF_IMAGE_MAX_BYTES) throw Object.assign(new Error('A picture is larger than 10MB.'), { status: 400 });
+                pictures[field] = { __newFile: true, type: file.type, name: String(file.name || field).slice(0, 120), data: String(file.data) };
+            }
             // Only the detail columns of this staff member's row change
             const columns = (await tableColumns(pool, 'staff')).map(c => c.name);
-            const values = { ...Object.fromEntries(STAFF_DETAIL_FIELDS.map(f => [f, details[f] || null])),
-                detailsUpdatedAt: new Date().toISOString(), detailsUpdatedBy: staff ? session.account.username : '' };
-            const sets = Object.keys(values).map(f => f.replace(/[A-Z]/g, ch => '_' + ch.toLowerCase())).filter(c => columns.includes(c));
-            await pool.query(`UPDATE ${T('staff')} SET ${sets.map((c, i) => `${sqlName(c)} = $${i + 2}`).join(', ')} WHERE id = $1`,
-                [a, ...sets.map(c => values[snakeToCamel(c)])]);
-            mirrorChanged(['staff']);
-            return send(res, 200, { ok: true });
+            const saved = await inTransaction(async client => {
+                const before = onlyDetails(recordFromRow((await client.query(`SELECT * FROM ${T('staff')} WHERE id = $1 FOR UPDATE`, [a])).rows[0]));
+                const values = { ...Object.fromEntries(STAFF_DETAIL_FIELDS.map(f => [f, details[f] || null])),
+                    detailsUpdatedAt: new Date().toISOString(), detailsUpdatedBy: staff ? session.account.username : '' };
+                for (const [field, file] of Object.entries(pictures)) {
+                    const stored = await storeNewFiles(client, file);
+                    await deleteUnusedFiles(client, before[field], stored);
+                    values[field] = JSON.stringify(stored);
+                }
+                const sets = Object.keys(values).map(f => f.replace(/[A-Z]/g, ch => '_' + ch.toLowerCase())).filter(c => columns.includes(c));
+                await client.query(`UPDATE ${T('staff')} SET ${sets.map((c, i) => `${sqlName(c)} = $${i + 2}`).join(', ')} WHERE id = $1`,
+                    [a, ...sets.map(c => values[snakeToCamel(c)])]);
+                return onlyDetails(recordFromRow((await client.query(`SELECT * FROM ${T('staff')} WHERE id = $1`, [a])).rows[0]));
+            });
+            mirrorChanged(['stored_files', 'staff']);
+            return send(res, 200, { ok: true, details: saved });
         }
         // (Deleting a staff member removes their row, details and all, through the accounts list)
         if (method === 'DELETE' && a) return send(res, 200, { ok: true });
