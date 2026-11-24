@@ -80,10 +80,55 @@
         .rc-good { color: #1e6b3a; } .rc-state.rc-good { background: #e3f4e8; }
         .rc-risk { color: #8a5a00; } .rc-state.rc-risk { background: #fff1d6; }
         .rc-poor { color: #a12a1e; } .rc-state.rc-poor { background: #fbe3e1; }
+        /* Mark register, laid out as the reference screen */
+        .rc-panel { padding: 0 0 22px; }
+        .rc-panel > :not(.rc-panel-title) { margin-left: 20px; margin-right: 20px; }
+        .rc-panel-title { font-size: 21px; color: #333; padding: 14px 20px 12px; border-bottom: 1px solid #eef0f3; margin-bottom: 12px; }
+        .rc-info { background: #edf5fc; border: 1px solid #cfe3f3; border-radius: 3px; color: #2c5f7f; font-size: 15px; line-height: 1.5; padding: 16px 18px; }
+        .rc-mark-form { display: grid; grid-template-columns: 100px minmax(0, 495px) 160px minmax(0, 495px); column-gap: 18px; row-gap: 18px;
+            align-items: center; margin: 22px 10px 14px; }
+        .rc-mark-form > label:nth-of-type(even) { padding-left: 60px; }
+        .rc-mark-form label { font-size: 15px; font-weight: 700; color: #333; white-space: nowrap; }
+        .rc-mark-form .req { color: #d9302c; }
+        .rc-mark-form input, .rc-mark-form select { width: 100%; box-sizing: border-box; font-size: 15px; padding: 8px 14px; min-height: 38px;
+            border: 1px solid #ccd1d9; border-radius: 2px; background: #fff; color: #333; }
+        .rc-more { margin-top: 2px; }
+        .rc-more summary { display: inline-flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; color: #1f5fbf; font-weight: 700;
+            font-size: 14px; padding: 7px 16px 7px 12px; border: 1px solid #d6dbe3; border-radius: 999px; background: #fff; margin-left: 8px; }
+        .rc-more summary::-webkit-details-marker { display: none; }
+        .rc-more summary svg { width: 14px; height: 14px; transition: transform .15s; }
+        .rc-more[open] summary svg { transform: rotate(180deg); }
+        .rc-more-form { margin-top: 16px; }
+        .rc-mark-buttons { display: flex; gap: 4px; margin-top: 10px; }
+        .rc-save { font-size: 15px; padding: 0 14px; min-height: 38px; background: #1b7f3b; color: #fff; border: 1px solid #176c32; border-radius: 3px; cursor: pointer; }
+        .rc-save:hover { background: #176c32; }
+        .rc-clear { font-size: 15px; padding: 0 14px; min-height: 38px; background: #f4f4f4; color: #333; border: 1px solid #d6d9de; border-radius: 3px; cursor: pointer; }
+        .rc-clear:hover { background: #e9e9e9; }
+        .rc-save:disabled, .rc-clear:disabled { opacity: .55; cursor: default; }
+        .rc-students { border-top: 1px solid #eef0f3; margin-top: 22px; padding-top: 16px; }
+        .rc-panel > .rc-students { margin-left: 0; margin-right: 0; padding-left: 20px; padding-right: 20px; }
+        .rc-students-title { font-size: 20px; color: #333; margin-bottom: 14px; }
+        .rc-empty { font-style: italic; color: #555; font-size: 15px; margin: 6px 8px; }
+        .rc-empty[hidden] { display: none; }
+        .rc-mark-head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 110px minmax(120px, 220px); gap: 12px; padding: 0 12px 6px 16px;
+            font-size: 13px; font-weight: 700; color: #555; }
+        .rc-mark-head span:nth-child(3) { width: 324px; }
+        .rc-mark-row { grid-template-columns: 34px minmax(0, 1fr) auto 110px minmax(120px, 220px); }
+        .rc-mark-late { width: 100%; box-sizing: border-box; font-size: 13px; padding: 6px 9px; border: 1px solid #d6d0de; border-radius: 4px; }
+        .rc-mark-late:disabled { background: #f6f6f8; }
+        @media (max-width: 1250px) {
+            .rc-mark-form { grid-template-columns: 100px minmax(0, 1fr) 110px minmax(0, 1fr); }
+            .rc-mark-form > label:nth-of-type(even) { padding-left: 16px; }
+        }
         @media (max-width: 900px) {
             .rc-filters, .rc-filters-wide { grid-template-columns: 110px minmax(0, 1fr); }
             .rc-filters > span:empty { display: none; }
             .rc-filters .rc-buttons { grid-column: 1 / -1; }
+            .rc-mark-form { grid-template-columns: 100px minmax(0, 1fr); }
+            .rc-mark-form > label:nth-of-type(even) { padding-left: 0; }
+            .rc-mark-head { display: none; }
+            .rc-mark-row { grid-template-columns: 26px minmax(0, 1fr) 110px; }
+            .rc-mark-status, .rc-mark-remark { grid-column: 1 / -1; }
         }
         @media (max-width: 700px) {
             .rc-section { padding: 16px 12px 20px; }
@@ -91,8 +136,13 @@
             .rc-filters label:not(.rc-check) { margin-top: 8px; }
             .rc-filters .rc-check { grid-column: auto; margin-top: 10px; }
             /* Each student a small card: name, then the four buttons across, then the remark */
+            .rc-panel > :not(.rc-panel-title) { margin-left: 12px; margin-right: 12px; }
+            .rc-panel > .rc-students { padding-left: 12px; padding-right: 12px; }
+            .rc-mark-form { grid-template-columns: minmax(0, 1fr); row-gap: 4px; margin: 16px 0 12px; }
+            .rc-mark-form label:not(:first-child) { margin-top: 10px; }
             .rc-mark-row { grid-template-columns: 26px minmax(0, 1fr); gap: 8px 10px; padding: 10px; }
-            .rc-mark-status, .rc-mark-remark { grid-column: 1 / -1; }
+            .rc-mark-status, .rc-mark-remark, .rc-mark-late { grid-column: 1 / -1; }
+            .rc-mark-buttons .rc-save { flex: 1; }
             .rc-mark-status { display: grid; grid-template-columns: repeat(4, 1fr); }
             .rc-pill span { min-width: 0; width: 100%; box-sizing: border-box; padding: 9px 2px; }
             .rc-listbuttons { width: 100%; }
@@ -260,40 +310,62 @@
             </div>
 
             <!-- ===== Mark Register: take the register of a class session ===== -->
-            <div id="rcMark" class="form-section rc-section" hidden>
-                <div class="rc-banner">Take the register of a class: choose the day, the class and the unit, press Load Class List, mark each student and Save Register.</div>
+            <div id="rcMark" class="form-section rc-section rc-panel" hidden>
+                <div class="rc-panel-title">Mark register</div>
+                <div class="rc-info">Mark register: choose the class and the date (and the session, unit or lesson where the school uses them); the
+                    students are listed with their status. Set each student's status, the minutes late and any remark, then Save register.</div>
                 <p class="rc-rule" id="mkDateRule"></p>
-                <div class="rc-filters">
-                    <label for="mkDate">Date <span class="req">*</span></label>
-                    <input type="date" id="mkDate" onchange="markChoicesChanged()">
-                    <label for="mkSession">Session <span class="req">*</span></label>
-                    <select id="mkSession" onchange="markChoicesChanged(true)">
-                        <option>Morning</option><option>Afternoon</option><option>Evening</option><option>Full day</option>
-                    </select>
+                <div class="rc-mark-form">
+                    <label for="mkSchool">School <span class="req">*</span></label>
+                    <select id="mkSchool" onchange="markSchoolChanged()"></select>
                     <label for="mkCourse">Course <span class="req">*</span></label>
                     <select id="mkCourse" onchange="markChoicesChanged()"></select>
+
+                    <label for="mkEnrolment">Enrollment</label>
+                    <select id="mkEnrolment" onchange="markChoicesChanged(true)"></select>
+                    <label for="mkDate">Date <span class="req">*</span></label>
+                    <input type="date" id="mkDate" onchange="markChoicesChanged()">
+
                     <label for="mkBatch">Batch <span class="req">*</span></label>
                     <select id="mkBatch" onchange="markChoicesChanged()"></select>
                     <label for="mkPeriod">Period <span class="req">*</span></label>
                     <select id="mkPeriod" onchange="markChoicesChanged(true)"></select>
-                    <label for="mkUnit">Unit <span class="req">*</span></label>
-                    <select id="mkUnit" onchange="markChoicesChanged(true)"></select>
-                    <label for="mkLecturer">Lecturer</label>
-                    <select id="mkLecturer"></select>
-                    <span></span>
-                    <div class="rc-buttons"><button type="button" class="btn-submit" onclick="loadClassList()">Load Class List</button></div>
                 </div>
-                <div id="mkList" hidden>
-                    <div id="mkNote" class="rc-note" hidden></div>
-                    <div class="rc-listbar">
-                        <div class="rc-chips" id="mkCounts"></div>
-                        <div class="rc-listbuttons">
-                            <button type="button" class="btn-secondary" onclick="markAll('Present')">Mark all present</button>
-                            <button type="button" class="btn-submit" id="mkSave" onclick="saveRegister()">Save Register</button>
-                        </div>
+                <!-- Optional: a register for one session, unit or lesson rather than the whole class for the day -->
+                <details class="rc-more" id="mkMore">
+                    <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Lesson, session, activity or list register</summary>
+                    <div class="rc-mark-form rc-more-form">
+                        <label for="mkSession">Session</label>
+                        <select id="mkSession" onchange="markChoicesChanged(true)">
+                            <option value="">-- whole day --</option><option>Morning</option><option>Afternoon</option><option>Evening</option>
+                        </select>
+                        <label for="mkUnit">Unit / lesson</label>
+                        <select id="mkUnit" onchange="markChoicesChanged(true)"></select>
+                        <label for="mkLecturer">Lecturer</label>
+                        <select id="mkLecturer"></select>
                     </div>
-                    <div class="rc-marks" id="mkRows"></div>
-                    <div class="rc-buttons rc-save-bottom"><button type="button" class="btn-submit" onclick="saveRegister()">Save Register</button></div>
+                </details>
+                <div class="rc-mark-buttons">
+                    <button type="button" class="rc-save" id="mkSave" onclick="saveRegister()">Save register</button>
+                    <button type="button" class="rc-clear" onclick="clearMarkRegister()">Clear</button>
+                </div>
+
+                <div class="rc-students">
+                    <div class="rc-students-title">Students</div>
+                    <p class="rc-empty" id="mkEmpty">Choose the school, course, batch, period and date to list the students.</p>
+                    <div id="mkList" hidden>
+                        <div id="mkNote" class="rc-note" hidden></div>
+                        <div class="rc-listbar">
+                            <div class="rc-chips" id="mkCounts"></div>
+                            <div class="rc-listbuttons">
+                                <button type="button" class="rc-clear" onclick="markAll('Present')">Mark all present</button>
+                            </div>
+                        </div>
+                        <div class="rc-mark-head"><span>#</span><span>Student</span><span>Status</span><span>Minutes late</span><span>Remark</span></div>
+                        <div class="rc-marks" id="mkRows"></div>
+                        <div class="rc-mark-buttons rc-save-bottom"><button type="button" class="rc-save" onclick="saveRegister()">Save register</button></div>
+                    </div>
                 </div>
             </div>
 
@@ -398,7 +470,7 @@
         const pctClass = p => p === null ? '' : p >= 75 ? 'rc-good' : p >= 50 ? 'rc-risk' : 'rc-poor';
 
         let students = [], units = [], offers = [], registrations = [], schedules = [], registers = [];
-        let courses = [], batches = [], periods = [], lecturers = [];
+        let courses = [], batches = [], periods = [], lecturers = [], schools = [], courseItems = [], enrolments = [];
 
         async function settingNames(key, label = i => i.name, usable = () => true) {
             const record = await fewaDB.getOne('settings', key).catch(() => null);
@@ -409,7 +481,12 @@
             const read = store => fewaDB.getAll(store).catch(() => []);
             [students, units, offers, registrations, schedules, registers] = await Promise.all(
                 ['students', 'units', 'unit_offers', 'unit_registrations', 'period_schedules', 'attendance_registers'].map(read));
-            courses = await settingNames('courses', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, c => c.enabled !== 'NO');
+            const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
+            courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.name && c.enabled !== 'NO')
+                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, school: c.institute || '' }));
+            courses = courseItems.map(c => c.name);
+            schools = await settingNames('schools');
+            enrolments = await settingNames('enrollmentTypes', e => e.name, e => e.status !== 'Inactive');
             const batchRecord = await fewaDB.getOne('settings', 'batches').catch(() => null);
             batches = [...new Set([...((batchRecord && batchRecord.items) || []).filter(b => b.name)
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name),
@@ -423,7 +500,7 @@
         }
 
         const unitOf = code => units.find(u => same(u.code, code));
-        const unitLabel = code => { const u = unitOf(code); return u ? `${u.code} - ${u.title || ''}` : code; };
+        const unitLabel = code => { if (!code) return 'Whole class'; const u = unitOf(code); return u ? `${u.code} - ${u.title || ''}` : code; };
         const activeStudents = () => students.filter(s => s.activeStudent !== 'no');
 
         // The period running on a day for a batch (and course), from the Semester Schedule
@@ -440,8 +517,18 @@
             if ([...select.options].some(o => o.value === keep)) select.value = keep;
         }
 
-        /* ---------- Mark Register ---------- */
-        let markList = null; // { register (when one was taken already), rows: [{ student, status, remark }] }
+        /* ---------- Mark Register ----------
+           The class: school, course, batch and period (and the enrollment, when chosen); the date. A register is for the
+           whole class for the day unless a session or unit is chosen under "Lesson, session, activity or list register".
+           The students show as soon as the class is chosen: those registered for the unit (when one is chosen and has
+           registrations), otherwise every active student of the class. */
+        let markList = null; // { locked, register (when one was taken already), rows: [{ student, status, minutesLate, remark }] }
+
+        // The courses of a school (Settings > Courses > Institute); every course when none says its school
+        function schoolCourses(school) {
+            const withSchool = courseItems.filter(c => c.school);
+            return (school && withSchool.length ? courseItems.filter(c => same(c.school, school)) : courseItems).map(c => c.name);
+        }
 
         // The units of a class in a period: on offer for it, or registered by its students
         function classUnits(course, batch, period) {
@@ -451,20 +538,24 @@
             return [...codes].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
         }
 
+        function markSchoolChanged() {
+            fill($('mkCourse'), schoolCourses($('mkSchool').value), '-- select course --');
+            markChoicesChanged();
+        }
+
         function markChoicesChanged(keepPeriod) {
             const course = $('mkCourse').value, batch = $('mkBatch').value;
             if (!keepPeriod && course && batch) {
                 const running = periodOn($('mkDate').value || today(), batch, course);
                 if (running) $('mkPeriod').value = running;
             }
-            const codes = course && batch && $('mkPeriod').value ? classUnits(course, batch, $('mkPeriod').value) : [];
-            fill($('mkUnit'), codes.map(c => [c, unitLabel(c)]), codes.length ? '-- select unit --'
-                : course && batch ? '-- no unit on offer or registered for this class --' : '-- choose the course and batch first --');
+            const period = $('mkPeriod').value;
+            const codes = course && batch && period ? classUnits(course, batch, period) : [];
+            fill($('mkUnit'), codes.map(c => [c, unitLabel(c)]), '-- whole class (no unit) --');
             // The unit's lecturer on the offer, when known
-            const offer = offers.find(o => same(o.course, course) && (!o.batch || same(o.batch, batch)) && same(o.term, $('mkPeriod').value) && same(o.unitCode, $('mkUnit').value));
+            const offer = offers.find(o => same(o.course, course) && (!o.batch || same(o.batch, batch)) && same(o.term, period) && same(o.unitCode, $('mkUnit').value));
             if (offer && offer.lecturer) $('mkLecturer').value = offer.lecturer;
-            $('mkList').hidden = true;
-            markList = null;
+            loadClassList();
         }
 
         function findRegister(day, session, course, batch, period, unit) {
@@ -472,29 +563,41 @@
                 && same(r.period, period) && same(r.unitCode, unit));
         }
 
+        function showMarkEmpty(text) {
+            markList = null;
+            $('mkList').hidden = true;
+            $('mkEmpty').hidden = false;
+            $('mkEmpty').textContent = text;
+        }
+
         function loadClassList() {
             const day = $('mkDate').value, session = $('mkSession').value, course = $('mkCourse').value, batch = $('mkBatch').value,
-                period = $('mkPeriod').value, unit = $('mkUnit').value;
-            const missing = [!day && 'Date', !course && 'Course', !batch && 'Batch', !period && 'Period', !unit && 'Unit'].filter(Boolean);
-            if (missing.length) return alert('Choose the ' + missing.join(', ') + ' first.');
-            if (day > today()) return alert('A register cannot be taken for a day still to come.');
+                period = $('mkPeriod').value, unit = $('mkUnit').value, enrolment = $('mkEnrolment').value;
+            if (!$('mkSchool').value || !course || !batch || !period || !day) {
+                return showMarkEmpty('Choose the school, course, batch, period and date to list the students.');
+            }
+            if (day > today()) return showMarkEmpty('A register cannot be taken for a day still to come: choose today or an earlier day.');
             const existing = findRegister(day, session, course, batch, period, unit);
-            if (!dayAllowed(day) && !existing) return alert(`No register was taken that day, and registers can only be taken for ${backdateRule()}.`);
-            const classStudents = activeStudents().filter(s => same(s.admissionCourse, course) && same(s.group, batch));
-            const registered = new Set(registrations.filter(r => same(r.term, period) && same(r.unitCode, unit)).map(r => r.studentId));
-            let list = classStudents.filter(s => registered.has(s.id));
+            if (!dayAllowed(day) && !existing) return showMarkEmpty(`No register was taken that day, and registers can only be taken for ${backdateRule()}.`);
+            const classStudents = activeStudents().filter(s => same(s.admissionCourse, course) && same(s.group, batch)
+                && (!enrolment || same(s.enrollment, enrolment)));
+            let list = classStudents;
             const notes = [];
-            if (!list.length) {
-                list = classStudents;
-                if (list.length) notes.push('No student of this class is registered for this unit in this period, so every active student of the course and batch is listed.');
+            if (unit) {
+                const registered = new Set(registrations.filter(r => same(r.term, period) && same(r.unitCode, unit)).map(r => r.studentId));
+                const onUnit = classStudents.filter(s => registered.has(s.id));
+                if (onUnit.length) list = onUnit;
+                else if (list.length) notes.push('No student of this class is registered for this unit in this period, so every student of the class is listed.');
             }
             // A register taken before keeps its students (even one who has left since)
             const saved = new Map(((existing && existing.marks) || []).map(m => [m.studentId, m]));
             for (const m of saved.values()) if (!list.some(s => s.id === m.studentId)) {
-                list.push(students.find(s => s.id === m.studentId) || { id: m.studentId, admNo: m.admNo, firstName: m.name });
+                list = [...list, students.find(s => s.id === m.studentId) || { id: m.studentId, admNo: m.admNo, firstName: m.name }];
             }
-            if (!list.length) return alert('This class has no active students (course and batch as on the student records).');
-            list.sort((a, b) => String(a.admNo).localeCompare(String(b.admNo), undefined, { numeric: true }));
+            if (!list.length) {
+                return showMarkEmpty(`No student is in ${course}${enrolment ? ' ' + enrolment : ''} for Batch ${batch}.`);
+            }
+            list = [...list].sort((a, b) => String(a.admNo).localeCompare(String(b.admNo), undefined, { numeric: true }));
             if (existing) {
                 notes.unshift(`This register was taken on ${new Date(existing.takenAt || existing.updatedAt).toLocaleString('en-GB')}` +
                     (existing.takenBy ? ` by ${existing.takenBy}` : '') + ': saving changes it.');
@@ -503,12 +606,15 @@
             // A register older than the days allowed is shown, but cannot be changed
             const locked = !dayAllowed(day);
             if (locked) notes.push(`It can no longer be changed: registers can only be taken or changed for ${backdateRule()}.`);
-            markList = { locked, register: existing || null, rows: list.map(s => ({ student: s,
-                status: (saved.get(s.id) || {}).status || 'Present', remark: (saved.get(s.id) || {}).remark || '' })) };
+            markList = { locked, register: existing || null, rows: list.map(s => {
+                const m = saved.get(s.id) || {};
+                return { student: s, status: m.status || 'Present', minutesLate: m.minutesLate || '', remark: m.remark || '' };
+            }) };
             $('mkNote').hidden = !notes.length;
             $('mkNote').textContent = notes.join(' ');
-            document.querySelectorAll('#mkList .btn-submit, #mkList .btn-secondary').forEach(b => { b.disabled = locked; });
+            $('mkEmpty').hidden = true;
             $('mkList').hidden = false;
+            document.querySelectorAll('#rcMark .rc-save, #mkList .rc-clear').forEach(b => { b.disabled = locked; });
             renderMarks();
         }
 
@@ -522,23 +628,31 @@
                         <label class="rc-pill rc-pill-${st.toLowerCase()}${row.status === st ? ' on' : ''}">
                             <input type="radio" name="mk${i}" value="${st}"${row.status === st ? ' checked' : ''}${mayMark ? '' : ' disabled'}
                                 onchange="setMark(${i}, this.value)"><span>${st}</span></label>`).join('')}</span>
-                    <input type="text" class="rc-mark-remark" placeholder="Remark" maxlength="120" value="${escapeHtml(row.remark)}"
+                    <input type="number" class="rc-mark-late" min="1" max="600" step="1" placeholder="Minutes late" aria-label="Minutes late"
+                        value="${escapeHtml(row.minutesLate)}" oninput="markList.rows[${i}].minutesLate = this.value"${mayMark && row.status === 'Late' ? '' : ' disabled'}>
+                    <input type="text" class="rc-mark-remark" placeholder="Remark" maxlength="120" value="${escapeHtml(row.remark)}" aria-label="Remark"
                         oninput="markList.rows[${i}].remark = this.value"${mayMark ? '' : ' disabled'}>
                 </div>`).join('');
             renderMarkCounts();
         }
 
         function setMark(i, status) {
-            markList.rows[i].status = status;
+            const r = markList.rows[i];
+            r.status = status;
+            if (status !== 'Late') r.minutesLate = '';
             const row = $('mkRows').children[i];
             row.className = `rc-mark-row rc-${status.toLowerCase()}`;
             row.querySelectorAll('.rc-pill').forEach(p => p.classList.toggle('on', p.querySelector('input').value === status));
+            const late = row.querySelector('.rc-mark-late');
+            late.disabled = status !== 'Late';
+            late.value = r.minutesLate;
+            if (status === 'Late') late.focus();
             renderMarkCounts();
         }
 
         function markAll(status) {
-            if (!markList) return;
-            markList.rows.forEach(r => { r.status = status; });
+            if (!markList || markList.locked) return;
+            markList.rows.forEach(r => { r.status = status; r.minutesLate = ''; });
             renderMarks();
         }
 
@@ -554,38 +668,54 @@
                 STATUSES.map(s => `<span class="rc-chip rc-chip-${s.toLowerCase()}">${s}: ${c[s]}</span>`).join('');
         }
 
+        function clearMarkRegister() {
+            $('mkSchool').value = schools.length === 1 ? schools[0] : '';
+            fill($('mkCourse'), schoolCourses($('mkSchool').value), '-- select course --', '');
+            $('mkEnrolment').value = '';
+            $('mkBatch').value = '';
+            $('mkPeriod').value = '';
+            $('mkSession').value = '';
+            $('mkDate').value = today();
+            $('mkMore').open = false;
+            markChoicesChanged(true);
+        }
+
         async function saveRegister() {
-            if (!markList || !allowed('attendance', 'mark')) return;
+            if (!allowed('attendance', 'mark')) return;
+            if (!markList) return alert('Choose the school, course, batch, period and date first: the students are listed below them.');
             const day = $('mkDate').value;
             if (day > today()) return alert('A register cannot be taken for a day still to come.');
             if (!dayAllowed(day)) return alert(`Registers can only be taken or changed for ${backdateRule()}.`);
+            const badLate = markList.rows.find(r => r.status === 'Late' && r.minutesLate !== '' && !(Number(r.minutesLate) >= 1 && Number(r.minutesLate) <= 600));
+            if (badLate) return alert(`Minutes late of ${studentName(badLate.student)} must be a number from 1 to 600 (or left empty).`);
             const lecturer = lecturers.find(l => l.username === $('mkLecturer').value);
             const c = countsOf(markList.rows);
             const before = markList.register;
             const now = new Date().toISOString(), me = currentUser() || '';
             const record = {
                 ...(before || {}), id: before ? before.id : newId(),
-                registerDate: day, session: $('mkSession').value, course: $('mkCourse').value, batch: $('mkBatch').value,
-                period: $('mkPeriod').value, unitCode: $('mkUnit').value, unitTitle: (unitOf($('mkUnit').value) || {}).title || '',
+                registerDate: day, session: $('mkSession').value, school: $('mkSchool').value, course: $('mkCourse').value,
+                enrolment: $('mkEnrolment').value, batch: $('mkBatch').value, period: $('mkPeriod').value,
+                unitCode: $('mkUnit').value, unitTitle: $('mkUnit').value ? (unitOf($('mkUnit').value) || {}).title || '' : '',
                 lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '',
                 marks: markList.rows.map(r => ({ studentId: r.student.id, admNo: r.student.admNo || '', name: studentName(r.student),
-                    status: r.status, remark: r.remark.trim() })),
+                    status: r.status, minutesLate: r.status === 'Late' && r.minutesLate !== '' ? Number(r.minutesLate) : null, remark: r.remark.trim() })),
                 present: c.Present, absent: c.Absent, late: c.Late, excused: c.Excused, total: markList.rows.length,
                 takenBy: before ? before.takenBy : me, takenAt: before ? before.takenAt : now, updatedAt: now, updatedBy: me
             };
-            const button = $('mkSave');
-            button.disabled = true;
+            const buttons = [...document.querySelectorAll('#rcMark .rc-save')];
+            buttons.forEach(b => { b.disabled = true; });
             try {
                 await fewaDB.put('attendance_registers', record);
                 registers = registers.filter(r => r.id !== record.id).concat(record);
                 markList.register = record;
                 showToast(`Register ${before ? 'updated' : 'saved'}: ${c.Present} present, ${c.Absent} absent, ${c.Late} late, ${c.Excused} excused.`);
                 $('mkNote').hidden = false;
-                $('mkNote').textContent = 'This register is saved. Changes made now are saved when you press Save Register again.';
+                $('mkNote').textContent = 'This register is saved. Changes made now are saved when you press Save register again.';
             } catch (error) {
                 alert('The register was NOT saved: ' + error.message);
             } finally {
-                button.disabled = false;
+                buttons.forEach(b => { b.disabled = false; });
             }
         }
 
@@ -654,7 +784,8 @@
                         if (batch && !same(b, batch)) continue;
                         const size = classSize.get(`${String(o.course).toLowerCase()}|${String(b).toLowerCase()}`) || 0;
                         if (!size || !same(periodOn(day, b, o.course), o.term)) continue;
-                        if (registers.some(r => r.registerDate === day && same(r.course, o.course) && same(r.batch, b) && same(r.period, o.term) && same(r.unitCode, o.unitCode))) continue;
+                        if (registers.some(r => r.registerDate === day && same(r.course, o.course) && same(r.batch, b) && same(r.period, o.term)
+                            && (!r.unitCode || same(r.unitCode, o.unitCode)))) continue;
                         if (rows.some(x => x.day === day && same(x.course, o.course) && same(x.batch, b) && same(x.unit, o.unitCode))) continue;
                         rows.push({ day, course: o.course, batch: b, period: o.term, unit: o.unitCode, lecturer: o.lecturerName || '', size });
                     }
@@ -751,16 +882,23 @@
                 $('mkDate').min = earliestDay();
                 $('mkDateRule').textContent = 'Registers can be taken for ' + backdateRule() + '.';
                 $('mkDate').value = params.get('date') || today();
-                fill($('mkCourse'), courseChoices, '-- select course --', params.get('course') || '');
+                // The school: the one of the course asked for, else the only school there is
+                const askedCourse = params.get('course') || '';
+                const askedSchool = (courseItems.find(c => same(c.name, askedCourse)) || {}).school || (schools.length === 1 ? schools[0] : '');
+                fill($('mkSchool'), schools, '-- select school --', askedSchool);
+                if (!schools.length) fill($('mkSchool'), [['(all)', 'All courses']], null);
+                fill($('mkCourse'), schoolCourses($('mkSchool').value === '(all)' ? '' : $('mkSchool').value), '-- select course --', askedCourse);
+                fill($('mkEnrolment'), enrolments, '-- all enrollments --', params.get('enrolment') || '');
                 fill($('mkBatch'), batchChoices, '-- select batch --', params.get('batch') || '');
                 fill($('mkPeriod'), periods, '-- select period --', params.get('period') || '');
                 fill($('mkLecturer'), lecturers.map(l => [l.username, l.name]), '-- select lecturer --',
                     lecturers.some(l => same(l.username, currentUser())) ? lecturers.find(l => same(l.username, currentUser())).username : '');
                 if (params.get('session')) $('mkSession').value = params.get('session');
                 markChoicesChanged(!!params.get('period'));
-                if (params.get('unit')) {
-                    $('mkUnit').value = params.get('unit');
-                    if ($('mkUnit').value) loadClassList();
+                if (params.get('unit') || params.get('session')) {
+                    $('mkMore').open = true;
+                    $('mkUnit').value = params.get('unit') || '';
+                    markChoicesChanged(true);
                 }
             } else if (TAB === 'taken') {
                 $('rcTaken').hidden = false;

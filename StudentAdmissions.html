@@ -9,7 +9,7 @@
     <!-- Reports as PDF files (Report Format PDF): jsPDF with its table add-on, kept in this folder -->
     <script src="vendor/jspdf.umd.min.js" defer></script>
     <script src="vendor/jspdf.plugin.autotable.min.js" defer></script>
-    <script src="report-pdf.js" defer></script>
+    <script src="report-pdf.js?v=20261125a" defer></script>
     <script src="auth.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
@@ -59,6 +59,23 @@
         .stu-import-result.bad { background: #fdf0ef; border-left-color: #c0392b; color: #6b1f17; }
         .stu-import-result[hidden] { display: none; }
         .stu-import-result ul { margin: 6px 0 0 18px; padding: 0; }
+        /* Attendance Matrix: a boxed grid, the marks in colour */
+        .mx-table { border-collapse: collapse; font-size: 12.5px; }
+        .mx-table th, .mx-table td { border: 1px solid #d9d2e3; text-align: center; padding: 5px 6px; white-space: nowrap; }
+        .mx-table thead th { background: #24103a; color: #dfb15b; }
+        .mx-table thead th.mx-month { background: #3a2156; color: #fff; letter-spacing: .5px; }
+        .mx-table thead th.mx-day { background: #f4eefa; color: #3a2156; min-width: 26px; }
+        .mx-table td.mx-batch { text-align: left; font-weight: 700; background: #faf7fd; vertical-align: top; color: #3a2156; }
+        .mx-table td.mx-name { text-align: left; font-weight: 600; }
+        .mx-table td.mx-mark { font-weight: 800; width: 26px; }
+        .mx-p { color: #1e7a3c; background: #eaf7ee; }
+        .mx-a { color: #fff; background: #c9302c; }
+        .mx-l { color: #6b4500; background: #ffe7a6; }
+        .mx-e { color: #fff; background: #4a73b5; }
+        .mx-none { background: #fbfbfc; }
+        .mx-total { font-weight: 700; color: #444; background: #f8f6fa; }
+        .mx-pct { font-weight: 800; }
+        .mx-good { color: #1e7a3c; } .mx-risk { color: #a86b00; } .mx-poor { color: #c9302c; }
         @media (max-width: 800px) { .batch-grid { grid-template-columns: 1fr; } .batch-grid > span { display: none; } }
     </style>
 </head>
@@ -892,7 +909,7 @@
                         Reports</button>
                 </div>
                 <div class="settings-banner info-banner no-print report-note">Choose the filters for this report, then press
-                    Generate Report. A box left on "all" includes everything.</div>
+                    Generate Report. Boxes marked <span class="req">*</span> must be filled; a box left on "all" includes everything.</div>
                 <div class="form-section no-print report-form">
                     <!-- The report's name and its code, e.g. Student Roster / Active Student List  rptRoster -->
                     <div class="report-form-head"><span id="reportHeaderTitle"></span><span id="reportCode" class="report-code"></span></div>
@@ -959,12 +976,20 @@
                             <select id="reportSCampus"></select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="course" style="display: none;">
-                            <label for="reportSCourse">Course</label>
+                            <label for="reportSCourse">Course <span class="req" id="reportSCourseReq" hidden>*</span></label>
                             <select id="reportSCourse"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="year" style="display: none;">
+                            <label for="reportSYear">Year Admitted</label>
+                            <select id="reportSYear"></select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="enrollment" style="display: none;">
                             <label for="reportSEnrollment">Enrollment</label>
                             <select id="reportSEnrollment"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="batch" style="display: none;">
+                            <label for="reportSBatch">Batch</label>
+                            <select id="reportSBatch"></select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="session" style="display: none;">
                             <label for="reportSSession">Study Session</label>
@@ -978,10 +1003,6 @@
                                 <option value="MALE">MALE</option>
                             </select>
                         </div>
-                        <div class="form-group report-s-filter" data-filter="year" style="display: none;">
-                            <label for="reportSYear">Year Admitted</label>
-                            <select id="reportSYear"></select>
-                        </div>
                         <div class="form-group report-s-filter" data-filter="student" style="display: none;">
                             <label for="reportSStudent">Student</label>
                             <input type="text" id="reportSStudent" list="reportStudentOptions" autocomplete="off"
@@ -993,6 +1014,33 @@
                                 <option value="">-- all students --</option>
                                 <option value="Active">Active only</option>
                                 <option value="Inactive">Inactive only</option>
+                            </select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="attPeriod" style="display: none;">
+                            <label for="reportSAttPeriod">Period Name</label>
+                            <select id="reportSAttPeriod"></select>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="unit" style="display: none;">
+                            <label for="reportSUnit">Unit Name</label>
+                            <input type="text" id="reportSUnit" list="reportUnitOptions" autocomplete="off" placeholder="Type the unit name">
+                            <datalist id="reportUnitOptions"></datalist>
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="dates" style="display: none;">
+                            <label for="reportSDateFrom">Date From</label>
+                            <input type="date" id="reportSDateFrom">
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="dates" style="display: none;">
+                            <label for="reportSDateTo">Date To</label>
+                            <input type="date" id="reportSDateTo">
+                        </div>
+                        <div class="form-group report-s-filter" data-filter="rcSession" style="display: none;">
+                            <label for="reportSRcSession">Rollcall Session</label>
+                            <select id="reportSRcSession">
+                                <option value="">-- all rollcall sessions --</option>
+                                <option value="(day)">Whole day</option>
+                                <option value="Morning">Morning</option>
+                                <option value="Afternoon">Afternoon</option>
+                                <option value="Evening">Evening</option>
                             </select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="period" style="display: none;">
@@ -2496,7 +2544,11 @@
                 ['ROSTER', 'Student Roster / Active Student List'],
                 ['DEMOGRAPHICS', 'Student Demographics Report'],
                 ['ACTIVE_INACTIVE', 'Active vs. Inactive Students'],
-                ['DEFERRALS', 'Deferred / Suspended Students Report']
+                ['DEFERRALS', 'Deferred / Suspended Students Report'],
+                ['ROLL_CALL_LIST', 'Roll Call List'],
+                ['CLASS_CHECK_LIST', 'Class Check List'],
+                ['ATTENDANCE', 'Students Attendance'],
+                ['ATTENDANCE_MATRIX', 'Attendance Matrix']
             ],
             ADM_REPORTS: [
                 ['APPLICATIONS_SUMMARY', 'Online Applications Summary'],
@@ -2557,6 +2609,14 @@
             receipt: '<path d="M11 5h26v38l-4.3-3-4.4 3-4.3-3-4.3 3-4.4-3-4.3 3z"/><path d="M17 15h14M17 22h14M17 29h8"/>',
             chart: '<path d="M7 7v34h34"/><path d="M14 33V23M22 33V15M30 33V20M38 33V11"/>',
             exam: '<path d="M12 6h24v36H12z"/><path d="M17 15l2.5 2.5L24 13M17 25l2.5 2.5L24 23M27 15h5M27 25h5M17 34h15"/>',
+            // A note with a % sign and a pencil (Students Attendance)
+            percent: '<path d="M8 10h24l6 6v24H8z"/><circle cx="21" cy="26" r="8"/><path d="M17.5 29.5l7-7"/><circle cx="18" cy="23" r="1.2"/><circle cx="24" cy="29" r="1.2"/><path d="M41 6l3 3-12 17-4 1 1-4z"/>',
+            // A note with a grid and an X, and a pencil (Attendance Matrix)
+            matrix: '<path d="M8 10h24l6 6v24H8z"/><path d="M13 20h20M13 27h20M13 34h20M20 16v22M27 16v22"/><path d="M15 29.5l3 3M18 29.5l-3 3"/><path d="M41 6l3 3-12 17-4 1 1-4z"/>',
+            // A ring-bound register with ticks and a pen (Roll Call List)
+            rollcall: '<rect x="11" y="6" width="25" height="36" rx="3"/><path d="M8 12h5M8 19h5M8 26h5M8 33h5"/><path d="M16 15l2 2 3.5-3.5M16 23l2 2 3.5-3.5M16 31l2 2 3.5-3.5M25 15h7M25 23h7M25 31h4"/><path d="M42 24L31 38l-4 2 1-4 11-14z"/>',
+            // A list with ticks, a ring and a pen beside it (Class Check List)
+            checklist: '<rect x="9" y="7" width="24" height="34" rx="3"/><path d="M14 15l2 2 3.5-3.5M14 23l2 2 3.5-3.5M23 15h6M23 23h6M15 31h4M23 31h6"/><circle cx="16.5" cy="31" r="2.5"/><path d="M38 10v24l-2.5 5-2.5-5V10z"/>',
             idcard: '<rect x="5" y="10" width="38" height="28" rx="3"/><circle cx="17" cy="22" r="4.5"/><path d="M10 33c1-4 3.8-6 7-6s6 2 7 6M28 19h9M28 25h9M28 31h6"/>',
             phone: '<rect x="14" y="5" width="20" height="38" rx="4"/><path d="M21 10h6M22 37h4"/>',
             pie: '<circle cx="24" cy="24" r="17"/><path d="M24 7v17h17M24 24l-12 12"/>',
@@ -2587,7 +2647,11 @@
             ADMISSION_STATS: ['chart', '#27ae60'],
             CONTACT_DIRECTORY: ['phone', '#2e86de'],
             DOCUMENT_STATUS: ['check', '#b9770e'],
-            PHOTO_AUDIT: ['idcard', '#7b3fbf']
+            PHOTO_AUDIT: ['idcard', '#7b3fbf'],
+            ROLL_CALL_LIST: ['rollcall', '#2e6da4'],
+            CLASS_CHECK_LIST: ['checklist', '#24103a'],
+            ATTENDANCE: ['percent', '#d4a000'],
+            ATTENDANCE_MATRIX: ['matrix', '#c0392b']
         };
 
         function reportIcon(reportKey) {
@@ -2651,7 +2715,7 @@
             updateReportOptions();
             document.getElementById('specificReportSelect').value = reportKey;
             onReportChange();
-            document.getElementById('reportHeaderTitle').innerText =
+            document.getElementById('reportHeaderTitle').innerText = (STUDENT_LIST_REPORTS[reportKey] || {}).heading ||
                 REPORT_OPTIONS[category].find(([value]) => value === reportKey)[1];
             // The report's code, e.g. ACTIVE_INACTIVE -> rptActiveInactive
             document.getElementById('reportSStatus').value = 'Active';
@@ -2926,10 +2990,12 @@
             const period = reportSPeriods.get(document.getElementById('reportSPeriod').value) || null;
             const value = id => document.getElementById(id).value.trim();
             return {
-                school: value('reportSSchool'), campus: value('reportSCampus'), course: value('reportSCourse'),
+                school: value('reportSSchool'), campus: value('reportSCampus'), course: value('reportSCourse'), batch: value('reportSBatch'),
                 enrollment: value('reportSEnrollment'), session: value('reportSSession'), gender: value('reportSGender'),
                 year: value('reportSYear'), student: value('reportSStudent'),
                 status: value('reportSStatus'),
+                attPeriod: value('reportSAttPeriod'), unit: value('reportSUnit'), dateFrom: value('reportSDateFrom'), dateTo: value('reportSDateTo'),
+                rcSession: value('reportSRcSession'),
                 period,
                 docs: [...document.querySelectorAll('#reportSDocs input:checked')].map(box => box.value)
             };
@@ -2946,6 +3012,7 @@
             return (!f.course || s.admissionCourse === f.course)
                 && (!f.school || reportCourseSchools.get(s.admissionCourse) === f.school)
                 && (!f.campus || s.campus === f.campus)
+                && (!f.batch || s.group === f.batch)
                 && (!f.enrollment || s.enrollment === f.enrollment)
                 && (!f.session || s.studySession === f.session)
                 && (!f.gender || s.gender === f.gender)
@@ -2963,7 +3030,23 @@
             reportCourseSchools = new Map(courses.map(c => [courseLabel(c), c.institute || '']));
             await keepFill('reportSSchool', await getSettingLabels('schools'), '-- all schools --');
             await keepFill('reportSCampus', await getSettingLabels('campuses'), '-- all campuses --');
-            await keepFill('reportSCourse', courses.map(courseLabel), '-- all courses --');
+            const courseRequired = (report.required || []).includes('course');
+            await keepFill('reportSCourse', courses.map(courseLabel), courseRequired ? '-- select one --' : '-- all courses --');
+            document.getElementById('reportSCourseReq').hidden = !courseRequired;
+            await keepFill('reportSBatch', await batchNames(), '-- all batches --');
+            if (report.filters.includes('attPeriod')) {
+                // Roll Call: SEMESTER 1, 2... as in the registers and the Semester Schedule; the units of the registers
+                const [registers, schedules, units] = await Promise.all(['attendance_registers', 'period_schedules', 'units']
+                    .map(store => fewaDB.getAll(store).catch(() => [])));
+                const most = Math.max(3, ...[...registers.map(r => r.period), ...schedules.map(p => p.period)]
+                    .map(p => Number(String(p || '').replace(/\D+/g, '')) || 0));
+                await keepFill('reportSAttPeriod', Array.from({ length: most }, (_, i) => `SEMESTER ${i + 1}`), '-- all periods --');
+                const codes = [...new Set(registers.map(r => r.unitCode).filter(Boolean))];
+                document.getElementById('reportUnitOptions').innerHTML = codes.map(code => {
+                    const u = units.find(x => String(x.code).toLowerCase() === String(code).toLowerCase());
+                    return `<option value="${escapeHtml(u ? `${u.code} - ${u.title || ''}` : code)}">`;
+                }).join('');
+            }
             await keepFill('reportSEnrollment', (await getSettingItems('enrollmentTypes')).map(i => i.name).filter(Boolean), '-- all enrollments --');
             await keepFill('reportSSession', await getSettingLabels('studySessions'), '-- all study sessions --');
             const allStudents = await getAll('students');
@@ -3000,7 +3083,186 @@
         const personName = (s, p) => [s[p + 'FirstName'], s[p + 'MiddleName'], s[p + 'LastName']].filter(Boolean).join(' ');
         const sortStudents = list => list.sort((a, b) => (a.admNo || '').localeCompare(b.admNo || '') || fullName(a).localeCompare(fullName(b)));
 
+        // Empty boxes to fill in by hand on a printed list
+        const BLANK = '&nbsp;';
+        const classSheet = f => async () => {
+            const students = sortStudents((await getAll('students')).filter(s => studentMatch(f, s) && matchesStatus(s, f.status)));
+            return students;
+        };
+
         const STUDENT_LIST_REPORTS = {
+            /* Attendance Matrix (Class Attendance Report Matrix): one line per student (grouped by batch), one column per
+               day with a register; each box the student's mark that day (P present, A absent, L late, E excused; with more
+               than one register a day, the one that matters most: absent, then late, excused, present), then their totals. */
+            ATTENDANCE_MATRIX: {
+                title: 'Class Attendance Report Matrix', heading: 'Class Attendance Report Matrix',
+                filters: ['course', 'year', 'enrollment', 'batch', 'attPeriod', 'student', 'dates', 'rcSession'],
+                build: async f => {
+                    const [registers, allStudents] = await Promise.all([fewaDB.getAll('attendance_registers').catch(() => null), getAll('students')]);
+                    if (!registers) return { error: 'The attendance registers could not be read. Check that your role may open Reports, then try again.' };
+                    const chosen = registers.filter(r => (!f.course || r.course === f.course) && (!f.batch || r.batch === f.batch)
+                        && (!f.attPeriod || r.period === f.attPeriod)
+                        && (!f.dateFrom || r.registerDate >= f.dateFrom) && (!f.dateTo || r.registerDate <= f.dateTo)
+                        && (!f.rcSession || (f.rcSession === '(day)' ? !r.session : r.session === f.rcSession)));
+                    const byId = new Map(allStudents.map(s => [s.id, s]));
+                    const WEIGHT = { Absent: 4, Late: 3, Excused: 2, Present: 1 };
+                    const people = new Map();
+                    for (const r of chosen) for (const m of r.marks || []) {
+                        const s = byId.get(m.studentId) || { id: m.studentId, admNo: m.admNo, firstName: m.name, admissionCourse: r.course, group: r.batch };
+                        if (!studentMatch(f, s)) continue;
+                        const p = people.get(s.id) || { s, batch: s.group || r.batch || 'No batch', days: new Map(), counts: { Present: 0, Absent: 0, Late: 0, Excused: 0 } };
+                        p.counts[m.status] = (p.counts[m.status] || 0) + 1;
+                        const was = p.days.get(r.registerDate);
+                        if (!was || WEIGHT[m.status] > WEIGHT[was]) p.days.set(r.registerDate, m.status);
+                        people.set(s.id, p);
+                    }
+                    const list = [...people.values()].sort((a, b) => a.batch.localeCompare(b.batch) || fullName(a.s).localeCompare(fullName(b.s)));
+                    const days = [...new Set(list.flatMap(p => [...p.days.keys()]))].sort();
+                    if (!list.length) return { total: 0, totalLabel: 'Students in this report', boxes: [], sections: [{ headers: ['Students'], rows: [],
+                        empty: registers.length ? 'No attendance matches these choices.' : 'No register has been taken yet (Roll Call Management > Mark Register).' }] };
+                    // Headings: the months over their days, then the day numbers
+                    const months = [];
+                    for (const d of days) {
+                        const label = new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }).toUpperCase();
+                        if (months.length && months[months.length - 1].label === label) months[months.length - 1].span++;
+                        else months.push({ label, span: 1 });
+                    }
+                    const LETTER = { Present: 'P', Absent: 'A', Late: 'L', Excused: 'E' };
+                    const longDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                    const percent = p => { const counted = p.counts.Present + p.counts.Late + p.counts.Absent; return counted ? Math.round((p.counts.Present + p.counts.Late) * 100 / counted) : null; };
+                    const batchSize = new Map();
+                    list.forEach(p => batchSize.set(p.batch, (batchSize.get(p.batch) || 0) + 1));
+                    const seenBatch = new Set();
+                    const rowsHtml = list.map(p => {
+                        const first = !seenBatch.has(p.batch);
+                        seenBatch.add(p.batch);
+                        const pc = percent(p);
+                        const tone = pc === null ? '' : pc >= 75 ? 'mx-good' : pc >= 50 ? 'mx-risk' : 'mx-poor';
+                        return `<tr>${first ? `<td class="mx-batch" rowspan="${batchSize.get(p.batch)}">${escapeHtml(p.batch)}</td>` : ''}
+                            <td class="mx-name">${escapeHtml(`${p.s.admNo || ''} - ${fullName(p.s)}`.toUpperCase())}</td>
+                            ${days.map(d => { const st = p.days.get(d); return st ? `<td class="mx-mark mx-${LETTER[st].toLowerCase()}" data-mark="${LETTER[st]}" title="${escapeHtml(st)}">${LETTER[st]}</td>` : '<td class="mx-mark mx-none"></td>'; }).join('')}
+                            <td class="mx-total">${p.counts.Present}</td><td class="mx-total">${p.counts.Absent}</td><td class="mx-total">${p.counts.Late}</td>
+                            <td class="mx-total">${p.counts.Excused}</td><td class="mx-pct ${tone}" data-tone="${tone}">${pc === null ? '—' : pc + '%'}</td></tr>`;
+                    }).join('');
+                    const rawTable = `<table class="data-table report-grid mx-table">
+                        <thead>
+                            <tr><th rowspan="2">Batch</th><th rowspan="2">Student</th>${months.map(m => `<th class="mx-month" colspan="${m.span}">${escapeHtml(m.label)}</th>`).join('')}
+                                <th colspan="4" class="mx-month">Totals</th><th rowspan="2">Attendance</th></tr>
+                            <tr>${days.map(d => `<th class="mx-day" title="${escapeHtml(d)}">${Number(d.slice(8, 10))}</th>`).join('')}<th>P</th><th>A</th><th>L</th><th>E</th></tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>`;
+                    const all = list.reduce((t, p) => { for (const k in t) t[k] += p.counts[k]; return t; }, { Present: 0, Absent: 0, Late: 0, Excused: 0 });
+                    return {
+                        total: list.length, totalLabel: 'Students in this report',
+                        note: `${days.length} day${days.length === 1 ? '' : 's'} with a register, ${longDay(days[0])} to ${longDay(days[days.length - 1])}. ` +
+                            'P present, A absent, L late, E excused; an empty box: no register for the student that day. Attendance = (present + late) / registers, excused left out.',
+                        boxes: [
+                            { title: 'Registers', rows: [['Days with a register', days.length], ['Students', list.length]] },
+                            { title: 'Marks', rows: [['Present', all.Present], ['Late', all.Late], ['Absent', all.Absent], ['Excused', all.Excused]] },
+                            { title: 'Students by batch', rows: [...batchSize.entries()] }
+                        ],
+                        sections: [{ rawTable }]
+                    };
+                }
+            },
+            /* Students Attendance (Class Attendance Report): each student's attendance in the Roll Call registers that
+               match the filters. Present and Late count as attended, Excused is left out. One student chosen: their
+               registers one by one as well. */
+            ATTENDANCE: {
+                title: 'Class Attendance Report', heading: 'Class Attendance Report',
+                filters: ['course', 'year', 'enrollment', 'batch', 'attPeriod', 'unit', 'student', 'dates', 'rcSession'],
+                build: async f => {
+                    const [registers, allStudents] = await Promise.all([fewaDB.getAll('attendance_registers').catch(() => null), getAll('students')]);
+                    if (!registers) return { error: 'The attendance registers could not be read. Check that your role may open Reports, then try again.' };
+                    const unitText = (f.unit || '').toLowerCase();
+                    const chosen = registers.filter(r => (!f.course || r.course === f.course) && (!f.batch || r.batch === f.batch)
+                        && (!f.attPeriod || r.period === f.attPeriod)
+                        && (!unitText || unitText.startsWith(String(r.unitCode || '').toLowerCase() + ' ') || unitText === String(r.unitCode || '').toLowerCase()
+                            || `${r.unitCode} - ${r.unitTitle || ''}`.toLowerCase().includes(unitText))
+                        && (!f.dateFrom || r.registerDate >= f.dateFrom) && (!f.dateTo || r.registerDate <= f.dateTo)
+                        && (!f.rcSession || (f.rcSession === '(day)' ? !r.session : r.session === f.rcSession)));
+                    const byId = new Map(allStudents.map(s => [s.id, s]));
+                    const rows = new Map(), history = [];
+                    for (const r of chosen) for (const m of r.marks || []) {
+                        const s = byId.get(m.studentId) || { id: m.studentId, admNo: m.admNo, firstName: m.name, admissionCourse: r.course, group: r.batch };
+                        if (!studentMatch(f, s)) continue;
+                        const row = rows.get(s.id) || { s, registers: 0, Present: 0, Absent: 0, Late: 0, Excused: 0 };
+                        row.registers++;
+                        row[m.status] = (row[m.status] || 0) + 1;
+                        rows.set(s.id, row);
+                        history.push({ r, m, s });
+                    }
+                    const list = [...rows.values()].sort((a, b) => (a.s.admNo || '').localeCompare(b.s.admNo || ''));
+                    const percent = row => { const counted = row.registers - row.Excused; return counted ? Math.round((row.Present + row.Late) * 100 / counted) : null; };
+                    const state = p => p === null ? 'Excused only' : p >= 75 ? 'Good' : p >= 50 ? 'At risk' : 'Poor';
+                    const one = f.student && list.length === 1;
+                    const regs = new Set(history.map(h => h.r.id));
+                    const totals = list.reduce((t, row) => { for (const k of ['Present', 'Absent', 'Late', 'Excused']) t[k] += row[k]; return t; },
+                        { Present: 0, Absent: 0, Late: 0, Excused: 0 });
+                    return {
+                        total: list.length, totalLabel: 'Students in this report',
+                        boxes: list.length ? [
+                            { title: 'Registers', rows: [['Registers taken', regs.size], ['Present', totals.Present], ['Late', totals.Late],
+                                ['Absent', totals.Absent], ['Excused', totals.Excused]] },
+                            { title: 'Students by attendance', rows: countBy(list, row => state(percent(row))) }
+                        ] : [],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Course', 'Batch', 'Registers', 'Present', 'Late', 'Absent', 'Excused', 'Attendance', 'Status'],
+                            rows: list.map((row, i) => {
+                                const p = percent(row);
+                                return [i + 1, cell(row.s.admNo), cell(fullName(row.s)), cell(row.s.admissionCourse), cell(row.s.group), row.registers,
+                                    row.Present, row.Late, row.Absent, row.Excused, p === null ? '—' : `<b>${p}%</b>`, escapeHtml(state(p))];
+                            }),
+                            empty: registers.length ? 'No attendance matches these choices.' : 'No register has been taken yet (Roll Call Management > Mark Register).'
+                        }, ...(one ? [{
+                            title: `Registers of ${fullName(list[0].s)}`,
+                            headers: ['Date', 'Session', 'Unit', 'Period', 'Status', 'Minutes late', 'Remark'],
+                            rows: history.sort((a, b) => a.r.registerDate.localeCompare(b.r.registerDate)).map(({ r, m }) => [
+                                cell(r.registerDate), cell(r.session || 'Whole day'), cell(r.unitCode ? `${r.unitCode} - ${r.unitTitle || ''}` : 'Whole class'),
+                                cell(r.period), escapeHtml(m.status), m.minutesLate ? m.minutesLate : '—', cell(m.remark)]),
+                            empty: 'No registers.'
+                        }] : [])]
+                    };
+                }
+            },
+            // A class's list to take the roll by hand: a column for each day of two school weeks
+            ROLL_CALL_LIST: {
+                title: 'Roll Call List', filters: ['course', 'year', 'enrollment', 'batch', 'status'], required: ['course'],
+                build: async f => {
+                    const students = await classSheet(f)();
+                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+                    return {
+                        total: students.length, totalLabel: 'Students on the list',
+                        note: 'Write the date over each day, and P (present), A (absent), L (late) or E (excused) in the box.',
+                        boxes: students.length ? [{ title: 'By batch', rows: countBy(students, s => s.group) },
+                            { title: 'By gender', rows: countBy(students, s => s.gender) }] : [],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Gender', ...days, 'Remarks'],
+                            rows: students.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.gender), ...days.map(() => BLANK), BLANK]),
+                            empty: 'No students match these choices.'
+                        }]
+                    };
+                }
+            },
+            // A class's list to tick off by hand (handing out, collecting, checking), with the phone and a signature
+            CLASS_CHECK_LIST: {
+                title: 'Class Check List', filters: ['course', 'year', 'enrollment', 'batch', 'status'], required: ['course'],
+                build: async f => {
+                    const students = await classSheet(f)();
+                    return {
+                        total: students.length, totalLabel: 'Students on the list',
+                        boxes: students.length ? [{ title: 'By batch', rows: countBy(students, s => s.group) },
+                            { title: 'By gender', rows: countBy(students, s => s.gender) }] : [],
+                        sections: [{
+                            headers: ['No.', 'Adm No.', 'Student Name', 'Gender', 'Phone', 'Batch', 'Check', 'Signature', 'Remarks'],
+                            rows: students.map((s, i) => [i + 1, cell(s.admNo), cell(fullName(s)), cell(s.gender), cell(s.phone), cell(s.group),
+                                '[&nbsp;&nbsp;&nbsp;]', BLANK, BLANK]),
+                            empty: 'No students match these choices.'
+                        }]
+                    };
+                }
+            },
             ROSTER: {
                 title: 'Student Roster / Active Student List', filters: ['school', 'campus', 'course', 'enrollment', 'session', 'gender', 'year', 'student', 'status'],
                 build: async f => {
@@ -3238,6 +3500,11 @@
         async function generateStudentListReport(key) {
             const report = STUDENT_LIST_REPORTS[key];
             const f = studentReportFilters();
+            if ((report.required || []).includes('course') && !f.course) {
+                alert('Choose the Course first (boxes marked * must be filled).');
+                document.getElementById('reportSCourse').focus();
+                return false;
+            }
             const result = await report.build(f);
             const output = document.getElementById('reportOutput');
             if (result.error) {
@@ -3249,9 +3516,12 @@
             const choices = [
                 shown('school', 'School', f.school), shown('campus', 'Campus', f.campus),
                 report.filters.includes('course') && `Course: <b>${escapeHtml(f.course || 'All')}</b>`,
-                shown('enrollment', 'Enrollment', f.enrollment), shown('session', 'Study Session', f.session),
+                shown('enrollment', 'Enrollment', f.enrollment), shown('batch', 'Batch', f.batch), shown('session', 'Study Session', f.session),
                 shown('gender', 'Gender', f.gender), shown('year', 'Year Admitted', f.year), shown('student', 'Student', f.student),
                 report.filters.includes('status') && `Students: <b>${escapeHtml(f.status || 'All')}</b>`,
+                shown('attPeriod', 'Period', f.attPeriod), shown('unit', 'Unit', f.unit),
+                report.filters.includes('dates') && (f.dateFrom || f.dateTo) && `Dates: <b>${escapeHtml(f.dateFrom || '...')} to ${escapeHtml(f.dateTo || '...')}</b>`,
+                shown('rcSession', 'Session', f.rcSession === '(day)' ? 'Whole day' : f.rcSession),
                 report.filters.includes('period') && `${escapeHtml(report.periodLabel)}: <b>${escapeHtml(f.period ? f.period.label : 'Any time')}</b>`
             ].filter(Boolean).join(' &nbsp;|&nbsp; ');
             const box = b => `
@@ -3259,7 +3529,9 @@
                     <div class="report-summary-title">${escapeHtml(b.title)}</div>
                     ${b.rows.map(([label, count]) => `<div class="dash-row"><span>${escapeHtml(label)}</span><b>${count}</b></div>`).join('')}
                 </div>`;
-            const section = s => `
+            const section = s => s.rawTable ? `
+                ${s.title ? `<div class="report-subtitle">${escapeHtml(s.title)}</div>` : ''}
+                <div class="table-wrap">${s.rawTable}</div>` : `
                 ${s.title ? `<div class="report-subtitle">${escapeHtml(s.title)}</div>` : ''}
                 <div class="table-wrap">
                     <table class="data-table">
@@ -4114,7 +4386,23 @@
                 const heading = table.closest('.table-wrap')?.previousElementSibling;
                 rows.push([]);
                 if (heading && heading.classList.contains('report-subtitle')) rows.push([heading.innerText.trim()]);
-                table.querySelectorAll('tr').forEach(tr => rows.push([...tr.cells].map(c => c.innerText.replace(/\s+/g, ' ').trim())));
+                const spans = [];
+                table.querySelectorAll('tr').forEach((tr, r) => {
+                    const line = [];
+                    let col = 0;
+                    const fillSpans = () => { while (spans[col] && spans[col].left > 0) { line[col] = spans[col].text; spans[col].left--; col++; } };
+                    fillSpans();
+                    for (const c of tr.cells) {
+                        const text = c.innerText.replace(/\s+/g, ' ').trim();
+                        for (let k = 0; k < (c.colSpan || 1); k++) {
+                            line[col] = k ? '' : text;
+                            if ((c.rowSpan || 1) > 1) spans[col] = { text: k ? '' : text, left: c.rowSpan - 1 };
+                            col++;
+                        }
+                        fillSpans();
+                    }
+                    rows.push(line.map(v => v ?? ''));
+                });
             });
             if (!output.querySelector('table')) {
                 // Reports without tables (e.g. a student's details): their text, line by line

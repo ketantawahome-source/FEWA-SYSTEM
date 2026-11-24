@@ -1372,6 +1372,8 @@ const RIGHTS_TO_READ = {
     // Programme units are set up in Settings > Program Setup (settings can be read by all staff)
     programme_units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete'],
     units: [...ACADEMIC_RIGHTS, 'settings.view', 'settings.add', 'settings.edit', 'settings.delete'],
+    // Reports > Student Reports > Students Attendance reads the Roll Call registers
+    attendance_registers: [...ACADEMIC_RIGHTS, ...REPORT_READERS],
     // Finance lists the semesters of the Semester Schedule (fees, charges and payments are per semester)
     period_schedules: [...ACADEMIC_RIGHTS, 'finance.view', 'finance.add', 'finance.edit', 'finance.void']
 };

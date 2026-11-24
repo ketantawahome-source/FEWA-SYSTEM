@@ -1,6 +1,12 @@
 # Passwords for Supabase and the local PostgreSQL - never upload (db-config.example.json shows the layout)
 db-config.json
 
+# Environment files (passwords, keys, database addresses) - never upload
+.env
+.env.*
+*.env
+!.env.example
+
 # Backups contain staff accounts and student data
 FEWA-backup*.json
 FEWA-data-from-this-browser*.json

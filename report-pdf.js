@@ -235,6 +235,47 @@ async function buildReportPdf(title) {
                 return;
             }
 
+            // A grid (the Attendance Matrix): boxed, heading rows and merged boxes kept, the marks in colour
+            if (block.classList.contains('report-grid')) {
+                const cellOf = c => ({ content: pdfText(c.innerText), colSpan: c.colSpan || 1, rowSpan: c.rowSpan || 1,
+                    mark: c.dataset.mark || '', tone: c.dataset.tone || '', cls: c.className });
+                const gridHead = [...(block.tHead ? block.tHead.rows : [])].map(row => [...row.cells].map(cellOf));
+                const gridBody = [...(block.tBodies[0] || { rows: [] }).rows].map(row => [...row.cells].map(cellOf));
+                const MARK_COLOURS = { P: [[234, 247, 238], [30, 122, 60]], A: [[201, 48, 44], [255, 255, 255]],
+                    L: [[255, 231, 166], [107, 69, 0]], E: [[74, 115, 181], [255, 255, 255]] };
+                const TONES = { 'mx-good': [30, 122, 60], 'mx-risk': [168, 107, 0], 'mx-poor': [201, 48, 44] };
+                const columns = gridBody.length ? Math.max(...gridBody.map(r => r.reduce((n, c) => n + c.colSpan, 0))) : 1;
+                room(20);
+                doc.autoTable({
+                    startY: y, margin: { left: margin, right: margin, bottom: 16 }, theme: 'grid', head: gridHead, body: gridBody,
+                    horizontalPageBreak: true, horizontalPageBreakRepeat: [0, 1],
+                    styles: { font: 'times', fontSize: columns > 30 ? 7 : columns > 18 ? 8 : 9, cellPadding: 1.3, halign: 'center', valign: 'middle',
+                        lineColor: [120, 120, 120], lineWidth: 0.2, textColor: [20, 20, 20] },
+                    headStyles: { fillColor: PDF_PURPLE, textColor: [255, 255, 255], fontStyle: 'bold' },
+                    // Batch and student wide, every day the same narrow box, then the totals
+                    columnStyles: { 0: { halign: 'left', fontStyle: 'bold', cellWidth: 30 }, 1: { halign: 'left', fontStyle: 'bold', cellWidth: 62 },
+                        ...Object.fromEntries(Array.from({ length: Math.max(0, columns - 7) }, (_, i) => [i + 2, { cellWidth: 8 }])) },
+                    didParseCell: data => {
+                        const raw = data.cell.raw || {};
+                        if (data.section === 'body' && raw.mark && MARK_COLOURS[raw.mark]) {
+                            data.cell.styles.fillColor = MARK_COLOURS[raw.mark][0];
+                            data.cell.styles.textColor = MARK_COLOURS[raw.mark][1];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        if (data.section === 'body' && raw.tone && TONES[raw.tone]) {
+                            data.cell.styles.textColor = TONES[raw.tone];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        if (data.section === 'head' && /mx-day/.test(raw.cls || '')) {
+                            data.cell.styles.fillColor = [244, 238, 250];
+                            data.cell.styles.textColor = PDF_PURPLE;
+                        }
+                    }
+                });
+                y = doc.lastAutoTable.finalY + 6;
+                return;
+            }
+
             // A table: plain, bold headings, no colours (as printed class lists); pictures stay in their cells
             const keep = cell => !cell.classList.contains('no-print');
             const headRow = block.tHead && block.tHead.rows[block.tHead.rows.length - 1];
