@@ -50,7 +50,7 @@
             .staff-finder-or { padding: 8px 14px; }
             .staff-finder-add { margin-top: 8px; }
         }
-        #staffFormSection[hidden], #staffListSection[hidden] { display: none; }
+        #staffFormSection[hidden], #staffListSection[hidden], #staffFinder[hidden] { display: none; }
         /* The staff member's bio data, laid out as the reference screen: two columns of sections */
         #staffFormSection, #staffFormSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
         #staffFormSection { border-top: 0; border-radius: 4px; }
@@ -715,8 +715,22 @@
             document.getElementById('staffDelete').style.display = 'none';
             document.getElementById('staffPasswordState').textContent = '';
             // Back to step 1: the form closes until someone is chosen or "Add new staff member" is pressed
-            document.getElementById('staffFormSection').hidden = true;
+            showStaffPage(false);
         }
+
+        /* The form is a page of its own: opening it hides "Find or add a member of staff", closing it shows it again.
+           The browser's Back button closes it too (the open form is a step in the browser's history). */
+        function showStaffPage(formOpen) {
+            document.getElementById('staffFinder').hidden = formOpen;
+            document.getElementById('staffFormSection').hidden = !formOpen;
+            if (formOpen && !(history.state && history.state.staffForm)) history.pushState({ staffForm: true }, '');
+            if (!formOpen && history.state && history.state.staffForm) history.back();
+            document.getElementById('main-wrapper').scrollTop = 0;
+            window.scrollTo(0, 0);
+        }
+        window.addEventListener('popstate', () => {
+            if (!document.getElementById('staffFormSection').hidden) resetStaffForm();
+        });
 
         /* ---------- Find or add a member of staff ---------- */
         // One line per person in the list under the find box: name - staff number - email - phone
@@ -753,7 +767,7 @@
         function openNewStaff() {
             resetStaffForm();
             document.getElementById('staffCancelEdit').style.display = 'inline-block';
-            document.getElementById('staffFormSection').hidden = false;
+            showStaffPage(true);
             document.getElementById('staffForm').elements['firstName'].focus();
         }
 
@@ -785,8 +799,7 @@
                 : account.adminResetRequired ? 'cancelled, send a reset link' : 'not set yet');
             document.getElementById('staffResetLink').style.display = 'inline-block';
             document.getElementById('staffDelete').style.display = me && me.id === id ? 'none' : 'inline-block';
-            document.getElementById('staffFormSection').hidden = false;
-            document.getElementById('staffFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            showStaffPage(true);
         }
 
         async function saveStaff(event) {
