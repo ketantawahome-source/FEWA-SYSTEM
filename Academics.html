@@ -97,7 +97,13 @@
         #pane-exams tr.exam-add td { background: #f6f9fd; }
         .sched-status-closed { color: #b3261e; font-weight: 600; }
         .sched-status-open { color: #2e7d32; font-weight: 600; }
-        @media (max-width: 700px) { .sched-buttons, .sched-wide { grid-column: auto; } }
+        /* Phone: one column, each label above its box */
+        @media (max-width: 700px) {
+            .up-filters.sched-fields { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+            .up-filters.sched-fields > label:not(:first-child) { margin-top: 8px; }
+            .up-filters.sched-fields > span:empty { display: none; }
+            .sched-buttons, .sched-wide, #pane-exams .exam-check { grid-column: auto; }
+        }
         /* Compact text, as the Semester schedule screen it was copied from (and Exam Management) */
         #pane-schedule, #pane-exams { font-size: 13px; }
         #pane-schedule .units-heading, #pane-exams .units-heading { font-size: 18px; margin-bottom: 10px; }
