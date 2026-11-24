@@ -1,9 +1,12 @@
+/* The system's font: Source Sans 3, kept in fonts/ (no page loads fonts from another website) */
+@import url('fonts/source-sans-3.css');
+
 /* Base Layout Styles */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
@@ -2346,7 +2349,7 @@ body.login-page {
     /* Purple: soft violet into a richer royal purple. Kept mid-toned (not near-black) so the
        logo, blended in as darker shapes, can still be seen */
     background: linear-gradient(135deg, #b48ad6 0%, #8e5cbf 50%, #6a3d9a 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     color: #24103a;
 }
 

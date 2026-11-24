@@ -17,10 +17,7 @@
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261124b">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="styles.css?v=20261125a">
     <style>
         /* Find or add a member of staff: the first step, before the staff form opens */
         /* Laid out as the reference screen: Source Sans, a plain white card, the title on a thin rule
@@ -351,8 +348,8 @@
                         <button type="button" role="tab" id="staffTabAccr" class="staff-tab" onclick="showStaffTab('accr')">Staff Accreditation</button>
                     </div>
                     <div id="staffAccrHost" hidden>
-                        <div id="staffAccrNew" class="staff-bio-banner accr-new" hidden>Save this new staff member first (Save Details on the
-                            Biodata tab). Their qualifications can then be entered here.</div>
+                        <div id="staffAccrNew" class="staff-bio-banner accr-new" hidden>This new staff member is not saved yet: save them first (Save Details on the
+                            Biodata tab) to enter their own qualifications. Any other staff member can be chosen below.</div>
                     </div>
                     <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
                         <input type="hidden" name="id">
@@ -1102,15 +1099,14 @@
             prepareAccreditation();
             const section = document.getElementById('accrSection');
             if (section.parentElement !== host) host.appendChild(section);
-            // Not saved yet: only the note shows
+            // A new staff member not saved yet: a note says so (qualifications of anyone else can still be entered)
             document.getElementById('staffAccrNew').hidden = !!id;
-            section.hidden = !id;
-            if (!id) return;
-            // Only this staff member: chosen and fixed
+            section.hidden = false;
+            // The staff member who is open is chosen to start with; any other staff member can be chosen instead
             const staffBox = document.getElementById('accrStaff');
             await loadQualifications();
-            staffBox.value = id;
-            staffBox.disabled = true;
+            staffBox.disabled = false;
+            staffBox.value = id && [...staffBox.options].some(o => o.value === id) ? id : '';
             clearQualificationForm();
             renderQualifications();
         }
