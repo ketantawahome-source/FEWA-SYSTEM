@@ -84,6 +84,25 @@ COMMENT ON TABLE staff.staff IS 'The staff: login account and personal & employm
 COMMENT ON COLUMN staff.staff.role IS 'Administrator or Staff';
 COMMENT ON COLUMN staff.staff.status IS 'Active or Inactive';
 
+-- Staff Management > Staff Accreditation: each staff member's qualifications and certifications (administrators only)
+CREATE TABLE IF NOT EXISTS staff.staff_qualifications (
+    id              text PRIMARY KEY,
+    staff_id        text,             -- staff.staff.id
+    staff_name      text,             -- their name when saved (the list still reads if they are renamed)
+    qualification   text,             -- e.g. Diploma, Bachelor's Degree, Professional Certification
+    institution     text,             -- school / institution
+    score           text,             -- e.g. Credit, Second Class Upper, B+
+    year_attained   integer,
+    accredited      text,             -- N/A, Yes or No
+    remarks         text,
+    updated_at      timestamptz,
+    updated_by      text,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS staff_qualifications_staff ON staff.staff_qualifications (staff_id);
+ALTER TABLE staff.staff_qualifications ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE staff.staff_qualifications IS 'Staff Accreditation: qualifications and certifications of each staff member.';
+
 -- The details kept in staff_details (Nov 2026) move into staff.staff, then that table goes
 DO $$ BEGIN
     IF to_regclass('staff.staff_details') IS NOT NULL THEN

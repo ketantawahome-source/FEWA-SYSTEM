@@ -17,7 +17,8 @@ const FEWA_API = '/api';
 const FEWA_ADDRESS = 'http://localhost:5600/';
 const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals: 'id', applications: 'id',
     units: 'id', programme_units: 'id', unit_offers: 'id', unit_registrations: 'id', unit_lecturers: 'id', unit_hours: 'id', period_schedules: 'id',
-    exam_groups: 'id', exam_types: 'id', grading_systems: 'id', group_exam_types: 'id', award_setups: 'id', course_exam_groups: 'id', exam_paper_types: 'id' };
+    exam_groups: 'id', exam_types: 'id', grading_systems: 'id', group_exam_types: 'id', award_setups: 'id', course_exam_groups: 'id', exam_paper_types: 'id',
+    staff_qualifications: 'id' };
 const fewaServer = { online: false, error: '' };
 /* Staff and students have separate logins, so both can be logged in in one browser. Every request says which this
    page uses (server.mjs, getSession): the Student Portal its student's, the login page any, the rest staff. */

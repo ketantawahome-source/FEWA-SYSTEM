@@ -92,6 +92,23 @@
         .bio-school-list label { display: flex; align-items: center; gap: 10px; font-size: 17px; color: #333; margin: 10px 0; cursor: pointer; }
         .bio-school-list input { width: 18px; height: 18px; margin: 0; }
         .bio-save { text-align: center; margin-top: 22px; }
+        /* Staff Accreditation: labels on the left of each box, two pairs a row (as the reference screen) */
+        #accrSection, #accrSection * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
+        #accrSection { border-top: 0; border-radius: 4px; padding: 18px 14px 24px; }
+        #accreditationTab[hidden] { display: none; }
+        .accr-form { display: grid; grid-template-columns: 190px minmax(0, 1fr) 210px minmax(0, 1fr); gap: 24px 24px; align-items: center; margin: 28px 0 8px; }
+        .accr-form label { font-size: 18px; font-weight: 600; color: #333; }
+        .accr-form .req { color: #d9302c; }
+        .accr-form input, .accr-form select, .accr-form textarea { font-size: 17px; padding: 10px 22px; min-height: 51px; border: 1px solid #d2d6dc;
+            border-radius: 2px; color: #333; background: #fff; width: 100%; box-sizing: border-box; }
+        .accr-form textarea { min-height: 76px; resize: vertical; }
+        .accr-wide { grid-column: span 2; }
+        .accr-buttons { grid-column: span 3; display: flex; gap: 10px; }
+        .accr-buttons .staff-finder-add { min-height: 50px !important; font-size: 19px; }
+        .accr-buttons .btn-secondary { font-size: 17px; min-height: 50px; padding: 0 18px; }
+        .accr-count { color: #666; font-size: 15px; margin: 22px 0 8px; }
+        .accr-table td, .accr-table th { font-size: 15px; }
+        @media (max-width: 900px) { .accr-form { grid-template-columns: minmax(0, 1fr); gap: 6px; } .accr-wide, .accr-buttons { grid-column: auto; } }
         .bio-save .staff-finder-add, .bio-save-top { min-height: 50px !important; font-size: 19px; padding: 0 18px; }
         @media (max-width: 1000px) { .staff-bio { grid-template-columns: minmax(0, 1fr); } }
         @media (max-width: 600px) { .bio-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -180,8 +197,11 @@
             <li class="nav-item has-submenu active">
                 <a href="#" onclick="toggleSubmenu(event, 'staffSubmenu')">Staff Management</a>
                 <ul id="staffSubmenu" class="submenu open">
-                    <li class="submenu-item active">
+                    <li class="submenu-item" id="menuStaffList" onclick="location.href = 'Staff.html'">
                         <span class="icon-circle"></span> Staff List
+                    </li>
+                    <li class="submenu-item" id="menuAccreditation" onclick="location.href = 'Staff.html?page=accreditation'">
+                        <span class="icon-circle"></span> Staff Accreditation
                     </li>
                 </ul>
             </li>
@@ -231,6 +251,53 @@
         </div>
 
         <div id="content-area">
+
+            <!-- STAFF ACCREDITATION (Staff.html?page=accreditation): qualifications and certifications, table
+                 staff.staff_qualifications (administrators only) -->
+            <div id="accreditationTab" hidden>
+                <div class="form-section" id="accrSection">
+                    <div class="staff-bio-banner">Enter the staff historical qualifications from education institutions.</div>
+                    <form id="accrForm" class="accr-form" onsubmit="saveQualification(event)" autocomplete="off">
+                        <input type="hidden" name="id">
+                        <label for="accrStaff">Staff Member<span class="req">*</span></label>
+                        <select id="accrStaff" name="staffId" required onchange="renderQualifications()"></select>
+                        <label for="accrQualification">Qualification<span class="req">*</span></label>
+                        <select id="accrQualification" name="qualification" required></select>
+
+                        <label for="accrInstitution">School / Institution</label>
+                        <input type="text" id="accrInstitution" name="institution" maxlength="150">
+                        <label for="accrScore">Score</label>
+                        <input type="text" id="accrScore" name="score" maxlength="60">
+
+                        <label for="accrYear">Year Attained</label>
+                        <select id="accrYear" name="yearAttained"></select>
+                        <label for="accrAccredited">Accredited Institution?</label>
+                        <select id="accrAccredited" name="accredited">
+                            <option value="N/A">N/A</option>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+
+                        <label for="accrRemarks">Remarks</label>
+                        <textarea id="accrRemarks" name="remarks" maxlength="500" class="accr-wide"></textarea>
+
+                        <span></span>
+                        <div class="accr-buttons">
+                            <button type="submit" id="accrSave" class="staff-finder-add">Save Details</button>
+                            <button type="button" id="accrCancel" class="btn-secondary" hidden onclick="clearQualificationForm()">Cancel</button>
+                        </div>
+                    </form>
+
+                    <div class="accr-count" id="accrCount"></div>
+                    <div class="table-wrap">
+                        <table class="data-table accr-table">
+                            <thead><tr><th>Staff Member</th><th>Qualification</th><th>School / Institution</th><th>Score</th>
+                                <th>Year</th><th>Accredited</th><th>Remarks</th><th>Actions</th></tr></thead>
+                            <tbody id="accrRows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
             <!-- STAFF PAGE (administrators only) -->
             <div id="staffTab">
@@ -644,6 +711,8 @@
                 showToast('The staff details could not be loaded: ' + error.message, 'warning');
             }
             renderStaffList();
+            // Staff Accreditation lists staff with their staff numbers (part of the details)
+            if (STAFF_PAGE === 'accreditation') { fillQualificationStaff(); renderQualifications(); }
         }
 
         // Saves the details typed in the form for this staff member (nothing to save for a new one with none)
@@ -975,6 +1044,152 @@
             if (typeof refreshServerValues === 'function') refreshServerValues();
         }
 
+        /* ---------- Staff Accreditation (Staff.html?page=accreditation) ----------
+           Qualifications and certifications of each staff member, in staff.staff_qualifications. Choosing a staff
+           member shows theirs; the pencil loads one for a change and the bin removes it. */
+        const STAFF_PAGE = new URLSearchParams(location.search).get('page') === 'accreditation' ? 'accreditation' : 'staff';
+        const QUALIFICATIONS = ['KCPE', 'KCSE', 'Certificate', 'Diploma', 'Higher Diploma', "Bachelor's Degree", 'Postgraduate Diploma',
+            "Master's Degree", 'PhD', 'Professional Certification', 'Short Course', 'Trade Test', 'Other'];
+        let qualifications = [];
+
+        function showAccreditationPage() {
+            document.title = 'Staff Accreditation - FEWA Beauty & Fashion College';
+            document.getElementById('staffTab').hidden = true;
+            document.getElementById('accreditationTab').hidden = false;
+            const years = [];
+            for (let y = new Date().getFullYear(); y >= 1960; y--) years.push(y);
+            document.getElementById('accrYear').innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+            fillQualificationChoices();
+            clearQualificationForm();
+            loadQualifications();
+        }
+
+        function fillQualificationChoices(current = '') {
+            const list = current && !QUALIFICATIONS.includes(current) ? [...QUALIFICATIONS, current] : QUALIFICATIONS;
+            const select = document.getElementById('accrQualification');
+            select.innerHTML = '<option value="">-- select one --</option>' + list.map(q => `<option value="${escapeHtml(q)}">${escapeHtml(q)}</option>`).join('');
+            select.value = current;
+        }
+
+        // Staff Member: every staff account, A-Z (the choice is kept when the list is filled again)
+        function fillQualificationStaff() {
+            const select = document.getElementById('accrStaff');
+            const current = select.value;
+            select.innerHTML = '<option value="">-- select one --</option>' + getAccounts()
+                .sort((a, b) => accountName(a).localeCompare(accountName(b)))
+                .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(accountName(a))}${(staffDetails[a.id] || {}).staffNumber
+                    ? ' - ' + escapeHtml(staffDetails[a.id].staffNumber) : ''}</option>`).join('');
+            select.value = [...select.options].some(o => o.value === current) ? current : '';
+        }
+
+        async function loadQualifications() {
+            try {
+                qualifications = await fewaDB.getAll('staff_qualifications');
+            } catch (error) {
+                qualifications = [];
+                showToast('The qualifications could not be loaded: ' + error.message, 'warning');
+            }
+            fillQualificationStaff();
+            renderQualifications();
+        }
+
+        const qualificationStaffName = q => {
+            const account = getAccounts().find(a => a.id === q.staffId);
+            return account ? accountName(account) : (q.staffName || 'Former staff member');
+        };
+
+        function renderQualifications() {
+            const staffId = document.getElementById('accrStaff').value;
+            const rows = qualifications.filter(q => !staffId || q.staffId === staffId)
+                .sort((a, b) => qualificationStaffName(a).localeCompare(qualificationStaffName(b)) || Number(b.yearAttained || 0) - Number(a.yearAttained || 0));
+            const chosen = staffId ? (getAccounts().find(a => a.id === staffId) || {}) : null;
+            document.getElementById('accrCount').textContent = chosen
+                ? `${rows.length} qualification${rows.length === 1 ? '' : 's'} of ${accountName(chosen)}.`
+                : `${rows.length} qualification${rows.length === 1 ? '' : 's'} of all staff. Choose a staff member to see only theirs.`;
+            document.getElementById('accrRows').innerHTML = rows.map(q => `<tr>
+                    <td>${escapeHtml(qualificationStaffName(q))}</td><td>${escapeHtml(q.qualification)}</td><td>${escapeHtml(q.institution)}</td>
+                    <td>${escapeHtml(q.score)}</td><td>${escapeHtml(q.yearAttained)}</td><td>${escapeHtml(q.accredited)}</td><td>${escapeHtml(q.remarks)}</td>
+                    <td>${iconButton('edit', 'Change this qualification', `editQualification('${q.id}')`)}${iconButton('delete', 'Remove this qualification', `deleteQualification('${q.id}')`)}</td>
+                </tr>`).join('')
+                || `<tr class="empty-row"><td colspan="8">${staffId ? 'No qualifications entered for this staff member yet.' : 'Nothing is listed here yet.'}</td></tr>`;
+        }
+
+        function clearQualificationForm() {
+            const form = document.getElementById('accrForm');
+            const staffId = form.elements['staffId'].value;
+            form.reset();
+            form.elements['id'].value = '';
+            form.elements['staffId'].value = staffId; // the staff member stays chosen for the next entry
+            form.elements['yearAttained'].value = String(new Date().getFullYear());
+            form.elements['accredited'].value = 'N/A';
+            fillQualificationChoices();
+            document.getElementById('accrSave').textContent = 'Save Details';
+            document.getElementById('accrCancel').hidden = true;
+        }
+
+        function editQualification(id) {
+            const q = qualifications.find(x => x.id === id);
+            if (!q) return;
+            const form = document.getElementById('accrForm');
+            form.elements['id'].value = q.id;
+            form.elements['staffId'].value = q.staffId;
+            fillQualificationChoices(q.qualification || '');
+            form.elements['institution'].value = q.institution || '';
+            form.elements['score'].value = q.score || '';
+            const year = String(q.yearAttained || new Date().getFullYear());
+            if (![...form.elements['yearAttained'].options].some(o => o.value === year)) form.elements['yearAttained'].add(new Option(year, year));
+            form.elements['yearAttained'].value = year;
+            form.elements['accredited'].value = q.accredited || 'N/A';
+            form.elements['remarks'].value = q.remarks || '';
+            document.getElementById('accrSave').textContent = 'Save Changes';
+            document.getElementById('accrCancel').hidden = false;
+            renderQualifications();
+            window.scrollTo(0, 0);
+            document.getElementById('main-wrapper').scrollTop = 0;
+        }
+
+        async function saveQualification(event) {
+            event.preventDefault();
+            if (!isAdmin()) return alert('Only administrators can enter staff qualifications.');
+            const form = event.target;
+            const value = name => form.elements[name].value.trim().replace(/\s+/g, ' ');
+            const missing = [['staffId', 'Staff Member'], ['qualification', 'Qualification']].filter(([n]) => !value(n)).map(([, label]) => label);
+            if (missing.length) return alert('Please fill in: ' + missing.join(', ') + '.');
+            const account = getAccounts().find(a => a.id === value('staffId'));
+            const record = {
+                id: value('id') || (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)),
+                staffId: value('staffId'), staffName: account ? accountName(account) : '',
+                qualification: value('qualification'), institution: value('institution'), score: value('score'),
+                yearAttained: Number(value('yearAttained')) || null, accredited: value('accredited') || 'N/A',
+                remarks: form.elements['remarks'].value.trim(),
+                updatedAt: new Date().toISOString(), updatedBy: currentUser() || ''
+            };
+            const same = qualifications.find(q => q.id !== record.id && q.staffId === record.staffId && q.qualification === record.qualification
+                && String(q.institution || '').toLowerCase() === record.institution.toLowerCase() && Number(q.yearAttained) === record.yearAttained);
+            if (same && !confirm(`${record.staffName} already has ${record.qualification} from ${record.institution || 'this institution'} in ${record.yearAttained}. Save another one?`)) return;
+            try {
+                await fewaDB.put('staff_qualifications', record);
+            } catch (error) {
+                return alert('The qualification was NOT saved: ' + error.message);
+            }
+            showToast(`${record.qualification} saved for ${record.staffName}.`);
+            clearQualificationForm();
+            await loadQualifications();
+        }
+
+        async function deleteQualification(id) {
+            const q = qualifications.find(x => x.id === id);
+            if (!q || !confirm(`Remove ${q.qualification}${q.institution ? ' from ' + q.institution : ''} of ${qualificationStaffName(q)}?`)) return;
+            try {
+                await fewaDB.remove('staff_qualifications', id);
+            } catch (error) {
+                return alert('It was NOT removed: ' + error.message);
+            }
+            if (document.getElementById('accrForm').elements['id'].value === id) clearQualificationForm();
+            showToast('Qualification removed.');
+            await loadQualifications();
+        }
+
         async function deleteStaff(id) {
             const accounts = getAccounts();
             const account = accounts.find(a => a.id === id);
@@ -1027,6 +1242,8 @@
         showCurrentUser();
         resetStaffForm();
         renderStaffList();
+        if (STAFF_PAGE === 'accreditation') showAccreditationPage();
+        document.getElementById(STAFF_PAGE === 'accreditation' ? 'menuAccreditation' : 'menuStaffList').classList.add('active');
         loadSettings();
         if (fewaServer.online && isAdmin()) loadStaffDetails();
 

@@ -210,7 +210,7 @@ const EXPORT_PARTS = {
     applications: [['applications', 'applications.csv', 'submitted_at']],
     documents: [['documents', 'documents.csv', 'uploaded_at']],
     deferrals: [['deferrals', 'deferrals.csv', 'start_date']],
-    staff: [['staff', 'staff.csv', null]],
+    staff: [['staff', 'staff.csv', null], ['staff_qualifications', 'staff_qualifications.csv', null]],
     // Academic Management > Manage Units; a date range keeps only unit registrations made in it
     academics: [['units', 'academics/units.csv', null], ['programme_units', 'academics/programme_units.csv', null],
         ['unit_offers', 'academics/unit_offers.csv', null], ['unit_registrations', 'academics/unit_registrations.csv', 'registered_at'],

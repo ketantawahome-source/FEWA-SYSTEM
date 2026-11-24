@@ -187,7 +187,9 @@ const ACADEMIC_RIGHTS = ['academics.view', 'academics.edit', 'academics.register
 // Academic tables written with Edit Semester Schedule / Edit Exam Management (the rest: Edit Units)
 const SCHEDULE_STORES = ['period_schedules'];
 const EXAM_STORES = ['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
-const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES];
+// Record stores only administrators read or change (Staff Management > Staff Accreditation)
+const ADMIN_STORES = ['staff_qualifications'];
+const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES, ...ADMIN_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
 
@@ -204,7 +206,7 @@ const SCHEMA_OF = {
     reg_number_sequences: 'settings', short_courses: 'settings', award_types: 'settings',
     fee_payment_details: 'finance', fee_structure: 'finance', charges: 'finance', payments: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
-    staff: 'staff',
+    staff: 'staff', staff_qualifications: 'staff',
     sessions: 'logins', password_reset_codes: 'logins',
     stored_files: 'files',
     units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics',
@@ -541,7 +543,7 @@ async function moveSettingsIntoTables(client) {
 
 /* ---------- Record stores: students, documents, deferrals (columns) and settings (tables above) ---------- */
 const STORES = { students: 'id', documents: 'id', deferrals: 'id', applications: 'id', settings: 'key',
-    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, 'id'])) };
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, 'id'])), ...Object.fromEntries(ADMIN_STORES.map(store => [store, 'id'])) };
 const hasColumns = store => COLUMN_TABLES.includes(store);
 
 async function selectRecords(db, store, id) {
@@ -679,6 +681,8 @@ async function setValue(key, value) {
             const staying = new Set((parsed || []).map(account => String(account.id || account.username)));
             const goneFiles = [...saved].filter(([id]) => !staying.has(id)).flatMap(([, details]) => [...fileIdsIn(details)]);
             if (goneFiles.length) await client.query(`DELETE FROM ${T('stored_files')} WHERE id = ANY($1)`, [goneFiles]);
+            const goneStaff = [...saved.keys()].filter(id => !staying.has(id));
+            if (goneStaff.length) await client.query(`DELETE FROM ${T('staff_qualifications')} WHERE staff_id = ANY($1)`, [goneStaff]);
             const columns = await tableColumns(client, 'staff');
             for (const [position, account] of (parsed || []).entries()) {
                 const id = String(account.id || account.username);
@@ -1431,9 +1435,10 @@ const STORE_TABLES = {
     students: ['students', 'stored_files'], documents: ['documents', 'stored_files'], deferrals: ['deferrals'],
     applications: ['applications', 'stored_files'],
     ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, [store]])),
+    ...Object.fromEntries(ADMIN_STORES.map(store => [store, [store]])),
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
-const valueTables = key => key === ACCOUNTS_KEY ? ['staff', 'stored_files']
+const valueTables = key => key === ACCOUNTS_KEY ? ['staff', 'stored_files', 'staff_qualifications']
     : key === ROLE_OPERATIONS_KEY ? ['role_operations'] : ['password_reset_codes'];
 // Files first, so a record copied across already finds its photo or document on the other side
 // (Login sessions stay in the main database only)
@@ -2344,6 +2349,11 @@ async function handleApi(req, res, parts) {
 
     /* ---------- Records ---------- */
     if (area === 'stores' && STORES[a]) {
+        // Staff qualifications: administrators only (other staff get nothing and can change nothing)
+        if (ADMIN_STORES.includes(a) && !(setup || admin)) {
+            if (method === 'GET' && staff) return send(res, 200, b ? null : []);
+            throw forbidden();
+        }
         if (method === 'GET') {
             // A role without the right simply gets nothing, so its screens open empty instead of showing an error
             if (staff && RIGHTS_TO_READ[a] && !await staffCan(session, ...RIGHTS_TO_READ[a])) return send(res, 200, b ? null : []);
