@@ -644,7 +644,7 @@ const STAFF_DETAIL_FIELDS = ['idNumber', 'gender', 'dateOfBirth', 'department', 
     'nextOfKinName', 'nextOfKinRelationship', 'nextOfKinPhone',
     // The bio data screen (Nov 2026): biodata, contacts, school access, employment history and payroll details
     'secondName', 'preferredName', 'title', 'maritalStatus', 'passportNo', 'nationality', 'workEmail', 'ethnicity',
-    'personalEmail', 'postalCode', 'schoolAccess', 'dateLeft', 'profession', 'staffRank', 'bank', 'bankBranch', 'pinNumber',
+    'personalEmail', 'postalCode', 'courseAccess', 'dateLeft', 'profession', 'staffRank', 'bank', 'bankBranch', 'pinNumber',
     'bankAccount', 'shaNumber', 'saccoNo', 'pensionNo', 'nssfNumber', 'staffNumber', 'taxExempt', 'taxExemptReason',
     'supervisor', 'deductHelb', 'examSupervisor'];
 // Pictures kept with the details (a reference to the file in files.stored_files): JPG or PNG, up to 10MB

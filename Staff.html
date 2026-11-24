@@ -472,8 +472,8 @@
 
                             <!-- ===== Right: School access, Employment history, Payroll details ===== -->
                             <div class="staff-bio-col">
-                                <div class="bio-title">Staff School Access</div>
-                                <input type="text" id="staffSchoolFilter" class="bio-filter" placeholder="Type to filter schools"
+                                <div class="bio-title">Staff Course Access</div>
+                                <input type="text" id="staffSchoolFilter" class="bio-filter" placeholder="Type to filter courses"
                                     autocomplete="off" oninput="renderSchoolAccess()">
                                 <div class="bio-school-links">
                                     <a href="#" onclick="tickSchools(true); return false;">Select all</a> |
@@ -664,7 +664,7 @@
             nationality.value = country;
         }
 
-        /* ---------- Staff school access: the schools of Settings > Program Setup > Schools, ticked ---------- */
+        /* ---------- Staff course access: the courses of Settings > Program Setup > Courses, ticked ---------- */
         let staffSchools = [];
         let ticked = new Set();
         function renderSchoolAccess() {
@@ -673,12 +673,12 @@
             document.getElementById('staffSchoolList').innerHTML = names.filter(n => !filter || n.toLowerCase().includes(filter))
                 .map(n => `<label><input type="checkbox" value="${escapeHtml(n)}" ${ticked.has(n) ? 'checked' : ''}
                     onchange="this.checked ? ticked.add(this.value) : ticked.delete(this.value); countSchools()"> ${escapeHtml(n)}</label>`).join('')
-                || `<span class="bio-hint">${names.length ? 'No school fits that.' : 'No schools set up yet (Settings > Program Setup > Schools).'}</span>`;
+                || `<span class="bio-hint">${names.length ? 'No course fits that.' : 'No courses set up yet (Settings > Program Setup > Courses).'}</span>`;
             countSchools();
         }
         function countSchools() {
             const total = [...new Set([...staffSchools, ...ticked])].length;
-            document.getElementById('staffSchoolCount').textContent = ` ${ticked.size} of ${total} school${total === 1 ? '' : 's'} ticked`;
+            document.getElementById('staffSchoolCount').textContent = ` ${ticked.size} of ${total} course${total === 1 ? '' : 's'} ticked`;
         }
         function tickSchools(on) {
             document.querySelectorAll('#staffSchoolList input[type=checkbox]').forEach(box => {
@@ -737,11 +737,11 @@
         async function saveStaffDetails(id, form) {
             const details = Object.fromEntries(DETAIL_FIELDS.map(f => [f, form.elements[f].value.trim()]));
             if (details.nextOfKinPhone) details.nextOfKinPhone = normalizeKenyanPhone(details.nextOfKinPhone) || details.nextOfKinPhone;
-            details.schoolAccess = [...ticked].sort().join(SCHOOL_SEPARATOR);
+            details.courseAccess = [...ticked].sort().join(SCHOOL_SEPARATOR);
             const before = staffDetails[id] || {};
             const photo = document.getElementById('staffPhotoFile').files[0];
             const signature = document.getElementById('staffSignatureFile').files[0];
-            if (!photo && !signature && [...DETAIL_FIELDS, 'schoolAccess'].every(f => (details[f] || '') === (before[f] || ''))) return true;
+            if (!photo && !signature && [...DETAIL_FIELDS, 'courseAccess'].every(f => (details[f] || '') === (before[f] || ''))) return true;
             try {
                 // A new picture goes as a file inside the details (db.js packs it); none = the saved one stays
                 if (photo) details.photo = await packRecord(photo);
@@ -908,7 +908,7 @@
             showStaffImage('staffSignature', null);
             showDocsOnRecord(details);
             showSavedStaffImages(details);
-            ticked = new Set(String(details.schoolAccess || '').split(SCHOOL_SEPARATOR).map(n => n.trim()).filter(Boolean));
+            ticked = new Set(String(details.courseAccess || '').split(SCHOOL_SEPARATOR).map(n => n.trim()).filter(Boolean));
             document.getElementById('staffSchoolFilter').value = '';
             renderSchoolAccess();
             document.getElementById('staffFormTitle').textContent = 'Editing ' + accountName(account);
@@ -1291,8 +1291,10 @@
             if (roles) staffRoles = roles.items.map(i => i.name);
             const departments = await readSetting('departments');
             if (departments) staffDepartments = departments.items.map(i => i.name).filter(Boolean);
-            const schools = await readSetting('schools');
-            if (schools) staffSchools = schools.items.map(i => i.name).filter(Boolean);
+            // Staff Course Access lists the courses of Settings > Program Setup > Courses (as the other Course boxes)
+            const courses = await readSetting('courses');
+            if (courses) staffSchools = courses.items.filter(c => c.enabled !== 'NO')
+                .map(c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name).filter(Boolean);
             renderSchoolAccess();
             // Refresh the dropdowns without losing a choice already picked in the form
             fillRoleSelect(document.getElementById('staffForm').elements['jobTitle'].value);

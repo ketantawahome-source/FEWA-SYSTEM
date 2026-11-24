@@ -56,7 +56,14 @@ ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS work_email text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS ethnicity text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS personal_email text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS postal_code text;
-ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS school_access text;             -- the schools ticked, joined by " | "
+-- Staff Course Access (was school access, renamed 25 Nov 2026): the courses ticked, joined by " | "
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'staff' AND table_name = 'staff' AND column_name = 'school_access')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'staff' AND table_name = 'staff' AND column_name = 'course_access') THEN
+        ALTER TABLE staff.staff RENAME COLUMN school_access TO course_access;
+    END IF;
+END $$;
+ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS course_access text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS date_left date;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS profession text;
 ALTER TABLE staff.staff ADD COLUMN IF NOT EXISTS staff_rank text;
