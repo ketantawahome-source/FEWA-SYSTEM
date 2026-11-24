@@ -1459,8 +1459,8 @@ input[type="password"]::-ms-clear {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     margin-right: 4px;
     vertical-align: middle;
@@ -1473,8 +1473,8 @@ input[type="password"]::-ms-clear {
 }
 
 .btn-icon svg {
-    width: 17px;
-    height: 17px;
+    width: 15px;
+    height: 15px;
 }
 
 .btn-icon:hover,
@@ -6026,7 +6026,8 @@ input[type="checkbox"], input[type="radio"] {
 }
 
 .data-table td {
-    padding: 7px 10px;
+    padding: 4px 10px;      /* compact rows: less scrolling on long lists */
+    line-height: 1.35;
     border-bottom-color: var(--fewa-line);
 }
 
