@@ -522,6 +522,9 @@ async function uploadExamRows() {
     let rows;
     try {
         const book = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+        // Only the system's own template (or its feedback file) is accepted
+        const wrong = FewaExcel.templateProblem(book, up.file);
+        if (wrong) return alert(wrong);
         rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
             .map(r => r.map(c => String(c).trim()));
     } catch { return alert('The file could not be read. Save it as .xlsx from Excel and try again.'); }
@@ -556,10 +559,10 @@ async function uploadExamRows() {
     // After every upload: the file's rows again with a Feedback column (excel-tools.js)
     const feedback = () => window.FewaExcel && FewaExcel.feedback(f.name, rows[0] || [], lines.map(l => l.r), lines.map(l => l.done
         ? { ok: true, text: l.existing ? 'Saved (replaced the one in the list)' : 'Saved' }
-        : { ok: false, text: 'NOT saved: ' + (l.record ? 'the upload was cancelled or stopped' : l.note) }));
+        : { ok: false, text: 'NOT saved: ' + (l.record ? 'the upload was cancelled or stopped' : l.note) }), up.file);
     if (badLines.length) {
         if (window.FewaExcel) FewaExcel.feedback(f.name, rows[0] || [], lines.map(l => l.r), lines.map(l => ({ ok: false,
-            text: 'NOT saved: ' + (l.record ? 'this row is fine, but the file has rows to correct (nothing was saved)' : l.note) })));
+            text: 'NOT saved: ' + (l.record ? 'this row is fine, but the file has rows to correct (nothing was saved)' : l.note) })), up.file);
         return alert(`Nothing was saved: ${badLines.length} row${badLines.length === 1 ? ' has' : 's have'} a problem (shown in red in the table). ` +
             'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
     }

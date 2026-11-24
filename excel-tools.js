@@ -5,6 +5,9 @@
    - FewaExcel.feedback(fileName, headings, rows, results): after every upload, a copy of the uploaded rows with a
      Feedback column (green when the row went in, red with the reason when it did not), downloaded at once.
    - FewaExcel.check(rows, columns): every row checked against the columns (required, dates, phones, emails, lists).
+   - Only the system's own templates can be uploaded: each template (and each feedback file, so its rows can be corrected and
+     uploaded again) has a very hidden sheet "FEWA template" saying which template it is; FewaExcel.templateProblem(book, key)
+     says why a file is refused (an old template, another template, or any other Excel file).
    SheetJS cannot colour cells, so the files are written here part by part and zipped with SheetJS's own zip. */
 (function () {
     let xlsxReady = null;
@@ -106,7 +109,7 @@ ${all.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Conte
             'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <bookViews><workbookView activeTab="0"/></bookViews><sheets>${all.map((s, i) =>
-                `<sheet name="${sheetName(s.name)}" sheetId="${i + 1}"${s.hidden ? ' state="hidden"' : ''} r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
+                `<sheet name="${sheetName(s.name)}" sheetId="${i + 1}"${s.hidden === 'very' ? ' state="veryHidden"' : s.hidden ? ' state="hidden"' : ''} r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
             'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${all.map((s, i) =>
                 `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}
@@ -135,6 +138,24 @@ ${all.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Conte
 
     /* columns: [{ title, field, required, help, kind: 'text' | 'date' | 'phone' | 'email', choices, open }]
        choices: the drop-down list; open: other values may be typed too */
+    const MARK_SHEET = 'FEWA template';
+    const markSheet = key => ({ name: MARK_SHEET, hidden: 'very', rows: [['fewa-template:' + key]] });
+    // The template a workbook (read by SheetJS) was made from, or ''
+    const templateOf = book => {
+        const sheet = book && book.Sheets && book.Sheets[MARK_SHEET];
+        const text = sheet && sheet.A1 ? String(sheet.A1.v || '') : '';
+        return text.startsWith('fewa-template:') ? text.slice('fewa-template:'.length) : '';
+    };
+    const templateTitle = key => String(key).replace(/-template\.xlsx$/i, '').replace(/-/g, ' ');
+    // Why this workbook cannot be uploaded as the template "key" ('' when it can)
+    function templateProblem(book, key) {
+        const made = templateOf(book);
+        if (made === key) return '';
+        return made ? `This file is the ${templateTitle(made)} template, not the ${templateTitle(key)} one. Nothing was uploaded.`
+            : `Nothing was uploaded: this is not the system's ${templateTitle(key)} template (or it is an old one). ` +
+              'Press Download Template, copy your rows into the new file (the red columns must be filled in) and upload that file.';
+    }
+
     function template(fileName, columns, sheetName = 'Data') {
         const help = [[{ v: 'Columns with a RED heading and * must be filled in on every row, or the file is NOT uploaded.', s: STYLE.redBold }],
             [{ v: 'Grey columns may be left empty. Dates as day/month/year, e.g. 15/04/1990.', s: STYLE.bold }], [],
@@ -146,12 +167,14 @@ ${all.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Conte
                 colStyles: columns.map(c => c.required ? STYLE.requiredCell : STYLE.plain),
                 rows: [columns.map(c => ({ v: c.required ? c.title + ' *' : c.title, s: c.required ? STYLE.required : STYLE.optional }))],
                 lists: columns.map((c, col) => c.choices ? { col, choices: c.choices, open: c.open } : null).filter(Boolean) },
-            { name: 'How to fill it in', widths: [28, 90], rows: help }
+            { name: 'How to fill it in', widths: [28, 90], rows: help },
+            markSheet(fileName)
         ]);
     }
 
     // The uploaded rows again with a Feedback column: results[i] = { ok, text } for rows[i]
-    function feedback(uploadedName, headings, rows, results) {
+    // templateKey: the template uploaded; the feedback file carries its mark, so it can be corrected and uploaded again
+    function feedback(uploadedName, headings, rows, results, templateKey) {
         const base = String(uploadedName || 'upload').replace(/\.[^.]+$/, '');
         const okCount = results.filter(r => r && r.ok).length;
         const width = Math.max(headings.length, ...rows.map(r => r.length));
@@ -164,13 +187,15 @@ ${all.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Conte
                     const result = results[i] || { ok: false, text: 'Not checked' };
                     return [...Array.from({ length: width }, (_, c) => r[c] ?? ''), { v: result.text, s: result.ok ? STYLE.ok : STYLE.bad }];
                 })]
-        }]).catch(() => {});
+        }, ...(templateKey ? [markSheet(templateKey)] : [])]).catch(() => {});
     }
 
     // The first sheet's rows (heading row included); empty rows at the end are dropped
-    async function read(file) {
+    async function read(file, key) {
         const XLSX = await loadXlsx();
         const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+        const problem = key ? templateProblem(book, key) : '';
+        if (problem) throw Object.assign(new Error(problem), { template: true });
         const rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: true });
         return rows.map(r => r.map(c => c instanceof Date ? c : String(c ?? '').trim()));
     }
@@ -232,5 +257,5 @@ ${all.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" Conte
         return { missingColumns, people };
     }
 
-    window.FewaExcel = { loadXlsx, template, feedback, read, check, date, phone, email, choice, shown, writeWorkbook };
+    window.FewaExcel = { loadXlsx, template, feedback, read, check, date, phone, email, choice, shown, writeWorkbook, templateProblem };
 })();

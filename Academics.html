@@ -10,8 +10,8 @@
     <script src="backup.js?v=20261104f"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
-    <script src="excel-tools.js?v=20261125a"></script>
-    <script src="exams.js"></script>
+    <script src="excel-tools.js?v=20261125b"></script>
+    <script src="exams.js?v=20261125b"></script>
     <script>
         requireLogin();
         // Role Operations: Manage Units (Access Manage Units, Edit Units, Register Student Units), Semester Schedule
@@ -1021,8 +1021,9 @@
 
         /* After every Excel upload a copy of the file's rows is downloaded with a Feedback column: what happened to each
            row and, when it did not go in, why (excel-tools.js). verdict(line) gives { ok, text }. */
+        let uploadTemplateKey = '', wrongTemplate = '';
         function uploadFeedback(file, rows, lines, verdict) {
-            if (window.FewaExcel) FewaExcel.feedback(file.name, rows[0] || [], rows.slice(1), lines.map(verdict));
+            if (window.FewaExcel) FewaExcel.feedback(file.name, rows[0] || [], rows.slice(1), lines.map(verdict), uploadTemplateKey);
         }
 
         // ----- Upload units on offer (Excel) -----
@@ -1057,6 +1058,10 @@
             try {
                 const XLSX = await loadXlsx();
                 const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                // Only the system's own template (or its feedback file) is accepted
+                uploadTemplateKey = 'units-on-offer-template.xlsx';
+                wrongTemplate = FewaExcel.templateProblem(book, uploadTemplateKey);
+                if (wrongTemplate) return alert(wrongTemplate);
                 rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
                     .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
             } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
@@ -1420,6 +1425,10 @@
             try {
                 const XLSX = await loadXlsx();
                 const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                // Only the system's own template (or its feedback file) is accepted
+                uploadTemplateKey = 'course-units-template.xlsx';
+                wrongTemplate = FewaExcel.templateProblem(book, uploadTemplateKey);
+                if (wrongTemplate) return alert(wrongTemplate);
                 rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
                     .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
             } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
@@ -1655,6 +1664,10 @@
             try {
                 const XLSX = await loadXlsx();
                 const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                // Only the system's own template (or its feedback file) is accepted
+                uploadTemplateKey = 'unit-hours-template.xlsx';
+                wrongTemplate = FewaExcel.templateProblem(book, uploadTemplateKey);
+                if (wrongTemplate) return alert(wrongTemplate);
                 rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
                     .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
             } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }
@@ -1966,6 +1979,10 @@
             try {
                 const XLSX = await loadXlsx();
                 const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                // Only the system's own template (or its feedback file) is accepted
+                uploadTemplateKey = 'student-units-template.xlsx';
+                wrongTemplate = FewaExcel.templateProblem(book, uploadTemplateKey);
+                if (wrongTemplate) return alert(wrongTemplate);
                 rows = XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]], { header: 1, defval: '', raw: false })
                     .map(r => r.map(c => String(c ?? '').trim())).filter(r => r.some(Boolean));
             } catch (err) { return alert('The file could not be read as an Excel file: ' + err.message); }

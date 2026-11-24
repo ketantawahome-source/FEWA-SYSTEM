@@ -19,7 +19,7 @@
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
     <script src="countries.js"></script>
-    <script src="excel-tools.js?v=20261125a"></script>
+    <script src="excel-tools.js?v=20261125b"></script>
     <script>
         requireLogin();
     </script>
@@ -4229,10 +4229,11 @@
             if (!file) return alert('Choose the filled-in template first (click the box above).');
             if (file.size > 10 * 1024 * 1024) return alert('The file is bigger than 10 MB.');
             let rows;
-            try { rows = await FewaExcel.read(file); } catch { return alert('The file could not be read. Save it as .xlsx from Excel and try again.'); }
+            try { rows = await FewaExcel.read(file, 'student-import-template.xlsx'); }
+            catch (err) { return err.template ? showStudentImportResult(escapeHtml(err.message), true) : alert('The file could not be read. Save it as .xlsx from Excel and try again.'); }
             const columns = await studentImportColumns();
             const { missingColumns, people } = FewaExcel.check(rows, columns);
-            const sendFeedback = results => FewaExcel.feedback(file.name, rows[0] || [], people.map(p => rows[p.index + 1]), results);
+            const sendFeedback = results => FewaExcel.feedback(file.name, rows[0] || [], people.map(p => rows[p.index + 1]), results, 'student-import-template.xlsx');
             if (missingColumns.length) return showStudentImportResult(`<b>Nothing was imported.</b> The file has no ${missingColumns.join(', ')} column` +
                 `${missingColumns.length === 1 ? '' : 's'}: download the template again and fill in every red column.`, true);
             if (!people.length) return showStudentImportResult('<b>Nothing was imported.</b> The file has no student rows under the headings.', true);
