@@ -99,7 +99,8 @@
             border: 1px solid transparent; border-top: 3px solid transparent; border-radius: 0; cursor: pointer; }
         .staff-tab:hover { color: #3c8dbc; }
         .staff-tab.active { color: #222; background: #edf4fb; border-color: #e3e6ea; border-top-color: #3c8dbc; border-bottom-color: #edf4fb; }
-        #staffAccrHost[hidden] { display: none; }
+        #staffAccrHost[hidden], #staffAccrHost [hidden] { display: none !important; }
+        .accr-new { margin-top: 18px; font-size: 17px; }
         #staffForm[hidden], #staffSaveTop[hidden] { display: none !important; }
         #staffAccrHost #accrSection { box-shadow: none; padding: 14px 0 0; margin: 0; }
         /* Staff Accreditation: labels on the left of each box, two pairs a row (as the reference screen) */
@@ -209,9 +210,6 @@
                 <ul id="staffSubmenu" class="submenu open">
                     <li class="submenu-item" id="menuStaffList" onclick="location.href = 'Staff.html'">
                         <span class="icon-circle"></span> Staff List
-                    </li>
-                    <li class="submenu-item" id="menuAccreditation" onclick="location.href = 'Staff.html?page=accreditation'">
-                        <span class="icon-circle"></span> Staff Accreditation
                     </li>
                 </ul>
             </li>
@@ -352,7 +350,10 @@
                         <button type="button" role="tab" id="staffTabBio" class="staff-tab active" onclick="showStaffTab('bio')">Biodata</button>
                         <button type="button" role="tab" id="staffTabAccr" class="staff-tab" onclick="showStaffTab('accr')">Staff Accreditation</button>
                     </div>
-                    <div id="staffAccrHost" hidden></div>
+                    <div id="staffAccrHost" hidden>
+                        <div id="staffAccrNew" class="staff-bio-banner accr-new" hidden>Save this new staff member first (Save Details on the
+                            Biodata tab). Their qualifications can then be entered here.</div>
+                    </div>
                     <form id="staffForm" onsubmit="saveStaff(event)" style="margin-top: 14px;">
                         <input type="hidden" name="id">
                         <!-- After Reset Password: the temporary password, shown once -->
@@ -466,7 +467,7 @@
                                         </select></div>
                                 </div>
                                 <p class="bio-hint">Passwords are never typed here: a new staff member is emailed a link to set their
-                                    own password, and Send Reset Link (above) gives someone a new one.</p>
+                                    own password, and Reset Password (above) gives someone a temporary one.</p>
                             </div>
 
                             <!-- ===== Right: School access, Employment history, Payroll details ===== -->
@@ -605,9 +606,9 @@
         const PASSWORD_LINK_MESSAGES = {
             sent: email => `A password link has been emailed to ${email}.`,
             'not-configured': email => `The password link could not be emailed to ${email} because email sending is not set up yet. ` +
-                'Once it is, press "Send Reset Link" next to their name.',
+                'Meanwhile, open them and press Reset Password: it shows a temporary password you can read out or send on WhatsApp.',
             failed: email => `The password link could not be emailed to ${email}. Check the internet connection, ` +
-                'then press "Send Reset Link" next to their name.',
+                'then open them and press Reset Password (it shows a temporary password you can send on WhatsApp).',
             unknown: email => `${email} is deactivated, so no password link was sent.`
         };
 
@@ -936,6 +937,7 @@
             const id = form.elements['id'].value;
             const accounts = getAccounts();
             const existing = accounts.find(a => a.id === id);
+            let newId = '';
             const staff = {
                 firstName: form.elements['firstName'].value.trim(),
                 lastName: form.elements['lastName'].value.trim(),
@@ -965,7 +967,7 @@
                 const reactivating = staff.status !== 'Inactive' && existing.status === 'Inactive';
                 if (deactivating && !deactivatingMyself && !confirm(`Deactivate ${accountName(staff)}?\n\n` +
                     'They will be logged out and their password cancelled. If they are activated again, ' +
-                    'you must press Send Reset Link so they can set a new password.')) return;
+                    'press Reset Password so they get a new (temporary) password.')) return;
                 if (reactivating && !confirm(`Activate ${accountName(staff)}?\n\n` +
                     'They will be able to use the system again once they set a new password. ' +
                     'Their old password will NOT work: they need a reset link from an administrator.')) return;
@@ -987,7 +989,8 @@
                     await sendStaffPasswordLink(id);
                 }
             } else {
-                await saveStaffDetails(saveStaffAccount(staff), form);
+                newId = saveStaffAccount(staff);
+                await saveStaffDetails(newId, form);
                 const result = staff.status === 'Inactive'
                     ? 'unknown' : await sendPasswordLink(staff.username, { newStaff: true });
                 // When the password link could not be emailed a pop-up explains what to do next
@@ -998,8 +1001,10 @@
                     alert(PASSWORD_LINK_MESSAGES[result](staff.username));
                 }
             }
-            resetStaffForm();
             renderStaffList();
+            // A new staff member stays open, so their qualifications can be entered next (Staff Accreditation tab)
+            if (newId && getAccounts().some(a => a.id === newId)) return editStaff(newId);
+            resetStaffForm();
         }
 
         async function sendStaffPasswordLink(id) {
@@ -1066,7 +1071,8 @@
         /* ---------- Staff Accreditation (Staff.html?page=accreditation) ----------
            Qualifications and certifications of each staff member, in staff.staff_qualifications. Choosing a staff
            member shows theirs; the pencil loads one for a change and the bin removes it. */
-        const STAFF_PAGE = new URLSearchParams(location.search).get('page') === 'accreditation' ? 'accreditation' : 'staff';
+        // (Staff Accreditation is a tab of the staff member's page; the old Staff.html?page=accreditation opens Staff List)
+        const STAFF_PAGE = 'staff';
         const QUALIFICATIONS = ['KCPE', 'KCSE', 'Certificate', 'Diploma', 'Higher Diploma', "Bachelor's Degree", 'Postgraduate Diploma',
             "Master's Degree", 'PhD', 'Professional Certification', 'Short Course', 'Trade Test', 'Other'];
         let qualifications = [];
@@ -1085,7 +1091,6 @@
 
         async function showStaffTab(tab) {
             const id = document.getElementById('staffForm').elements['id'].value;
-            if (tab === 'accr' && !id) return alert('Save this staff member first, then add their qualifications under Staff Accreditation.');
             const accr = tab === 'accr';
             document.getElementById('staffTabBio').classList.toggle('active', !accr);
             document.getElementById('staffTabAccr').classList.toggle('active', accr);
@@ -1097,6 +1102,10 @@
             prepareAccreditation();
             const section = document.getElementById('accrSection');
             if (section.parentElement !== host) host.appendChild(section);
+            // Not saved yet: only the note shows
+            document.getElementById('staffAccrNew').hidden = !!id;
+            section.hidden = !id;
+            if (!id) return;
             // Only this staff member: chosen and fixed
             const staffBox = document.getElementById('accrStaff');
             await loadQualifications();
@@ -1293,8 +1302,7 @@
         showCurrentUser();
         resetStaffForm();
         renderStaffList();
-        if (STAFF_PAGE === 'accreditation') showAccreditationPage();
-        document.getElementById(STAFF_PAGE === 'accreditation' ? 'menuAccreditation' : 'menuStaffList').classList.add('active');
+        document.getElementById('menuStaffList').classList.add('active');
         loadSettings();
         if (fewaServer.online && isAdmin()) loadStaffDetails();
 
