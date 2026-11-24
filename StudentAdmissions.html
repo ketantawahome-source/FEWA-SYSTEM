@@ -1251,6 +1251,15 @@
                 label: i => i.name,
                 defaults: []
             },
+            // Organisation Setup > Qualifications: the Qualification box of Staff Management > Staff Accreditation
+            qualificationTypes: {
+                title: 'Qualifications', singular: 'Qualification',
+                fields: [
+                    { name: 'name', label: 'Qualification', required: true, placeholder: "e.g. Diploma, Bachelor's Degree" }
+                ],
+                label: i => i.name,
+                defaults: [{ name: 'KCPE' }, { name: 'KCSE' }, { name: 'Certificate' }, { name: 'Diploma' }, { name: 'Higher Diploma' }, { name: "Bachelor's Degree" }, { name: 'Postgraduate Diploma' }, { name: "Master's Degree" }, { name: 'PhD' }, { name: 'Professional Certification' }, { name: 'Short Course' }, { name: 'Trade Test' }, { name: 'Other' }]
+            },
             schools: {
                 title: 'Schools', singular: 'School', inlineEdit: true,
                 fields: [
@@ -1327,7 +1336,7 @@
         // The tabs shown under each Settings sidebar link (Academic Terms was removed: the periods are in
         // Academic Management > Semester Schedule)
         const SETTINGS_GROUPS = {
-            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments'] },
+            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments', 'qualificationTypes'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },

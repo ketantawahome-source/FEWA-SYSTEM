@@ -1084,7 +1084,8 @@
            member shows theirs; the pencil loads one for a change and the bin removes it. */
         // (Staff Accreditation is a tab of the staff member's page; the old Staff.html?page=accreditation opens Staff List)
         const STAFF_PAGE = 'staff';
-        const QUALIFICATIONS = ['KCPE', 'KCSE', 'Certificate', 'Diploma', 'Higher Diploma', "Bachelor's Degree", 'Postgraduate Diploma',
+        // The Qualification choices: Settings > Organisation Setup > Qualifications (this list until it is read)
+        let QUALIFICATIONS = ['KCPE', 'KCSE', 'Certificate', 'Diploma', 'Higher Diploma', "Bachelor's Degree", 'Postgraduate Diploma',
             "Master's Degree", 'PhD', 'Professional Certification', 'Short Course', 'Trade Test', 'Other'];
         let qualifications = [];
 
@@ -1304,6 +1305,11 @@
             if (roles) staffRoles = roles.items.map(i => i.name);
             const departments = await readSetting('departments');
             if (departments) staffDepartments = departments.items.map(i => i.name).filter(Boolean);
+            const qualificationTypes = await readSetting('qualificationTypes');
+            if (qualificationTypes) {
+                QUALIFICATIONS = qualificationTypes.items.map(i => i.name).filter(Boolean);
+                fillQualificationChoices(document.getElementById('accrQualification').value);
+            }
             // Staff Course Access lists the courses of Settings > Program Setup > Courses (as the other Course boxes)
             const courses = await readSetting('courses');
             if (courses) staffSchools = courses.items.filter(c => c.enabled !== 'NO')

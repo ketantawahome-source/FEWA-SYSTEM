@@ -179,6 +179,15 @@ CREATE TABLE IF NOT EXISTS settings.departments (
     extra       jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+-- Qualification types (Organisation Setup > Qualifications): the Qualification box of Staff Accreditation
+CREATE TABLE IF NOT EXISTS settings.qualification_types (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. Diploma, Bachelor's Degree
+    position    integer NOT NULL DEFAULT 0,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+ALTER TABLE settings.qualification_types ENABLE ROW LEVEL SECURITY;
+
 
 -- ---------- Institution Setup ----------
 CREATE TABLE IF NOT EXISTS settings.student_types (
