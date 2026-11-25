@@ -1894,6 +1894,12 @@
         }
 
         // The batch names to choose from (the same year at two schools is one name), newest first
+        // The Academic Years of Settings > Organisation Setup > Batches (2026 up to next year, and any year a batch is set up for)
+        async function academicYearNames() {
+            return [...new Set([...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options,
+                ...(await getSettingItems('batches')).map(b => String(b.academicYear || '')).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+        }
+
         async function batchNames() {
             const items = (await getSettingItems('batches')).filter(b => b.name)
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || '')));
@@ -4675,7 +4681,11 @@
                 { title: 'Study Session', field: 'studySession', choices: await getSettingLabels('studySessions') },
                 { title: 'Enrollment', field: 'enrollment', required: true, choices: await getSettingLabels('enrollmentTypes') },
                 { title: 'Student Type', field: 'studentType', required: true, choices: await getSettingLabels('studentTypes') },
-                { title: 'Batch', field: 'group', required: true, choices: await batchNames(), help: 'As in Settings > Organisation Setup > Batches' }
+                // A short course student has no batch: the Academic Year instead, and their own start date (user)
+                { title: 'Batch / Academic Year', field: 'group', required: true, choices: [...await batchNames(), ...await academicYearNames()],
+                    help: 'The batch, as in Settings > Organisation Setup > Batches; for a short course student the Academic Year (e.g. 2026)' },
+                { title: 'Course Start Date', field: 'courseStartDate', kind: 'date',
+                    help: 'Short course students only: the day they start, day/month/year (blank = today). The course and accounts end dates are worked out' }
             ];
         }
 
@@ -4714,8 +4724,23 @@
 
             // Age, and AdmNo used already (by a student, or higher up in the file)
             const taken = new Set((await getAll('students')).map(st => String(st.admNo || '').trim().toLowerCase()));
+            const courseList = await getSettingItems('courses'), years = await academicYearNames();
             for (const p of people) {
                 const v = p.values;
+                const course = courseList.find(i => courseLabel(i) === v.admissionCourse);
+                if (course && v.group) {
+                    const isYear = years.includes(String(v.group));
+                    if (isShortCourseItem(course) && !isYear) p.problems.push(`${v.admissionCourse} is a short course: its Batch / Academic Year must be the year, e.g. ${new Date().getFullYear()}`);
+                    if (!isShortCourseItem(course) && isYear) p.problems.push(`${v.admissionCourse} is not a short course: choose its batch, not a year`);
+                }
+                if (v.courseStartDate && !isShortCourseItem(course)) p.problems.push('Course Start Date is only for short course students (leave it blank)');
+                // A short course: the course and accounts run from the start date (today when blank) for the course's length
+                if (isShortCourseItem(course)) {
+                    v.courseStartDate = v.courseStartDate || new Date().toLocaleDateString('en-CA');
+                    v.courseEndDate = shortCourseEnd(v.courseStartDate, course);
+                    v.accountsStartDate = v.courseStartDate;
+                    v.accountsEndDate = v.courseEndDate;
+                }
                 if (v.dob) { const age = checkStudentAge(v.dob); if (age) p.problems.push(age); }
                 const adm = String(v.admNo || '').trim().toLowerCase();
                 if (adm && taken.has(adm)) p.problems.push(`AdmNo ${v.admNo} is already used`);

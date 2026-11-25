@@ -159,14 +159,14 @@ const EXAM_TABS = [
             note: 'One row per exam type of a group; fill it in and upload it here.', button: 'Upload group exam types',
             headers: ['Course', 'Class', 'Batch', 'Period', 'Group', 'Exam type', 'Exam weight', 'Include on main exam', 'Unit name'],
             // Red (*) in the template: a row without them is refused; drop-down lists from Settings and Exam groups
-            required: ['Course', 'Period', 'Group', 'Exam type'],
-            choices: () => ({ Course: courseItems.map(c => c.name), Batch: groups, Period: terms, Group: activeGroups(),
+            required: ['Course', 'Group', 'Exam type'],
+            choices: () => ({ Course: courseItems.map(c => c.name), Batch: uploadBatchChoices(), Period: terms, Group: activeGroups(),
                 'Include on main exam': ['Y', 'N'], Class: ['YEAR 1', 'YEAR 2', 'YEAR 3', 'YEAR 4', 'YEAR 5', 'YEAR 6'] }),
             open: ['Class'],
             help: [['Course', 'The course, exactly as in Settings > Program Setup > Courses'],
                 ['Class', 'The year of study: 1, 2, 3 or YEAR 1 (may be left blank)'],
-                ['Batch', 'The batch, as in Settings > Organisation Setup > Batches (may be left blank)'],
-                ['Period', 'SEMESTER 1, Semester 2 or just 2'],
+                ['Batch', 'The batch, as in Settings > Organisation Setup > Batches; for a short course the Academic Year, e.g. 2026 (may be left blank)'],
+                ['Period', 'SEMESTER 1, Semester 2 or just 2; leave blank for a short course (no semesters: the whole course)'],
                 ['Group', 'The exam group, as in Exam Management > Exam groups'],
                 ['Exam type', 'For example CAT 1'],
                 ['Exam weight', 'A number from 0 to 100 (may be left blank)'],
@@ -178,9 +178,11 @@ const EXAM_TABS = [
                 const yearText = String(get('class')).replace(/\D+/g, ' ').trim().split(' ')[0];
                 const className = yearText ? `YEAR ${Number(yearText)}` : '';
                 if (className && !classChoices(course.name).some(([v]) => v === className)) return `${course.name} has no ${className}`;
-                const batch = get('batch') ? groups.find(g => same(g, get('batch'))) : '';
-                if (batch === undefined) return 'Batch not in Settings > Batches';
-                const period = periodOf(get('period'));
+                // A short course: Batch is the Academic Year and there are no semesters (the whole course)
+                const short = isShortCourse(course);
+                const batch = !get('batch') ? '' : short ? shortYearOf(get('batch')) : groups.find(g => same(g, get('batch')));
+                if (batch === undefined) return short ? 'Short course: the Batch must be the Academic Year, e.g. 2026' : 'Batch not in Settings > Batches';
+                const period = short ? periodName(1) : periodOf(get('period'));
                 if (!period) return get('period') ? 'Period not like SEMESTER 1' : 'No period';
                 const examGroup = activeGroups().find(g => same(g, get('group')));
                 if (!examGroup) return get('group') ? 'Group not in Exam groups' : 'No group';

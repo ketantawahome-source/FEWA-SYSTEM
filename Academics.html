@@ -15,7 +15,7 @@
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="excel-tools.js?v=20261125b"></script>
-    <script src="exams.js?v=20261125b"></script>
+    <script src="exams.js?v=20261126a"></script>
     <script>
         requireLogin();
         // Role Operations: Manage Units (Access Manage Units, Edit Units, Register Student Units), Semester Schedule
@@ -923,6 +923,11 @@
         // The Academic Years of Settings > Organisation Setup > Batches (2026 up to next year, and any year a batch is set up for)
         const shortYears = () => [...new Set([...Array.from({ length: Math.max(2, kenyaYear() + 2 - 2026) }, (_, i) => String(2026 + i)),
             ...batchItems.map(b => String(b.academicYear || '')).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+        // Bulk upload (Excel): the Batch column takes a batch, or for a short course the Academic Year (e.g. 2026);
+        // a short course has no semesters, so its Period / Year of study / Semester may be left blank (the whole course)
+        const uploadBatchChoices = () => [...groups, ...shortYears().filter(y => !groups.includes(y))];
+        const shortYearOf = text => shortYears().find(y => y === String(text || '').trim());
+        const BATCH_HEADINGS = ['batch', 'batchacademicyear', 'academicyearbatch', 'academicyear', 'year', 'group', 'studentgroup'];
         function applyShortCourseBatch(courseId, batchId) {
             const courseBox = $(courseId), box = $(batchId);
             if (!courseBox || !box) return;
@@ -1196,8 +1201,8 @@
         function downloadOfferTemplate() {
             FewaExcel.template('units-on-offer-template.xlsx', [
                 { title: 'Course', field: 'course', required: true, choices: courseItems.map(c => c.name), help: 'The course, as in Settings > Program Setup > Courses' },
-                { title: 'Batch', field: 'batch', required: true, choices: groups, help: 'The batch, as in Settings > Organisation Setup > Batches' },
-                { title: 'Period', field: 'period', required: true, choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1' },
+                { title: 'Batch / Academic Year', field: 'batch', required: true, choices: uploadBatchChoices(), help: 'The batch, as in Settings > Organisation Setup > Batches; for a short course the Academic Year (e.g. 2026)' },
+                { title: 'Period', field: 'period', choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1; leave blank for a short course (no semesters: the whole course)' },
                 { title: 'Group category', field: 'category', choices: categories, help: 'The study session, e.g. Full Time; blank = all group categories' },
                 { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
                 { title: 'Lecturer staff number', field: 'lecturer', choices: lecturers.map(l => l.username), open: true, help: "The lecturer's staff code (the Staff codes button lists them); blank = not yet known" }
@@ -1231,12 +1236,12 @@
             if (rows.length < 2) return alert('The file has no rows under the headings.');
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
-            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(['batch', 'group', 'studentgroup']),
+            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(BATCH_HEADINGS),
                 period: col(['period', 'term', 'academicterm']), category: col(['groupcategory', 'category', 'studysession', 'session']),
                 code: col(['unitcode', 'code', 'unit']),
                 lecturer: col(['lecturerstaffnumber', 'lecturerstaffcode', 'staffnumber', 'staffcode', 'lecturer']) };
             if (at.course < 0 || at.batch < 0 || at.period < 0 || at.code < 0) {
-                return alert('The first row must hold the headings, with at least Course, Batch, Period and Unit code. Download the template to see them.');
+                return alert('The first row must hold the headings, with at least Course, Batch / Academic Year, Period and Unit code. Download the template to see them.');
             }
             const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
@@ -1244,8 +1249,9 @@
                 const courseText = cell(r, 'course'), batchText = cell(r, 'batch'), periodText = cell(r, 'period');
                 const categoryText = cell(r, 'category'), lecturerCode = cell(r, 'lecturer');
                 const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
-                const batch = groups.find(g => g === batchText) || groups.find(g => same(g, batchText));
-                const term = periodOf(periodText);
+                const short = isShortCourse(courseNamed(course));
+                const batch = short ? shortYearOf(batchText) : groups.find(g => g === batchText) || groups.find(g => same(g, batchText));
+                const term = short ? periodName(1) : periodOf(periodText);
                 const category = categoryText ? categories.find(c => same(c, categoryText)) : '';
                 const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
                 const unit = unitByCode(code);
@@ -1254,7 +1260,8 @@
                     lecturerCode, lecturer, problems: [] };
                 const problem = text => line.problems.push(text);
                 if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
-                if (!batch) problem(batchText ? 'Batch not in Settings > Batches' : 'No batch');
+                if (!batch) problem(short ? (batchText ? 'Short course: the Academic Year must be like 2026 (Settings > Batches years)' : 'No academic year')
+                    : batchText ? 'Batch not in Settings > Batches' : 'No batch');
                 if (!term) problem(periodText ? 'Period not like SEMESTER 1' : 'No period');
                 if (categoryText && category === undefined) problem('Group category not in Study Sessions');
                 if (!code) problem('No unit code');
@@ -1273,7 +1280,7 @@
             const show = () => {
                 $('offerUploadResult').hidden = false;
                 $('offerUploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.course || l.courseText)}</td>
-                    <td>${escapeHtml(l.batch || l.batchText)}</td><td>${escapeHtml(l.term || l.periodText)}</td>
+                    <td>${escapeHtml(l.batch || l.batchText)}</td><td>${escapeHtml(l.term ? periodLabel(l.course, l.term) : l.periodText)}</td>
                     <td>${escapeHtml(l.category || l.categoryText || 'All')}</td><td>${escapeHtml(l.code)}</td>
                     <td>${escapeHtml(l.lecturer ? l.lecturer.name : l.lecturerCode || 'Not yet known')}</td><td>${result(l)}</td></tr>`).join('');
                 const bad = lines.filter(l => l.problems.length).length, already = lines.filter(l => l.already).length;
@@ -1659,8 +1666,8 @@
         function downloadMappingTemplate() {
             FewaExcel.template('course-units-template.xlsx', [
                 { title: 'Programme', field: 'course', choices: courseItems.map(c => c.name), help: 'The course, as in Settings > Program Setup > Courses (blank = the Course chosen on the page)' },
-                { title: 'Year of study', field: 'year', required: true, choices: ['1', '2', '3', '4', '5', '6', '7', '8'], help: 'A number: 1, 2, 3...' },
-                { title: 'Semester number', field: 'semester', required: true, choices: ['1', '2', '3'], help: 'A number: 1, 2 or 3' },
+                { title: 'Year of study', field: 'year', choices: ['1', '2', '3', '4', '5', '6', '7', '8'], help: 'A number: 1, 2, 3... (leave blank for a short course: no semesters)' },
+                { title: 'Semester number', field: 'semester', choices: ['1', '2', '3'], help: 'A number: 1, 2 or 3 (leave blank for a short course: the whole course)' },
                 { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, e.g. HBT 101' },
                 { title: 'Unit title', field: 'title', help: 'Needed only for a unit code not yet on the Units register (it is then created there)' },
                 { title: 'Credit hours', field: 'hours', help: 'For a new unit; may be left blank' },
@@ -1695,12 +1702,12 @@
             if (rows.length < 2) return alert('The file has no rows under the headings.');
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
-            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(['batch', 'group', 'studentgroup']),
+            const at = { course: col(['course', 'programme', 'program', 'class']), batch: col(BATCH_HEADINGS.filter(h => h !== 'year')),
                 year: col(['yearofstudy', 'year', 'yearofstudies']), semester: col(['semesternumber', 'semesterno', 'semester', 'sem']),
                 code: col(['unitcode', 'code', 'unit']), title: col(['unittitle', 'title', 'unitname']),
                 hours: col(['credithours', 'credits', 'hours']), cluster: col(['clustergroup', 'cluster', 'type', 'unittype']) };
-            if (at.code < 0 || at.year < 0 || at.semester < 0 || (at.course < 0 && !$('pmCourse').value)) {
-                return alert('The first row must hold the headings, with at least Programme, Year of study, Semester number and Unit code. Download the template to see them.');
+            if (at.code < 0 || (at.course < 0 && !$('pmCourse').value)) {
+                return alert('The first row must hold the headings, with at least Programme and Unit code. Download the template to see them.');
             }
             // The current batch and cluster group: those chosen on the page (a column in the file, if any, wins)
             const pageBatch = $('pmBatch').value, pageCluster = $('pmCluster').value || 'Course units', pageCourse = $('pmCourse').value;
@@ -1711,15 +1718,17 @@
                 const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
                 const code = cell(r, 'code').toUpperCase().replace(/\s+/g, ' ');
                 const unit = unitByCode(code);
-                const year = Number(cell(r, 'year')), semester = Number(cell(r, 'semester'));
+                // A short course has no semesters: the whole course (year 1, semester 1), whatever the file says
+                const short = isShortCourse(courseNamed(course));
+                const year = short ? 1 : Number(cell(r, 'year')), semester = short ? 1 : Number(cell(r, 'semester'));
                 const clusterText = cell(r, 'cluster');
                 const cluster = clusterText ? clusterName(clusterText) : pageCluster;
-                const group = batch ? groups.find(g => same(g, batch)) : '';
+                const group = !batch ? '' : short ? shortYearOf(batch) : groups.find(g => same(g, batch));
                 const line = { row: i + 2, courseText, course, batch: group ?? batch, code, title: cell(r, 'title') || (unit || {}).title || '',
                     hours: cell(r, 'hours'), year, semester, cluster: cluster || clusterText, unit, problems: [] };
                 const problem = text => line.problems.push(text);
                 if (!course) problem(courseText ? 'Programme not in Settings > Courses' : 'No programme');
-                if (batch && !group) problem('Batch not in Settings > Batches');
+                if (batch && !group) problem(short ? 'Short course: the Academic Year must be like 2026' : 'Batch not in Settings > Batches');
                 if (!code) problem('No unit code');
                 else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
                 if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
@@ -1905,7 +1914,7 @@
                 { title: 'Certificate', field: 'certificate', help: 'For example Diploma; may be left blank' },
                 { title: 'Year', field: 'year', choices: ['1', '2', '3', '4', '5', '6', '7', '8'], help: 'The year of study, a number (1, 2, 3...); may be left blank' },
                 { title: 'Unit title', field: 'title', help: 'For your reading only; the unit code decides the unit' },
-                { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
+                { title: 'Unit code', field: 'code', required: true, choices: [...new Set(programmeUnits.map(p => String(p.unitCode)))].filter(Boolean), open: true, help: "A unit of the row's course (Manage Units > Course units)" },
                 { title: 'Theory hours', field: 'theory', required: true, help: 'A number; 0 for none' },
                 { title: 'Practical hours', field: 'practical', required: true, help: 'A number; 0 for none' }
             ], 'Unit hours').catch(err => alert(err.message));
@@ -1958,6 +1967,8 @@
                 if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
                 if (!code) problem('No unit code');
                 else if (!unit) problem('Unit not in the Units register');
+                else if (course && !programmeUnits.some(p => p.course === course && same(p.unitCode, unit.code)))
+                    problem('Not a unit of this course: set it up in the Course units tab first');
                 if (year !== null && !(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year must be 1 to 8');
                 if (!validHours(line.theory)) problem('Theory hours must be a number (0 for none)');
                 if (!validHours(line.practical)) problem('Practical hours must be a number (0 for none)');
@@ -2217,8 +2228,8 @@
         // An empty template: the column headings, and a second sheet explaining them (no college data)
         function downloadTemplate() {
             FewaExcel.template('student-units-template.xlsx', [
-                { title: 'Batch', field: 'batch', choices: groups, help: "The student's batch, as in Settings > Organisation Setup > Batches (may be left blank)" },
-                { title: 'Period', field: 'period', required: true, choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1' },
+                { title: 'Batch / Academic Year', field: 'batch', choices: uploadBatchChoices(), help: "The student's batch (Settings > Organisation Setup > Batches), or for a short course student the Academic Year, e.g. 2026 (may be left blank)" },
+                { title: 'Period', field: 'period', choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1; leave blank for a short course student (the whole course)' },
                 { title: 'Unit code', field: 'unit', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
                 { title: 'Registration number', field: 'admNo', required: true, help: "The student's AdmNo, with the same capital and small letters" },
                 { title: 'Exam reason', field: 'reason', choices: EXAM_REASONS, help: 'Blank = First attempt; or ' + EXAM_REASONS.slice(1).join(', ') },
@@ -2255,15 +2266,15 @@
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
             const at = {
-                batch: col(['batch', 'group', 'studentgroup']),
+                batch: col(BATCH_HEADINGS.filter(h => h !== 'year')),
                 period: col(['period', 'term', 'academicterm']),
                 unit: col(['unitcode', 'unit', 'code']),
                 admNo: col(['registrationnumber', 'registrationno', 'regno', 'admno', 'admissionnumber', 'admissionno']),
                 reason: col(['examreason', 'reason']),
                 lecturer: col(['lecturerstaffcode', 'lecturerstaffnumber', 'staffcode', 'staffnumber', 'lecturer'])
             };
-            if (at.period < 0 || at.unit < 0 || at.admNo < 0) {
-                return alert('The first row must hold the headings, with at least Period, Unit code and Registration number. Download the template to see them.');
+            if (at.unit < 0 || at.admNo < 0) {
+                return alert('The first row must hold the headings, with at least Unit code and Registration number. Download the template to see them.');
             }
             const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
@@ -2275,7 +2286,8 @@
                 const reason = examReasonOf(cell(r, 'reason'));
                 const lecturerCode = cell(r, 'lecturer');
                 const lecturer = lecturerCode ? lecturerByCode(lecturerCode) : null;
-                const term = periodOf(period);
+                // A short course student: no semesters, the whole course
+                const term = student && isShortCourse(courseNamed(student.admissionCourse)) ? periodName(1) : periodOf(period);
                 let result = 'ok', note = 'OK';
                 const problem = text => { if (result === 'ok') [result, note] = ['bad', text]; };
                 if (!student) problem('Registration number not found');
