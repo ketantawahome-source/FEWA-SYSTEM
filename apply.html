@@ -7,6 +7,9 @@
     <title>Apply - FEWA Beauty & Fashion College</title>
     <!-- The online application form, open to everyone (no login). Sent to the server (POST /api/apply), saved in
          students.applications and shown to staff in Student Hub > Online Applications. Uses no other page script. -->
+    <!-- Error monitoring (Sentry): on only when a DSN is saved, see sentry.js -->
+    <script src="sentry-config.js"></script>
+    <script src="sentry.js"></script>
     <script src="countries.js"></script>
     <style>
         :root {
