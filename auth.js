@@ -1059,3 +1059,7 @@ window.addEventListener('fewa-value-change', event => {
         logout();
     }
 });
+
+// The top bar's buttons, search and name are all in place now (added above): show them together, so nothing in
+// the bar jumps while a page opens (styles.css "The top bar never moves")
+document.addEventListener('DOMContentLoaded', () => document.documentElement.classList.add('topbar-ready'));

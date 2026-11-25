@@ -6475,3 +6475,13 @@ html.sb-v2.sidebar-collapsed .sb-foot-item .nav-label { display: none; }
     html.sb-v2 .sb-fold { right: 12px; top: 24px; }
     html.sb-v2 .sb-fold svg { transform: none !important; }
 }
+
+/* =====================================================================================================
+   The top bar never moves (user's wish): it stays at the top while scrolling, its search box, buttons and name
+   appear together once auth.js has put them in (html.topbar-ready; shown anyway after 1.5 s), and the space
+   for the scroll bar is always kept, so the bar does not get narrower when a long page appears.
+   ===================================================================================================== */
+#main-wrapper { scrollbar-gutter: stable; }
+#topbar { position: sticky; top: 0; z-index: 900; flex-shrink: 0; }
+html:not(.topbar-ready) #topbar > * { visibility: hidden; animation: topbar-show 0s 1.5s forwards; }
+@keyframes topbar-show { to { visibility: visible; } }
