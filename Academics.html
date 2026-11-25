@@ -106,6 +106,20 @@
         .sch-short-badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a;
             font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
+        /* Course units: the short courses ticked for a short course (Settings > Courses) are its units */
+        .pm-short { margin: 14px 0 6px; padding: 14px 16px; border-radius: 12px; border: 1px solid #e3cf9a;
+            background: linear-gradient(135deg, #f6eefc, #fdf7e8); color: #3b1d5e; }
+        .pm-short[hidden] { display: none; }
+        .pm-short-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 14px; }
+        .pm-short-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; margin: 8px 0 12px; }
+        .pm-short-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px;
+            border-radius: 8px; background: rgba(255, 255, 255, .6); font-size: 14px; min-width: 0; }
+        .pm-short-add { padding: 4px 14px !important; min-height: 0 !important; flex-shrink: 0; }
+        .pm-short-code { font-weight: 700; color: #24103a; }
+        .pm-short-state { display: block; font-size: 12px; color: #8a7d9c; }
+        .pm-short-done { color: #1f7a4a; }
+        .pm-short-clash { color: #b3261e; }
+        .pm-short-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         #pane-exams .settings-tabs { margin-bottom: 14px; }
         #pane-exams .exam-check { grid-column: span 2; display: flex; align-items: center; gap: 8px; font-weight: 400 !important; cursor: pointer; }
         #pane-exams .exam-check input { width: auto !important; height: auto !important; margin: 0; }
@@ -501,6 +515,7 @@
                         </div>
                     </div>
                     <datalist id="pmUnitChoices"></datalist>
+                    <div id="pmShort" class="pm-short" hidden></div>
 
                     <div class="units-subhead">Upload units and programme mapping</div>
                     <div class="up-box">
@@ -751,6 +766,7 @@
         }
 
         /* ---------- Data (all in the database; read when the page opens and after each change) ---------- */
+        let shortCourseList = [];
         let units = [], programmeUnits = [], offers = [], registrations = [], students = [], allocations = [];
         let courses = [], terms = [], lecturers = [], groups = [], courseItems = [], programmes = [], categories = [], batchItems = [];
         // Short courses (3 months): a course set up with "Has Short Courses" YES in Settings > Program Setup > Courses (its
@@ -802,6 +818,9 @@
                 .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, award: c.award || '',
                     duration: c.duration, durationType: c.durationType || '', intake: c.intake || '',
                     hasShortCourses: c.hasShortCourses || '', shortCourses: c.shortCourses || '' }));
+            // Settings > Program Setup > Short Courses (name + code): a short course's ticked ones are its units
+            const shortRecord = await fewaDB.getOne('settings', 'shortCourses').catch(readFailed);
+            shortCourseList = ((shortRecord && shortRecord.items) || []).filter(x => x.name);
             programmes = await settingNames('awardTypes'); // exactly as listed in Settings > Program Setup > Award Types
             categories = await settingNames('studySessions');
             courses = await settingNames('courses', c => c.enabled !== 'NO', c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
@@ -1447,6 +1466,7 @@
             const ready = !!course;
             $('pmHint').hidden = ready;
             $('pmPanel').hidden = !ready;
+            renderShortCourseUnits();
             if (!ready) return;
             const rows = (batch ? mappedUnits(course, batch) : programmeUnits.filter(p => p.course === course)).sort((a, b) => a.yearOfStudy - b.yearOfStudy || a.semester - b.semester
                 || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
@@ -1455,10 +1475,72 @@
             $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr${p.id === editingMapping ? ' class="editing"' : ''}><td>${escapeHtml(stageFor(p.course, p.yearOfStudy, p.semester))}</td>
                     <td>${escapeHtml(p.unitCode)}</td><td>${escapeHtml((unitByCode(p.unitCode) || {}).title || '(not in the Units register)')}</td>
                     <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
-                    <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(clusterName(p.unitType) || p.unitType || 'Course units')}</td>
+                    <td>${escapeHtml(p.batch || (isShortCourse(courseNamed(p.course)) ? 'All years' : 'All batches'))}</td><td>${escapeHtml(clusterName(p.unitType) || p.unitType || 'Course units')}</td>
                     <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(p.unitCode), `editUnitInCourse('${p.id}')`) +
                         iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units${batch ? ' for ' + escapeHtml(batch) : ''} yet. Add them above, or upload them.</td></tr>`;
+        }
+
+        /* ---------- A short course's short courses are its units ----------
+           Settings > Courses: a course with "Has Short Courses" YES ticks its short courses (Settings > Program Setup >
+           Short Courses, each with a name and code), e.g. BeautyTherapy: Massage (MSS), Waxing (WX)... (user, 2026-11-26:
+           "they are the same"). Choosing that course here lists them; the ticked ones are added as its units after a
+           question: one not yet in the Units register is added there first (code and title from the short course), then
+           it becomes a Course unit of the course for all academic years (the whole course, no semesters). */
+        function shortCourseUnits(courseName) {
+            const c = courseNamed(courseName);
+            if (!c || !isShortCourse(c) || !c.shortCourses) return [];
+            return String(c.shortCourses).split(',').map(n => n.trim()).filter(Boolean).map(name => {
+                const item = shortCourseList.find(x => same(x.name, name)) || {};
+                const code = String(item.code || '').trim();
+                const found = code ? unitByCode(code) : units.find(u => same(u.title, name));
+                // The code is already used by a different unit: not added (one of them is corrected first)
+                const clash = !!(found && code && !same(found.title, name));
+                const mapped = !!found && !clash && programmeUnits.some(p => p.course === courseName && same(p.unitCode, found.code));
+                return { name, code: code || (found && found.code) || '', unit: clash ? null : found,
+                    clashTitle: clash ? found.title : '', clash, mapped };
+            });
+        }
+
+        function renderShortCourseUnits() {
+            const box = $('pmShort'), course = $('pmCourse').value, list = shortCourseUnits(course);
+            box.hidden = !list.length;
+            if (!list.length) { box.innerHTML = ''; return; }
+            // One by one (user): each short course has its own Add button and its own question
+            box.innerHTML = `<div class="pm-short-head"><span class="sch-short-badge">Short course</span>
+                    <span>The short courses ticked for <b>${escapeHtml(course)}</b> (Settings &gt; Courses) are its units.
+                    Confirm them one by one: <b>Add</b> asks before it saves each one.</span></div>
+                <div class="pm-short-list">${list.map((x, i) => {
+                    const state = x.mapped ? '<span class="pm-short-state pm-short-done">&#10003; already a unit of this course</span>'
+                        : x.clash ? `<span class="pm-short-state pm-short-clash">code ${escapeHtml(x.code)} is already used by "${escapeHtml(x.clashTitle)}"</span>`
+                        : !x.code ? '<span class="pm-short-state pm-short-clash">no code: add one in Settings &gt; Short Courses</span>'
+                        : x.unit ? '<span class="pm-short-state">in the Units register</span>'
+                        : '<span class="pm-short-state">new: goes into the Units register too</span>';
+                    const can = !x.mapped && !x.clash && x.code && mayEdit();
+                    return `<div class="pm-short-item"><span><span class="pm-short-code">${escapeHtml(x.code || '-')}</span> ${escapeHtml(x.name)}${state}</span>
+                        ${can ? `<button type="button" class="btn-secondary pm-short-add" data-edit onclick="addShortCourseUnit(${i})">Add</button>` : ''}</div>`;
+                }).join('')}</div>
+                ${list.every(x => x.mapped) ? '<div class="sched-note">All of them are units of this course.</div>' : ''}`;
+        }
+
+        async function addShortCourseUnit(index) {
+            if (!allowed('academics', 'edit')) return;
+            const course = $('pmCourse').value, x = shortCourseUnits(course)[index];
+            if (!x || x.mapped || x.clash || !x.code) return renderShortCourseUnits();
+            if (!await fewaConfirm(`Add ${x.code} - ${x.name} as a unit of ${course} (all academic years, the whole course)?` +
+                (x.unit ? '' : `\n\nIt is new: it goes into the Units register too (code ${x.code}, title ${x.name}).`),
+                { yes: 'Yes, add', danger: false })) return;
+            try {
+                let unit = x.unit;
+                if (!unit) {
+                    unit = { id: newId(), code: x.code, title: x.name, creditHours: null, createdAt: new Date().toISOString() };
+                    await save('units', unit);
+                }
+                await save('programme_units', { id: newId(), course, unitCode: unit.code, yearOfStudy: 1, semester: 1, batch: '',
+                    unitType: $('pmCluster').value || 'Course units' });
+                showToast(`${unit.code} - ${unit.title} added to ${course}.`);
+            } catch (err) { alert(`${x.code} could not be added: ` + err.message); }
+            await loadData();
         }
 
         // "HBT 101 - Hair Basics", "HBT 101" or the title, as typed
