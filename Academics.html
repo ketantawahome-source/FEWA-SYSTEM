@@ -1122,8 +1122,19 @@
             if (!allowed('academics', 'edit')) return;
             const u = units.find(x => x.id === id);
             if (!u) return;
-            if (unitInUse(u.code)) return alert(`${u.code} cannot be deleted: it is used by a course (Course units), an offer ` +
-                '(Units on offer) or a student registration. Remove those first.');
+            if (unitInUse(u.code)) {
+                // Say exactly where it is still used, so it can be removed there first
+                const where = [];
+                const mapped = programmeUnits.filter(p => same(p.unitCode, u.code));
+                if (mapped.length) where.push(`Course units: ${[...new Set(mapped.map(p => p.course))].join(', ')}`);
+                const offered = offers.filter(o => same(o.unitCode, u.code));
+                if (offered.length) where.push(`Units on offer (${offered.length}): ` + [...new Set(offered.map(o =>
+                    [o.course || 'all courses', o.batch || 'all batches', o.term].filter(Boolean).join(', ')))].join('; '));
+                const registered = registrations.filter(r => same(r.unitCode, u.code));
+                if (registered.length) where.push(`Student unit registration: ${registered.length} student registration${registered.length === 1 ? '' : 's'}`);
+                return alert(`${u.code} - ${u.title} cannot be deleted yet: it is still used in\n\n- ${where.join('\n- ')}\n\n` +
+                    'Remove it there first (the bin on those tabs), then delete it here.');
+            }
             if (!await fewaConfirm(`Delete the unit ${u.code} - ${u.title}?`)) return;
             try {
                 await fewaDB.remove('units', id);
