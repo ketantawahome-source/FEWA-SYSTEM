@@ -28,7 +28,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125h">
+    <link rel="stylesheet" href="styles.css?v=20261126b">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
@@ -891,8 +891,82 @@
                 'An administrator can assign them in Settings > Access Management > Role Operations.' : '';
         }
 
+        /* Short courses have no semesters (user's wish): wherever a semester or period is picked for a course, a short
+           course (Has Short Courses YES, or 6 months or less) closes those boxes and shows its length instead; the boxes
+           are set to the first period (Year 1, Semester 1 / SEMESTER 1), so everything saved still works as before. */
+        const SHORT_COURSE_FIELDS = { offerCourse: ['offerTerm'], regClass: ['regTerm'], lecProgramme: ['lecStage', 'lecTerm'],
+            pmCourse: ['pmSemester'], ex_course: ['ex_className', 'ex_period'] };
+        /* A short course has no batch either (user's wish): its students enrol any day of the year, so the Batch box
+           becomes a Year box (2026, 2027...); the year is kept where the batch would be. */
+        const SHORT_COURSE_BATCH = { schCourse: 'schBatch', offerCourse: 'offerBatch', regClass: 'regBatch', lecProgramme: 'lecBatch',
+            pmCourse: 'pmBatch' };
+        const kenyaYear = () => Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4));
+        // The Academic Years of Settings > Organisation Setup > Batches (2026 up to next year, and any year a batch is set up for)
+        const shortYears = () => [...new Set([...Array.from({ length: Math.max(2, kenyaYear() + 2 - 2026) }, (_, i) => String(2026 + i)),
+            ...batchItems.map(b => String(b.academicYear || '')).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+        function applyShortCourseBatch(courseId, batchId) {
+            const courseBox = $(courseId), box = $(batchId);
+            if (!courseBox || !box) return;
+            const c = courseNamed(courseBox.value);
+            const short = !!(c && isShortCourse(c));
+            const label = document.querySelector(`label[for="${batchId}"]`);
+            if (label && !label.dataset.batchText) label.dataset.batchText = label.innerHTML;
+            const yearMode = box.dataset.mode === 'year';
+            if (short) {
+                const keep = /^\d{4}$/.test(box.value) ? box.value : String(kenyaYear());
+                fill(box, shortYears().map(y => [y, y]), '-- select one --');
+                box.value = shortYears().includes(keep) ? keep : String(kenyaYear());
+                box.dataset.mode = 'year';
+                if (label) label.innerHTML = 'Academic Year <span class="req">*</span>';
+                if (!yearMode) box.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (yearMode) {
+                delete box.dataset.mode;
+                if (batchId === 'schBatch') fillScheduleBatches(); else fill(box, groups.map(g => [g, g]), '-- select one --');
+                if (label) label.innerHTML = label.dataset.batchText;
+                box.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+
+        function applyShortCourseFields() {
+            for (const [courseId, batchId] of Object.entries(SHORT_COURSE_BATCH)) applyShortCourseBatch(courseId, batchId);
+            for (const [courseId, ids] of Object.entries(SHORT_COURSE_FIELDS)) {
+                const courseBox = $(courseId);
+                if (!courseBox) continue;
+                const c = courseNamed(courseBox.value);
+                const short = !!(c && isShortCourse(c));
+                for (const id of ids) {
+                    const box = $(id);
+                    if (!box) continue;
+                    let note = $(id + 'Short');
+                    if (!note) {
+                        note = document.createElement('div');
+                        note.id = id + 'Short';
+                        note.className = 'sch-short-note';
+                        note.hidden = true;
+                        box.insertAdjacentElement('afterend', note);
+                        const label = document.querySelector(`label[for="${id}"]`);
+                        if (label) label.dataset.text = label.innerHTML;
+                    }
+                    const label = document.querySelector(`label[for="${id}"]`);
+                    box.hidden = short;
+                    note.hidden = !short;
+                    if (label) label.innerHTML = short ? 'Duration' : label.dataset.text;
+                    if (!short) continue;
+                    note.innerHTML = `<span class="sch-short-badge">Short course</span><span><b>${escapeHtml(shortLength(c))}</b>
+                        &middot; the whole course, no semesters</span>`;
+                    // The first period: SEMESTER 1, or Year 1, Semester 1 ("1|1")
+                    const first = [...box.options].find(o => o.value === periodName(1) || o.value === '1|1') || [...box.options].find(o => o.value);
+                    if (first && box.value !== first.value) { box.value = first.value; box.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+            }
+        }
+        document.addEventListener('change', event => {
+            if (event.target && (SHORT_COURSE_FIELDS[event.target.id] || SHORT_COURSE_BATCH[event.target.id])) setTimeout(applyShortCourseFields, 0);
+        });
+
         function render() {
             applyRights();
+            setTimeout(applyShortCourseFields, 0);
             if (PAGE === 'schedule') return renderSchedule();
             if (PAGE === 'exams') return renderExams();
             ({ units: renderUnits, offer: renderOffers, lecturer: renderLecturers, programme: renderProgrammeMapping, hours: renderUnitHours,
@@ -1347,6 +1421,8 @@
         const OLD_CLUSTERS = { core: 'Course units', elective: 'Common units', 'course unit': 'Course units', 'common unit': 'Common units' };
         const clusterName = v => CLUSTER_GROUPS.find(g => same(g, v)) || OLD_CLUSTERS[String(v || '').trim().toLowerCase()] || '';
         const stageOf = (y, s) => `Year ${y}, Semester ${s}`;
+        // A short course has no semesters: its length instead, e.g. "3 MONTHS (whole course)"
+        const stageFor = (course, y, s) => { const c = courseNamed(course); return c && isShortCourse(c) ? `${shortLength(c)} (whole course)` : stageOf(y, s); };
 
         function fillMappingCourses() {
             fill($('pmCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
@@ -1376,7 +1452,7 @@
                 || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true }));
             const hours = rows.reduce((sum, p) => sum + Number((unitByCode(p.unitCode) || {}).creditHours || 0), 0);
             $('pmCount').textContent = `${rows.length} unit${rows.length === 1 ? '' : 's'}, ${hours} credit hours in all`;
-            $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr${p.id === editingMapping ? ' class="editing"' : ''}><td>${escapeHtml(stageOf(p.yearOfStudy, p.semester))}</td>
+            $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr${p.id === editingMapping ? ' class="editing"' : ''}><td>${escapeHtml(stageFor(p.course, p.yearOfStudy, p.semester))}</td>
                     <td>${escapeHtml(p.unitCode)}</td><td>${escapeHtml((unitByCode(p.unitCode) || {}).title || '(not in the Units register)')}</td>
                     <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
                     <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(clusterName(p.unitType) || p.unitType || 'Course units')}</td>
@@ -1420,17 +1496,17 @@
                 return;
             }
             const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code) && p.id !== editingMapping);
-            if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageOf(already.yearOfStudy, already.semester)}).`);
+            if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageFor(course, already.yearOfStudy, already.semester)}).`);
             const [yearOfStudy, semester] = stage.split('|').map(Number);
             // Asked here (not by safe-actions.js) so the unit is checked before the question
             if (!await fewaConfirm(old
                 ? `Save the change to ${unit.code} - ${unit.title} on ${course}?`
-                : `Add ${unit.code} - ${unit.title} to ${course} (${batch || 'all batches'}, ${stageOf(yearOfStudy, semester)})?`,
+                : `Add ${unit.code} - ${unit.title} to ${course} (${batch || 'all batches'}, ${stageFor(course, yearOfStudy, semester)})?`,
                 { yes: old ? 'Yes, save' : 'Yes, add', danger: false })) return;
             try {
                 await save('programme_units', { ...(old || { id: newId() }), course, unitCode: unit.code, yearOfStudy, semester, batch,
                     unitType: $('pmCluster').value || 'Course units' });
-                showToast(old ? `${unit.code} on ${course} changed.` : `${unit.code} added to ${course} (${batch}, ${stageOf(yearOfStudy, semester)}).`);
+                showToast(old ? `${unit.code} on ${course} changed.` : `${unit.code} added to ${course} (${batch}, ${stageFor(course, yearOfStudy, semester)}).`);
                 stopEditingMapping();
                 await loadData();
                 $('pmUnit').focus();
@@ -1564,7 +1640,7 @@
             const show = () => {
                 $('pmUploadResult').hidden = false;
                 $('pmUploadRows').innerHTML = lines.map(l => `<tr><td>${l.row}</td><td>${escapeHtml(l.course || l.courseText)}</td>
-                    <td>${escapeHtml(l.batch || 'All batches')}</td><td>${l.year && l.semester ? escapeHtml(stageOf(l.year, l.semester)) : ''}</td>
+                    <td>${escapeHtml(l.batch || 'All batches')}</td><td>${l.year && l.semester ? escapeHtml(stageFor(l.course || l.programme, l.year, l.semester)) : ''}</td>
                     <td>${escapeHtml(l.code)}</td><td>${escapeHtml(l.title)}</td><td>${escapeHtml(l.cluster)}</td><td>${result(l)}</td></tr>`).join('');
                 const bad = lines.filter(l => l.problems.length).length, already = lines.filter(l => l.already).length;
                 $('pmUploadSummary').textContent = `${lines.length} line${lines.length === 1 ? '' : 's'}: ${good.length} to add` +

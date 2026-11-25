@@ -106,11 +106,8 @@ async function shortCourseLengths() {
 async function shortCourseBatches() {
     const courses = (((await getRecord('settings', 'courses')) || {}).items || []).filter(c => c.enabled !== 'NO' && isShortCourse(c));
     const result = {};
-    for (const c of courses) {
-        const label = c.labelSuffix && c.name ? `${c.name} (${c.labelSuffix})` : c.name;
-        const batch = await shortBatchFor(label);
-        if (batch) result[label] = batch;
-    }
+    // A short course has no batch: the year of applying (its students enrol any day of the year)
+    for (const c of courses) result[c.labelSuffix && c.name ? `${c.name} (${c.labelSuffix})` : c.name] = kenyaDay().slice(0, 4);
     return result;
 }
 export async function receiveApplication(req, body) {
@@ -154,9 +151,11 @@ export async function receiveApplication(req, body) {
     if (options.studentType) record.studentType = options.studentType;
     const group = (options.groupByCourse || {})[record.admissionCourse] || options.group;
     if (group) record.admissionGroup = group;
+    // A short course has no batch: the student enrols any day, and the year they apply in stands for the batch
     // A short course: it starts on the day the student applies (and so do their accounts); it ends after its length
     const shortCourse = await shortCourseNamed(record.admissionCourse);
     if (shortCourse) {
+        record.admissionGroup = kenyaDay().slice(0, 4);
         record.courseStartDate = record.accountsStartDate = kenyaDay();
         record.courseEndDate = record.accountsEndDate = courseEnd(record.courseStartDate, shortCourse);
     }

@@ -30,6 +30,12 @@ function classChoices(courseName) {
     const years = Math.max(1, fromUnits, type === 'YEARS' ? n : type === 'MONTHS' ? Math.ceil(n / 12) : 1);
     return Array.from({ length: years }, (_, i) => [`YEAR ${i + 1}`, `YEAR ${i + 1} - ${courseName}`]);
 }
+// Batches to choose from; a short course (no batch, students enrol any day of the year) gets the years instead
+function examBatchChoices() {
+    const course = examField('course') ? examField('course').value : '';
+    const c = typeof courseNamed === 'function' ? courseNamed(course) : null;
+    return c && isShortCourse(c) ? examPairs(shortYears()) : examPairs(groups);
+}
 // Exam types to choose from: those on the Exam types tab and the exam paper types
 const examTypeChoices = () => [...new Set([...examRows('exam_types').map(r => r.description), ...examNames('exam_paper_types')]
     .filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -130,7 +136,8 @@ const EXAM_TABS = [
         fields: [
             { name: 'course', label: 'Course', type: 'select', options: () => examPairs(courseItems.map(c => c.name)), placeholder: '-- select one --', required: true, filter: true },
             { name: 'className', label: 'Class', type: 'select', options: () => classChoices(examField('course').value), placeholder: '-- select one --', filter: true },
-            { name: 'batch', label: 'Batch', type: 'select', options: () => examPairs(groups), placeholder: '-- select one --', filter: true },
+            // (a short course has no batch: its students enrol any day, so the Year is chosen instead)
+            { name: 'batch', label: 'Batch', type: 'select', options: () => examBatchChoices(), placeholder: '-- select one --', filter: true },
             { name: 'period', label: 'Period', type: 'select', options: () => examPairs(terms), placeholder: null, filter: true },
             { name: 'examGroup', label: 'Group', type: 'select', options: () => examPairs(activeGroups()), placeholder: '-- select one --', required: true },
             { name: 'examType', label: 'Exam type', type: 'select', options: () => examPairs(examTypeChoices()), placeholder: '-- select one --', required: true },

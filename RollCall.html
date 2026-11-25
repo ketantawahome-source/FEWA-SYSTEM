@@ -22,7 +22,7 @@
             return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125h">
+    <link rel="stylesheet" href="styles.css?v=20261126b">
     <style>
         /* Roll Call Management: the Source Sans look of the newer screens */
         .rc-section, .rc-section * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
@@ -237,7 +237,12 @@
             .rc-listbuttons button { flex: 1; }
             .rc-save-bottom button { width: 100%; }
         }
-    </style>
+            .rc-short-note { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px;
+            background: linear-gradient(135deg, #f6eefc, #fdf7e8); border: 1px solid #e3cf9a; color: #3b1d5e; font-size: 14px; }
+        .rc-short-note[hidden] { display: none; }
+        .rc-short-badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a;
+            font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+</style>
 </head>
 
 <body>
@@ -619,7 +624,8 @@
                 ['students', 'units', 'unit_offers', 'unit_registrations', 'period_schedules', 'attendance_registers'].map(read));
             const courseRecord = await fewaDB.getOne('settings', 'courses').catch(() => null);
             courseItems = ((courseRecord && courseRecord.items) || []).filter(c => c.name && c.enabled !== 'NO')
-                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, school: c.institute || '' }));
+                .map(c => ({ name: c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, school: c.institute || '',
+                    duration: c.duration, durationType: c.durationType || '', hasShortCourses: c.hasShortCourses || '' }));
             courses = courseItems.map(c => c.name);
             schools = await settingNames('schools');
             enrolments = await settingNames('enrollmentTypes', e => e.name, e => e.status !== 'Inactive');
@@ -681,8 +687,52 @@
             markChoicesChanged();
         }
 
+        /* Short courses have no semesters (user's wish): Has Short Courses YES (Settings > Courses), or 6 months or less.
+           The Period box closes and shows the course's length; the register is kept under the first period. */
+        function isShortCourse(c) {
+            if (!c) return false;
+            if (String(c.hasShortCourses || '').toUpperCase() === 'YES') return true;
+            const n = Number(c.duration) || 0, t = String(c.durationType || '').toUpperCase().replace(/S$/, '');
+            return n > 0 && ((t === 'MONTH' && n <= 6) || t === 'WEEK' || t === 'DAY');
+        }
+        function showShortCoursePeriod() {
+            const c = courseItems.find(x => x.name === $('mkCourse').value);
+            const short = isShortCourse(c), box = $('mkPeriod');
+            let note = $('mkPeriodShort');
+            if (!note) {
+                note = document.createElement('div');
+                note.id = 'mkPeriodShort';
+                note.className = 'rc-short-note';
+                box.insertAdjacentElement('afterend', note);
+            }
+            box.hidden = short;
+            note.hidden = !short;
+            // A short course has no batch either: its students enrol any day, so Batch becomes Year (2026, 2027...)
+            const batchBox = $('mkBatch'), batchLabel = document.querySelector('label[for="mkBatch"]');
+            if (short && batchBox.dataset.mode !== 'year') {
+                batchBox.dataset.normal = batchBox.innerHTML;
+                const year = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4));
+                const years = Array.from({ length: Math.max(2, year + 2 - 2026) }, (_, i) => String(2026 + i)).reverse();
+                fill(batchBox, years, '-- select one --', /^\d{4}$/.test(batchBox.value) ? batchBox.value : String(year));
+                batchBox.dataset.mode = 'year';
+                batchLabel.innerHTML = 'Academic Year <span class="req">*</span>';
+            } else if (!short && batchBox.dataset.mode === 'year') {
+                batchBox.innerHTML = batchBox.dataset.normal || '';
+                batchBox.value = '';
+                delete batchBox.dataset.mode;
+                batchLabel.innerHTML = 'Batch <span class="req">*</span>';
+            }
+            if (!short) return;
+            const n = Number(c.duration) || 3, t = String(c.durationType || 'MONTHS').toUpperCase().replace(/S$/, '');
+            note.innerHTML = `<span class="rc-short-badge">Short course</span><span><b>${escapeHtml(n + ' ' + (n === 1 ? t : t + 'S'))}</b>
+                &middot; the whole course, no semesters</span>`;
+            const first = [...box.options].find(o => /^SEMESTER 1$/i.test(o.value)) || [...box.options].find(o => o.value);
+            if (first) box.value = first.value;
+        }
+
         function markChoicesChanged(keepPeriod) {
             const course = $('mkCourse').value, batch = $('mkBatch').value;
+            showShortCoursePeriod();
             if (!keepPeriod && course && batch) {
                 const running = periodOn($('mkDate').value || today(), batch, course);
                 if (running) $('mkPeriod').value = running;

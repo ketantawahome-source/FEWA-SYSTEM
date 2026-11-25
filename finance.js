@@ -32,6 +32,15 @@
             read('courses'), read('organization'), read('paymentDetails')]);
         const courseItems = ((courses && courses.items) || []).filter(c => c.enabled !== 'NO' && c.name);
         state.courses = courseItems.map(c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
+        // Short courses (Has Short Courses YES, or 6 months or less) have no semesters: their fees and payments go under
+        // SEMESTER 1, the whole course (user's wish)
+        const isShort = c => String(c.hasShortCourses || '').toUpperCase() === 'YES' || (() => {
+            const n = Number(c.duration) || 0, t = String(c.durationType || '').toUpperCase().replace(/S$/, '');
+            return n > 0 && ((t === 'MONTH' && n <= 6) || t === 'WEEK' || t === 'DAY'); })();
+        state.shortCourses = new Map(courseItems.filter(isShort).map(c => {
+            const n = Number(c.duration) || 3, t = String(c.durationType || 'MONTHS').toUpperCase().replace(/S$/, '');
+            return [c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name, `${n} ${n === 1 ? t : t + 'S'}`];
+        }));
         const semestersOf = c => {
             const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase().replace(/^(YEAR|MONTH|WEEK|DAY)$/, '$1S');
             return type === 'YEARS' ? n * 3 : type === 'MONTHS' ? Math.ceil(n / 4) : 1;
@@ -47,6 +56,14 @@
         if (!state.term || !state.terms.includes(state.term)) state.term = (running && running.period) || state.terms[0] || '';
     }
 
+    // The Semester box of a form for the chosen student: a short course student has none (the whole course, SEMESTER 1)
+    const termField = () => {
+        const length = state.student && state.shortCourses && state.shortCourses.get(state.student.course);
+        return length
+            ? `<div class="form-group"><label>Duration</label><input type="hidden" name="term" value="SEMESTER 1">
+                <div class="fin-short-note"><span class="fin-short-badge">Short course</span> <b>${esc(length)}</b> &middot; the whole course, no semesters</div></div>`
+            : `<div class="form-group"><label>Semester</label><select name="term">${termOptions(state.term, '- none -')}</select></div>`;
+    };
     const termOptions = (selected, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') +
         state.terms.map(t => `<option value="${esc(t)}"${t === selected ? ' selected' : ''}>${esc(t)}</option>`).join('');
     const courseOptions = (selected, blank) => (blank ? `<option value="">${esc(blank)}</option>` : '') +
@@ -156,7 +173,7 @@
                     <div class="form-group"><label>Payment Method *</label><select name="method">${METHODS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
                     <div class="form-group"><label>Transaction Code / Ref No. <span id="finRefNeed">*</span></label><input name="reference" maxlength="60" placeholder="e.g. QX7892KL" autocomplete="off"></div>
                     <div class="form-group"><label>Payment Date *</label><input name="paidOn" type="date" value="${today()}" max="${today()}" required></div>
-                    <div class="form-group"><label>Semester</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
+                    ${termField()}
                     <div class="form-group"><label>Note</label><input name="note" maxlength="300" placeholder="Optional"></div>
                 </div>
                 <div class="action-bar"><button type="submit" class="btn-submit" id="finPaySave">Post Payment</button></div>
@@ -283,7 +300,7 @@
             ${mayAdd() ? `<div class="report-subtitle">Add a Charge${mayEdit() ? ' or Waiver' : ''}</div>
             <form data-form="charge" class="fin-form"><div class="grid-3">
                 <div class="form-group"><label>Description *</label><input name="description" required maxlength="200" placeholder="e.g. Uniform, Exam fee"></div>
-                <div class="form-group"><label>Semester</label><select name="term">${termOptions(state.term, '- none -')}</select></div>
+                ${termField()}
                 <div class="form-group"><label>Amount (KES) *</label><input name="amount" type="number" min="0.01" step="0.01" required></div>
                 ${mayEdit() ? `<div class="form-group"><label>Type</label><select name="kind"><option value="charge">Charge (student owes more)</option><option value="waiver">Waiver / bursary (student owes less)</option></select></div>` : ''}
             </div><div class="action-bar"><button type="submit" class="btn-submit">Add</button></div></form>` : ''}`;
@@ -339,8 +356,10 @@
     async function submitFee(form) {
         const data = Object.fromEntries(new FormData(form));
         try {
-            await call('POST', '/fee-structure', { ...data, term: state.term });
-            showToast('Fee item added.');
+            // A short course's fees are for the whole course: always SEMESTER 1
+            const short = state.shortCourses && state.shortCourses.has(data.course);
+            await call('POST', '/fee-structure', { ...data, term: short ? 'SEMESTER 1' : state.term });
+            showToast(short ? `Fee item added for the whole short course (${state.shortCourses.get(data.course)}, kept under SEMESTER 1).` : 'Fee item added.');
             show('fees');
         } catch (err) { fail(err); }
     }

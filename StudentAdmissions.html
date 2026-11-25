@@ -27,7 +27,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125h">
+    <link rel="stylesheet" href="styles.css?v=20261126b">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -1014,7 +1014,7 @@
                             <select id="reportSEnrollment"></select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="batch" style="display: none;">
-                            <label for="reportSBatch">Batch</label>
+                            <label for="reportSBatch">Academic Year / Batch</label>
                             <select id="reportSBatch"></select>
                         </div>
                         <div class="form-group report-s-filter" data-filter="session" style="display: none;">
@@ -1543,9 +1543,8 @@
             if (chosenBatchSchool && !schools.includes(chosenBatchSchool)) chosenBatchSchool = '';
             const banner = document.getElementById('settingsBanner');
             banner.innerText = "A batch is a school's academic year (for example 1 Sep 2026 to 31 Aug 2027), not a semester: semesters are set in "
-                + 'Academic Management > Semester Schedule. A short course (3 months) has a batch of its own: choose Batch Type '
-                + 'SHORT COURSE (3 MONTHS) and Date From; Date To is filled in 3 months later. When a short course batch ends, its '
-                + 'students are made inactive by the system and can no longer log in to the Student Portal. Choose the school, then add or edit its batches.';
+                + 'Academic Management > Semester Schedule. Short courses have no batch: their students enrol any day of the year '
+                + '(the Year is chosen instead), and each one is made inactive when their own 3 months are over. Choose the school, then add or edit its batches.';
             banner.classList.add('info-banner');
             const years = list.fields.find(f => f.name === 'academicYear').options;
             // (value given in full: without it the browser squeezes double spaces, e.g. "School of  Cosmetology")
@@ -1560,10 +1559,9 @@
                         <label for="batchYear">Academic Year <span class="req">*</span></label>
                         <select id="batchYear" onchange="batchYearChosen()"><option value="">-- select one --</option>${years.map(v => option(v)).join('')}</select>
 
-                        <label for="batchType">Batch Type <span class="req">*</span></label>
-                        <div><select id="batchType" onchange="batchTypeChosen()">${BATCH_TYPES.map(v => option(v, BATCH_ACADEMIC)).join('')}</select>
-                            <small>SHORT COURSE: 3 months, for the short courses; its students are made inactive when it ends.</small></div>
-                        <span></span><span></span>
+                        <!-- (short courses have no batch any more - user's wish: their students enrol any day of the year and
+                             pick the Year instead - so a batch is always an academic year; older short course batches still show) -->
+                        <select id="batchType" hidden>${BATCH_TYPES.map(v => option(v, BATCH_ACADEMIC)).join('')}</select>
 
                         <label for="batchFrom">Date From <span class="req">*</span></label>
                         <input type="date" id="batchFrom" onchange="batchFromChosen()">
@@ -3105,7 +3103,12 @@
             const courseRequired = (report.required || []).includes('course');
             await keepFill('reportSCourse', courses.map(courseLabel), courseRequired ? '-- select one --' : '-- all courses --');
             document.getElementById('reportSCourseReq').hidden = !courseRequired;
-            await keepFill('reportSBatch', await batchNames(), '-- all batches --');
+            // Academic Year / Batch: the batches, then the academic years (short course students have the year instead)
+            const academicYears = [...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options].reverse();
+            await keepFill('reportSBatch', [...(await batchNames()).filter(b => !academicYears.includes(b)), ...academicYears], '-- all --');
+            const batchBox = document.getElementById('reportSBatch');
+            delete batchBox.dataset.normal; batchBox.dataset.mode = '';
+            await reportBatchForCourse(document.getElementById('reportSCourse'));
             if (report.filters.includes('attPeriod')) {
                 // Roll Call: SEMESTER 1, 2... as in the registers and the Semester Schedule; the units of the registers
                 const [registers, schedules, units] = await Promise.all(['attendance_registers', 'period_schedules', 'units']
@@ -4123,7 +4126,11 @@
             courseRequired: { label: 'Course', all: '-- select one --', required: true, field: 'course', choices: () => getSettingLabels('courses') },
             year: { label: 'Year Admitted', all: '-- all years --', choices: async () =>
                 [...new Set((await getAll('students')).map(s => (dayOf(s.createdAt) || '').slice(0, 4)).filter(Boolean))].sort().reverse() },
-            batch: { label: 'Batch', all: '-- all batches --', choices: () => batchNames() },
+            // (short course students have the Year instead of a batch: the years follow the batches)
+            batch: { label: 'Academic Year / Batch', all: '-- all --', choices: async () => {
+                const years = [...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options].reverse();
+                return [...(await batchNames()).filter(b => !years.includes(b)), ...years];
+            } },
             attPeriod: { label: 'Period Name', all: '-- all periods --', choices: async () => {
                 const [registers, schedules] = await Promise.all(['attendance_registers', 'period_schedules'].map(s => fewaDB.getAll(s).catch(() => [])));
                 const most = Math.max(3, ...[...registers.map(r => r.period), ...schedules.map(p => p.period)]
@@ -5862,6 +5869,32 @@
             await showShortCourseDates();
         }
 
+        /* Reports: a short course has no batch (its students have the Academic Year instead), so when a short course is
+           picked in a report's Course filter, its Academic Year / Batch filter lists the academic years (Settings >
+           Organisation Setup > Batches); another course gets the batches back */
+        const REPORT_BATCH_FOR = { reportSCourse: 'reportSBatch', excelFilter_course: 'excelFilter_batch', excelFilter_courseRequired: 'excelFilter_batch' };
+        async function reportBatchForCourse(courseBox) {
+            const box = document.getElementById(REPORT_BATCH_FOR[courseBox.id]);
+            if (!box) return;
+            const c = courseBox.value ? (await getSettingItems('courses')).find(i => courseLabel(i) === courseBox.value) : null;
+            const short = isShortCourseItem(c);
+            if (!box.dataset.normal) box.dataset.normal = box.innerHTML;
+            if (short) {
+                const years = [...new Set([...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options,
+                    ...(await getSettingItems('batches')).map(b => String(b.academicYear || '')).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+                const keep = box.value;
+                box.innerHTML = `<option value="">-- all academic years --</option>` + years.map(y => `<option value="${y}">${y}</option>`).join('');
+                box.value = years.includes(keep) ? keep : '';
+            } else if (box.dataset.mode === 'year') {
+                box.innerHTML = box.dataset.normal;
+                box.value = '';
+            }
+            box.dataset.mode = short ? 'year' : '';
+        }
+        document.addEventListener('change', event => {
+            if (event.target && REPORT_BATCH_FOR[event.target.id]) reportBatchForCourse(event.target);
+        });
+
         /* ---------- Short courses: each student's own 3 months ----------
            A short course student can join any day of the year: Course Start Date (today for a new student) and the
            day the course ends (start + the course's length, less a day). The server makes the student inactive after
@@ -5889,6 +5922,24 @@
             shortCourseNow = isShortCourseItem(c) ? c : null;
             const start = form.elements['courseStartDate'];
             document.querySelectorAll('.short-course-dates').forEach(el => el.hidden = !shortCourseNow);
+            // A short course has no batch (user's wish): the student enrols any day of the year, so Batch becomes Year
+            const group = form.elements['group'];
+            const groupLabel = group.closest('.form-group').querySelector('label');
+            if (shortCourseNow) {
+                const thisYear = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4);
+                // The Academic Years of Settings > Organisation Setup > Batches (and any year a batch is set up for)
+                const years = [...new Set([...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options,
+                    ...(await getSettingItems('batches')).map(b => String(b.academicYear || '')).filter(y => /^\d{4}$/.test(y))])].sort().reverse();
+                const keep = /^\d{4}$/.test(group.value) ? group.value
+                    : (start.value || '').slice(0, 4) || thisYear;
+                fillSelect(group, years.includes(keep) ? years : [keep, ...years], '-- select one --', keep);
+                group.dataset.mode = 'year';
+                groupLabel.innerHTML = 'Academic Year <span class="req">*</span>';
+            } else if (group.dataset.mode === 'year') {
+                delete group.dataset.mode;
+                fillSelect(group, await batchNames(), '-- select batch --', '');
+                groupLabel.innerHTML = 'Batch <span class="req">*</span>';
+            }
             start.required = !!shortCourseNow;
             if (shortCourseNow && !start.value) start.value = new Date().toLocaleDateString('en-CA');
             showShortCourseEnd();

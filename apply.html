@@ -188,7 +188,7 @@
                     <!-- Set by the college, not chosen: shown so the applicant sees what they will be -->
                     <div><label>Student Type <span class="req">*</span></label>
                         <select id="studentType" disabled></select></div>
-                    <div><label>Group <span class="req">*</span></label>
+                    <div><label id="groupLabel">Group <span class="req">*</span></label>
                         <select id="group" disabled></select></div>
                 </div>
             </div>
@@ -371,8 +371,12 @@
             }
             // A short course (3 months) has its own batch: shown as soon as the course is chosen
             const showBatch = () => {
-                const batch = (options.groupByCourse || {})[form.elements.admissionCourse.value] || options.group;
+                const short = (options.groupByCourse || {})[form.elements.admissionCourse.value];
+                const batch = short || options.group;
                 document.getElementById('group').innerHTML = `<option>${escapeHtml(batch || '—')}</option>`;
+                // A short course has no batch: the year (its students enrol any day of the year)
+                const label = document.getElementById('groupLabel');
+                if (label) label.firstChild.textContent = short ? 'Academic Year ' : 'Batch ';
             };
             form.elements.admissionCourse.addEventListener('change', showBatch);
             // A short course: starts today (the day of applying), ends after its length (e.g. 3 MONTHS)

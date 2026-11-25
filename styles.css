@@ -6570,3 +6570,26 @@ html:not(.topbar-ready) #topbar > * { visibility: hidden; animation: topbar-show
 #main-wrapper { display: block; }
 #main-inner { display: flex; flex-direction: column; min-height: 100%; }
 #main-inner > #content-area { flex: 1 0 auto; }
+
+/* =====================================================================================================
+   The green "saved" banner floats over the page just under the top bar and takes no room, so nothing on the page
+   moves when it appears or goes (user's wish: the page stays still while saving). notify.js places it.
+   ===================================================================================================== */
+#content-area > #toastArea,
+.enquiry-main > #toastArea {
+    position: sticky;
+    top: calc(var(--fewa-topbar-h, 57px) + 8px);
+    height: 0;
+    margin: 0;
+    overflow: visible;
+    z-index: 800;
+}
+#content-area > #toastArea .toast,
+.enquiry-main > #toastArea .toast { box-shadow: 0 8px 22px rgba(36, 16, 58, 0.28); }
+
+/* Short course (no semesters): the box that replaces a Semester / Period choice (Manage Finance; Manage Units and
+   Roll Call have their own copies) */
+.fin-short-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border-radius: 10px;
+    background: linear-gradient(135deg, #f6eefc, #fdf7e8); border: 1px solid #e3cf9a; color: #3b1d5e; font-size: 13px; }
+.fin-short-badge { padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a; font-size: 11px; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; }
