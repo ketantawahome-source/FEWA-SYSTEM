@@ -10,6 +10,7 @@
     <script src="sentry.js"></script>
     <script src="db.js"></script>
     <script src="auth.js"></script>
+    <script src="safe-actions.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
@@ -27,7 +28,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125f">
+    <link rel="stylesheet" href="styles.css?v=20261125g">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
@@ -925,7 +926,7 @@
             if (!u) return;
             if (unitInUse(u.code)) return alert(`${u.code} cannot be deleted: it is used by a course (Course units), an offer ` +
                 '(Units on offer) or a student registration. Remove those first.');
-            if (!confirm(`Delete the unit ${u.code} - ${u.title}?`)) return;
+            if (!await fewaConfirm(`Delete the unit ${u.code} - ${u.title}?`)) return;
             try {
                 await fewaDB.remove('units', id);
                 showToast(`Unit ${u.code} deleted.`);
@@ -1033,7 +1034,7 @@
             if (!o) return;
             if (registeredCount(o)) return alert(`${o.unitCode} cannot be taken off: students are registered for it in ${o.term}. ` +
                 'Remove their registrations first (Student unit registration).');
-            if (!confirm(`Take ${o.unitCode} off the units on offer in ${o.term}?`)) return;
+            if (!await fewaConfirm(`Take ${o.unitCode} off the units on offer in ${o.term}?`)) return;
             try {
                 await fewaDB.remove('unit_offers', id);
                 showToast(`${o.unitCode} taken off the offer.`);
@@ -1151,7 +1152,7 @@
                     'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
             }
             if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
-            if (!confirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return feedback();
+            if (!await fewaConfirm(`Put ${good.length} unit${good.length === 1 ? '' : 's'} on offer?`)) return feedback();
             try {
                 for (const l of good) {
                     await save('unit_offers', { id: newId(), term: l.term, unitCode: l.unit.code, course: l.course, batch: l.batch,
@@ -1235,7 +1236,7 @@
             // One lecturer per unit, course, batch, period and group category
             const clash = allocations.find(a => a.id !== editingAllocation && a.term === v('lecTerm') && a.batch === v('lecBatch')
                 && a.course === v('lecProgramme') && same(a.unitCode, v('lecUnit')) && (a.groupCategory || '') === v('lecCategory'));
-            if (clash && !confirm(`${v('lecUnit')} is already allocated to ${clash.lecturerName || clash.lecturer} in ${v('lecBatch')}, ${v('lecTerm')}. Give it to ${lecturer.name} instead?`)) return;
+            if (clash && !await fewaConfirm(`${v('lecUnit')} is already allocated to ${clash.lecturerName || clash.lecturer} in ${v('lecBatch')}, ${v('lecTerm')}. Give it to ${lecturer.name} instead?`)) return;
             const base = clash || old || {};
             // The year and semester: the one chosen, else the unit's own in the course's programme units
             const own = programmeUnits.find(p => p.course === v('lecProgramme') && same(p.unitCode, v('lecUnit'))) || {};
@@ -1285,7 +1286,7 @@
         async function deleteAllocation(id) {
             if (!allowed('academics', 'edit')) return;
             const a = allocations.find(x => x.id === id);
-            if (!a || !confirm(`Remove ${a.lecturerName || a.lecturer} from ${a.unitCode} in ${a.batch}, ${a.term}?`)) return;
+            if (!a || !await fewaConfirm(`Remove ${a.lecturerName || a.lecturer} from ${a.unitCode} in ${a.batch}, ${a.term}?`)) return;
             try {
                 await fewaDB.remove('unit_lecturers', id);
                 if (editingAllocation === id) clearAllocation();
@@ -1400,7 +1401,7 @@
         async function removeUnitFromCourse(id) {
             if (!allowed('academics', 'edit')) return;
             const p = programmeUnits.find(x => x.id === id);
-            if (!p || !confirm(`Take ${p.unitCode} off ${p.course}${p.batch ? ` (${p.batch})` : ' (all batches)'}?`)) return;
+            if (!p || !await fewaConfirm(`Take ${p.unitCode} off ${p.course}${p.batch ? ` (${p.batch})` : ' (all batches)'}?`)) return;
             try {
                 await fewaDB.remove('programme_units', id);
                 showToast(`${p.unitCode} taken off ${p.course}.`);
@@ -1519,7 +1520,7 @@
             }
             if (!good.length) { feedback(); return alert('Nothing to add: see the Result column.'); }
             const newUnits = [...new Set(good.filter(l => !l.unit).map(l => l.code))];
-            if (!confirm(`Add ${good.length} unit${good.length === 1 ? '' : 's'} to the courses` +
+            if (!await fewaConfirm(`Add ${good.length} unit${good.length === 1 ? '' : 's'} to the courses` +
                 (newUnits.length ? ` (and ${newUnits.length} new unit${newUnits.length === 1 ? '' : 's'} to the Units register)` : '') + '?')) return feedback();
             try {
                 const created = new Map();
@@ -1599,7 +1600,7 @@
             const unit = unitByCode(code) || { code };
             // One row per course and unit: saving again changes it
             const existing = unitHours.find(h => h.id !== editingHours && h.course === course && same(h.unitCode, unit.code));
-            if (existing && !confirm(`${unit.code} already has hours on ${course}. Replace them?`)) return;
+            if (existing && !await fewaConfirm(`${unit.code} already has hours on ${course}. Replace them?`)) return;
             const old = unitHours.find(h => h.id === editingHours);
             const base = existing || old || {};
             const record = { ...base, id: base.id || newId(), programme, course, unitCode: unit.code,
@@ -1645,7 +1646,7 @@
         async function deleteUnitHours(id) {
             if (!allowed('academics', 'edit')) return;
             const h = unitHours.find(x => x.id === id);
-            if (!h || !confirm(`Remove the hours of ${h.unitCode} on ${h.course}?`)) return;
+            if (!h || !await fewaConfirm(`Remove the hours of ${h.unitCode} on ${h.course}?`)) return;
             try {
                 await fewaDB.remove('unit_hours', id);
                 if (editingHours === id) clearUnitHours();
@@ -1751,7 +1752,7 @@
                     'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
             }
             if (!good.length) { feedback(); return alert('Nothing to save: see the Result column.'); }
-            if (!confirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return feedback();
+            if (!await fewaConfirm(`Save the hours of ${good.length} unit${good.length === 1 ? '' : 's'}?`)) return feedback();
             try {
                 for (const l of good) {
                     await save('unit_hours', { ...(l.existing || {}), id: (l.existing || {}).id || newId(), course: l.course,
@@ -1885,7 +1886,7 @@
             const remove = mine.filter(r => listed(r.unitCode) && !wanted.some(code => same(code, r.unitCode)));
             const change = mine.filter(r => wanted.some(code => same(code, r.unitCode)) && (r.examReason || 'First attempt') !== reasonOf(String(r.unitCode).toUpperCase()));
             if (!add.length && !remove.length && !change.length) return showToast('Nothing has changed.', 'info');
-            if (remove.length && !confirm(`Remove ${student.admNo}'s registration for ${remove.map(r => r.unitCode).join(', ')}?`)) return;
+            if (remove.length && !await fewaConfirm(`Remove ${student.admNo}'s registration for ${remove.map(r => r.unitCode).join(', ')}?`)) return;
             try {
                 for (const code of add) {
                     const offer = allocationLecturer(term, batch, course, code) || offersForClass(course, term).find(o => same(o.unitCode, code)) || {};
@@ -2075,7 +2076,7 @@
                     'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
             }
             if (!counts.ok) { feedback(); return alert('No row can be registered. The table shows why for each row.'); }
-            if (!confirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?`)) return feedback();
+            if (!await fewaConfirm(`Register ${counts.ok} row${counts.ok === 1 ? '' : 's'}?`)) return feedback();
 
             let done = 0;
             try {
@@ -2226,7 +2227,7 @@
                 programme: courseAward(course) };
             const existing = schedules.find(s => s.id !== editingSchedule && sameSlot(s, record));
             const label = [record.period, record.course, record.enrolment].filter(Boolean).join(', ');
-            if (existing && !confirm(`${batch} already has ${label}. Replace its dates?`)) return;
+            if (existing && !await fewaConfirm(`${batch} already has ${label}. Replace its dates?`)) return;
             const old = schedules.find(s => s.id === editingSchedule);
             const base = existing || old || {};
             Object.assign(record, { ...base, ...record, id: base.id || newId(), periodNumber: periodNumber(period),
@@ -2274,7 +2275,7 @@
         async function deleteSchedule(id) {
             if (!allowed('schedule', 'edit')) return;
             const s = schedules.find(x => x.id === id);
-            if (!s || !confirm(`Remove ${[s.period, s.course, s.enrolment].filter(Boolean).join(', ')} from the schedule of ${s.batch}?`)) return;
+            if (!s || !await fewaConfirm(`Remove ${[s.period, s.course, s.enrolment].filter(Boolean).join(', ')} from the schedule of ${s.batch}?`)) return;
             try {
                 await fewaDB.remove('period_schedules', id);
                 if (editingSchedule === id) clearSchedule();
@@ -2322,7 +2323,7 @@
                     updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
             }
             if (!made.length) return alert(`Every period of ${batch} for the ${year} enrolments is already in the schedule.`);
-            if (!confirm(`Create ${made.length} period${made.length === 1 ? '' : 's'} for ${batch}: ${classes.length} course` +
+            if (!await fewaConfirm(`Create ${made.length} period${made.length === 1 ? '' : 's'} for ${batch}: ${classes.length} course` +
                 `${classes.length === 1 ? '' : 's'} x ${intakes.map(e => e.name).join(', ')}, each semester ${SEMESTER_MONTHS} months ` +
                 `from the enrolment's start date? Periods already in the schedule are left as they are; the dates can be changed afterwards.`)) return;
             let saved = 0;

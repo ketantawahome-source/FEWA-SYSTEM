@@ -9,7 +9,8 @@
     <!-- The owner's hidden page, opened at /GLOBALSETTINGS (server.mjs, "Global Settings"). It is not linked from
          any other page. Everything here is checked again by the server; the page only shows the settings.
          Laid out as a settings table: SETTING_NAME | value | ticked when changed | description. -->
-    <link rel="stylesheet" href="styles.css?v=20261125f">
+    <link rel="stylesheet" href="styles.css?v=20261125g">
+    <script src="safe-actions.js"></script>
     <!-- The settings table's font: Source Sans 3, small and plain like a settings list -->
     <style>
         body.gs-open, body.gs-open input, body.gs-open select, body.gs-open textarea, body.gs-open button {
@@ -363,7 +364,7 @@
                 changes[s.control] = value;
                 if (s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
             }
-            if (warnings.length && !confirm(warnings.join('\n\n'))) return;
+            if (warnings.length && !await fewaConfirm(warnings.join('\n\n'))) return;
             $('saveButton').disabled = true;
             try {
                 await call('PUT', 'controls', changes);
@@ -375,7 +376,7 @@
         $('search').addEventListener('input', filterRows);
         $('refreshButton').addEventListener('click', load);
         $('logoutAll').addEventListener('click', async () => {
-            if (!confirm('Log out everyone who is logged in now (staff and students)?')) return;
+            if (!await fewaConfirm('Log out everyone who is logged in now (staff and students)?')) return;
             try { await call('POST', 'logout-everyone'); status('Everyone has been logged out.'); load(); } catch (err) { status(err.message, false); }
         });
         $('lockButton').addEventListener('click', async () => {

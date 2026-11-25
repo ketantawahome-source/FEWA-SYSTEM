@@ -10,6 +10,7 @@
     <script src="sentry.js"></script>
     <script src="db.js"></script>
     <script src="auth.js"></script>
+    <script src="safe-actions.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
     <script src="icons.js"></script>
@@ -21,7 +22,7 @@
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125f">
+    <link rel="stylesheet" href="styles.css?v=20261125g">
     <style>
         /* Find or add a member of staff: the first step, before the staff form opens */
         /* Laid out as the reference screen: Source Sans, a plain white card, the title on a thin rule
@@ -1112,17 +1113,17 @@
                 const editingMyself = sameEmail(existing.username, currentUser());
                 const deactivatingMyself = editingMyself && staff.status === 'Inactive';
                 const leavingAdmin = editingMyself && staff.role !== ROLE_ADMIN;
-                if (deactivatingMyself && !confirm('You are deactivating your own account. You will be logged out and ' +
+                if (deactivatingMyself && !await fewaConfirm('You are deactivating your own account. You will be logged out and ' +
                     'will not be able to log in again until another Administrator activates you. Continue?')) return;
-                if (!deactivatingMyself && leavingAdmin && !confirm('You are changing your own Access Level to Staff. ' +
+                if (!deactivatingMyself && leavingAdmin && !await fewaConfirm('You are changing your own Access Level to Staff. ' +
                     'You will no longer be able to manage staff. Continue?')) return;
 
                 const deactivating = staff.status === 'Inactive' && existing.status !== 'Inactive';
                 const reactivating = staff.status !== 'Inactive' && existing.status === 'Inactive';
-                if (deactivating && !deactivatingMyself && !confirm(`Deactivate ${accountName(staff)}?\n\n` +
+                if (deactivating && !deactivatingMyself && !await fewaConfirm(`Deactivate ${accountName(staff)}?\n\n` +
                     'They will be logged out and their password cancelled. If they are activated again, ' +
                     'press Reset Password so they get a new (temporary) password.')) return;
-                if (reactivating && !confirm(`Activate ${accountName(staff)}?\n\n` +
+                if (reactivating && !await fewaConfirm(`Activate ${accountName(staff)}?\n\n` +
                     'They will be able to use the system again once they set a new password. ' +
                     'Their old password will NOT work: they need a reset link from an administrator.')) return;
 
@@ -1138,7 +1139,7 @@
                 // A reactivated account has no password until an administrator sends a reset link
                 const account = getAccounts().find(a => a.id === id);
                 if (reactivating && account && account.adminResetRequired &&
-                    confirm(`${accountName(staff)} is active again, but their old password no longer works.\n\n` +
+                    await fewaConfirm(`${accountName(staff)} is active again, but their old password no longer works.\n\n` +
                         'Send them a password reset link now?')) {
                     await sendStaffPasswordLink(id);
                 }
@@ -1263,7 +1264,7 @@
                     problems.slice(0, 40).map(p => `<li>${escapeHtml(`Row ${p.line} (${[p.values.firstName, p.values.lastName].filter(Boolean).join(' ') || 'no name'}): ${p.problems.join('; ')}`)}</li>`).join('') +
                     (problems.length > 40 ? `<li>and ${problems.length - 40} more rows</li>` : '') + '</ul>', true);
             }
-            if (!confirm(`Add ${people.length} staff member${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
+            if (!await fewaConfirm(`Add ${people.length} staff member${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
                 return sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: the upload was cancelled' })));
             }
 
@@ -1351,7 +1352,7 @@
                 return showStaffPhotosResult(`<b>No photo was uploaded:</b> none of the ${plan.length} file name${plan.length === 1 ? ' is' : 's are'} a staff member's ` +
                     'National ID number. A file listing each photo and why has been downloaded.', true);
             }
-            if (!confirm(`Upload ${ready.length} staff photo${ready.length === 1 ? '' : 's'}?` +
+            if (!await fewaConfirm(`Upload ${ready.length} staff photo${ready.length === 1 ? '' : 's'}?` +
                 (skipped ? `\n\n${skipped} photo${skipped === 1 ? '' : 's'} will be skipped (listed in the file downloaded afterwards).` : '') +
                 '\n\nA photo replaces the one the staff member has now.')) {
                 sendFeedback();
@@ -1428,7 +1429,7 @@
             if (account.status === 'Inactive') {
                 return alert(`${accountName(account)} is Inactive. Set their Status to Active and save first, then reset their password.`);
             }
-            if (!confirm(`Reset the password of ${accountName(account)}?\n\nTheir current password stops working at once and they are ` +
+            if (!await fewaConfirm(`Reset the password of ${accountName(account)}?\n\nTheir current password stops working at once and they are ` +
                 'logged out. A temporary password is shown here once and emailed to them; they choose their own when they sign in.')) return;
             let result;
             try {
@@ -1637,7 +1638,7 @@
             };
             const same = qualifications.find(q => q.id !== record.id && q.staffId === record.staffId && q.qualification === record.qualification
                 && String(q.institution || '').toLowerCase() === record.institution.toLowerCase() && Number(q.yearAttained) === record.yearAttained);
-            if (same && !confirm(`${record.staffName} already has ${record.qualification} from ${record.institution || 'this institution'} in ${record.yearAttained}. Save another one?`)) return;
+            if (same && !await fewaConfirm(`${record.staffName} already has ${record.qualification} from ${record.institution || 'this institution'} in ${record.yearAttained}. Save another one?`)) return;
             try {
                 await fewaDB.put('staff_qualifications', record);
             } catch (error) {
@@ -1650,7 +1651,7 @@
 
         async function deleteQualification(id) {
             const q = qualifications.find(x => x.id === id);
-            if (!q || !confirm(`Remove ${q.qualification}${q.institution ? ' from ' + q.institution : ''} of ${qualificationStaffName(q)}?`)) return;
+            if (!q || !await fewaConfirm(`Remove ${q.qualification}${q.institution ? ' from ' + q.institution : ''} of ${qualificationStaffName(q)}?`)) return;
             try {
                 await fewaDB.remove('staff_qualifications', id);
             } catch (error) {
@@ -1668,7 +1669,7 @@
             if (!activeAdmins(accounts.filter(a => a.id !== id)).length) {
                 return alert('There must always be at least one active Administrator.');
             }
-            if (!confirm(`Delete ${accountName(account)} (${account.username})? They will no longer be able to log in, ` +
+            if (!await fewaConfirm(`Delete ${accountName(account)} (${account.username})? They will no longer be able to log in, ` +
                 'and their personal & employment details are deleted too.')) return;
             deleteStaffAccount(id); // removes their row in the staff table, details and all
             delete staffDetails[id];

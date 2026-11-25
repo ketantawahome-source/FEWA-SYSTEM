@@ -418,7 +418,7 @@ async function storeExamRecord(t, record) {
     const problem = t.check ? t.check(record, others.filter(o => !t.same(o, record))) : '';
     if (problem) { alert(problem); return false; }
     const existing = others.find(o => t.same(o, record));
-    if (existing && !confirm(`${t.label(existing)} is already in the list. Replace it?`)) return false;
+    if (existing && !await fewaConfirm(`${t.label(existing)} is already in the list. Replace it?`)) return false;
     const old = examRows(t.store).find(r => r.id === examEditing);
     const base = existing || old || {};
     const saved = { ...base, ...record, id: base.id || newId(), updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' };
@@ -472,7 +472,7 @@ async function deleteExamRecord(id) {
     const r = examRows(t.store).find(x => x.id === id);
     if (!r) return;
     if (t.inUse && t.inUse(r)) return alert(`${t.label(r)} is in use on another tab, so it is kept. Change or remove those entries first.`);
-    if (!confirm(`Remove ${t.label(r)}?`)) return;
+    if (!await fewaConfirm(`Remove ${t.label(r)}?`)) return;
     try {
         await fewaDB.remove(t.store, id);
         if (examEditing === id) clearExamForm();
@@ -567,7 +567,7 @@ async function uploadExamRows() {
             'Correct them in Excel and upload the file again. A copy of your file with a Feedback column has been downloaded.');
     }
     if (!good.length) { feedback(); return alert('No row can be saved. The table shows why for each row.'); }
-    if (!confirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}?`)) return feedback();
+    if (!await fewaConfirm(`Save ${good.length} row${good.length === 1 ? '' : 's'}?`)) return feedback();
     try {
         for (const l of good) {
             await fewaDB.put(t.store, { ...(l.existing || {}), ...l.record, id: (l.existing || {}).id || newId(),

@@ -178,7 +178,7 @@ async function makeOnlineBackup() {
 }
 
 async function restoreOnlineBackup(id) {
-    if (!confirm('Restore this backup?\n\nEVERYTHING in the system now (students, documents, settings, staff accounts) ' +
+    if (!await fewaConfirm('Restore this backup?\n\nEVERYTHING in the system now (students, documents, settings, staff accounts) ' +
         'will be replaced by the backup. A backup of the data as it is now is made first, so this can be undone.')) return;
     try {
         const result = await api('POST', `/backups/${encodeURIComponent(id)}/restore`);
@@ -193,7 +193,7 @@ async function restoreOnlineBackup(id) {
 }
 
 async function deleteOnlineBackup(id) {
-    if (!confirm('Delete this backup from the office computer? This cannot be undone.')) return;
+    if (!await fewaConfirm('Delete this backup from the office computer? This cannot be undone.')) return;
     try {
         await api('DELETE', `/backups/${encodeURIComponent(id)}`);
         showToast('Backup deleted.');
@@ -261,7 +261,7 @@ function uploadPlanHtml(plan) {
 
 async function saveUploadedStudents() {
     if (!uploadedStudents) return;
-    if (!confirm('Save these changes to the student records?\n\nA backup of the data as it is now is made first, so this can be undone with Restore.')) return;
+    if (!await fewaConfirm('Save these changes to the student records?\n\nA backup of the data as it is now is made first, so this can be undone with Restore.')) return;
     const button = document.getElementById('saveUploadButton');
     button.disabled = true;
     button.textContent = 'Saving...';

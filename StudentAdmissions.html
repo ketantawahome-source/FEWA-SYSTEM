@@ -14,6 +14,7 @@
     <script src="vendor/jspdf.plugin.autotable.min.js" defer></script>
     <script src="report-pdf.js?v=20261125a" defer></script>
     <script src="auth.js"></script>
+    <script src="safe-actions.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
     <script src="backup-page.js"></script>
@@ -26,7 +27,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125f">
+    <link rel="stylesheet" href="styles.css?v=20261125g">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -1641,7 +1642,7 @@
             const b = items.find(x => x.id === id);
             if (!b) return;
             const students = (await getAll('students')).filter(st => st.group === b.name).length;
-            if (!confirm(`Delete the batch ${b.name} of ${b.school}?` +
+            if (!await fewaConfirm(`Delete the batch ${b.name} of ${b.school}?` +
                 (students ? `\n\n${students} student(s) have this batch; they will keep it.` : ''))) return;
             const left = items.filter(x => x.id !== id);
             SETTINGS_LISTS.batches.afterDelete(left);
@@ -1760,7 +1761,7 @@
         }
 
         async function startSystemUpdate() {
-            if (!confirm('Run the system update now?\n\nThe system downloads the new changes from GitHub, updates the database tables ' +
+            if (!await fewaConfirm('Run the system update now?\n\nThe system downloads the new changes from GitHub, updates the database tables ' +
                 'and restarts. It takes about a minute. When it is finished, everyone (you too) is logged out and logs in again.')) return;
             try {
                 showUpdateRun((await api('POST', '/system-update', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })).run);
@@ -2292,7 +2293,7 @@
                 const names = l.items.filter(i => l.fields.some(f => i[f] === list.label(item))).map(i => i.name);
                 if (names.length) note += `\n\nThese ${l.title.toLowerCase()} are under it and will keep the old name:\n- ${names.join('\n- ')}`;
             }
-            if (!confirm(`Remove "${list.label(item)}"?${note}`)) return;
+            if (!await fewaConfirm(`Remove "${list.label(item)}"?${note}`)) return;
             await saveSettingItems(key, items.filter(i => i.id !== id));
             showToast(`${list.singular} "${list.label(item)}" deleted successfully.`);
             renderInlineList(key);
@@ -2422,7 +2423,7 @@
             const inUse = usedBy
                 ? `\n\n${usedBy} ${usedByNames(list)[1]} still use it; they will keep the old value.`
                 : '';
-            if (!confirm(`Delete "${list.label(item)}"?${inUse}`)) return;
+            if (!await fewaConfirm(`Delete "${list.label(item)}"?${inUse}`)) return;
 
             const left = items.filter(i => i.id !== id);
             if (list.afterDelete) list.afterDelete(left);
@@ -4656,7 +4657,7 @@
                     problems.slice(0, 40).map(p => `<li>${escapeHtml(`Row ${p.line} (${name(p)}): ${p.problems.join('; ')}`)}</li>`).join('') +
                     (problems.length > 40 ? `<li>and ${problems.length - 40} more rows</li>` : '') + '</ul>', true);
             }
-            if (!confirm(`Add ${people.length} student${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
+            if (!await fewaConfirm(`Add ${people.length} student${people.length === 1 ? '' : 's'} from ${file.name}?`)) {
                 return sendFeedback(people.map(() => ({ ok: false, text: 'NOT imported: the upload was cancelled' })));
             }
 
@@ -5590,7 +5591,7 @@
 
         async function deleteDeferral(id) {
             if (!allowed('students', 'delete')) return;
-            if (!confirm('Delete this deferral/suspension record?')) return;
+            if (!await fewaConfirm('Delete this deferral/suspension record?')) return;
             await deleteOne('deferrals', id);
             showToast('Deferral/suspension record deleted successfully.');
             renderDeferralList();
@@ -5853,8 +5854,8 @@
             setPhotoPreview(file);
         }
 
-        function removeStudentPhoto() {
-            if (!confirm('Remove this student\'s photo? It is removed when you press Save Student Record.')) return;
+        async function removeStudentPhoto() {
+            if (!await fewaConfirm('Remove this student\'s photo? It is removed when you press Save Student Record.')) return;
             document.getElementById('studentPhotoInput').value = '';
             photoRemoved = true;
             setPhotoPreview(null);
@@ -5935,11 +5936,11 @@
             const existing = data.id ? students.find(s => s.id === data.id) : null;
             // Changing Active Student on the form asks first, the same as Activate / Deactivate in Student Status
             if (existing && existing.activeStudent === 'no' && data.activeStudent !== 'no' &&
-                !confirm(`Activate ${fullName(existing)} (${existing.admNo})?\n\n` +
+                !await fewaConfirm(`Activate ${fullName(existing)} (${existing.admNo})?\n\n` +
                     'They will be an active student again. Their old Student Portal password will NOT work: ' +
                     'press Reset Password on their record so they can log in.')) return;
             if (existing && existing.activeStudent !== 'no' && data.activeStudent === 'no' &&
-                !confirm(`Deactivate ${fullName(existing)} (${existing.admNo})?\n\n` +
+                !await fewaConfirm(`Deactivate ${fullName(existing)} (${existing.admNo})?\n\n` +
                     'They will be logged out of the Student Portal and their password cancelled. ' +
                     'If they are activated again, press Reset Password on their record so they can log in.')) return;
             const photoFile = form.elements['studentPhoto'].files[0];
@@ -5994,7 +5995,7 @@
                 return alert(`${fullName(student)} (${student.admNo}) is Inactive.\n\n` +
                     'Activate them first (Student Hub > Student Status, or set Active Student to Yes and Save), then reset the password.');
             }
-            if (!confirm(`Reset the Student Portal password of ${fullName(student)} (${student.admNo})?\n\n` +
+            if (!await fewaConfirm(`Reset the Student Portal password of ${fullName(student)} (${student.admNo})?\n\n` +
                 'They will get a new temporary password. Any old password stops working.')) return;
 
             // Made by the server, and shown only here; they must change it when they log in

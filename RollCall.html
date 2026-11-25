@@ -10,6 +10,7 @@
     <script src="sentry.js"></script>
     <script src="db.js"></script>
     <script src="auth.js"></script>
+    <script src="safe-actions.js"></script>
     <script src="backup.js?v=20261104f"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
@@ -21,7 +22,7 @@
             return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261125f">
+    <link rel="stylesheet" href="styles.css?v=20261125g">
     <style>
         /* Roll Call Management: the Source Sans look of the newer screens */
         .rc-section, .rc-section * { font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Tahoma, sans-serif; }
@@ -907,7 +908,7 @@
         async function deleteRegister(id) {
             if (!allowed('attendance', 'mark')) return;
             const r = registers.find(x => x.id === id);
-            if (!r || !confirm(`Remove the register of ${unitLabel(r.unitCode)} (${r.course}, ${r.batch}) on ${dayText(r.registerDate)}?\n\n` +
+            if (!r || !await fewaConfirm(`Remove the register of ${unitLabel(r.unitCode)} (${r.course}, ${r.batch}) on ${dayText(r.registerDate)}?\n\n` +
                 'The attendance marks it holds are removed too.')) return;
             try {
                 await fewaDB.remove('attendance_registers', id);

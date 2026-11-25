@@ -187,7 +187,7 @@
         const data = Object.fromEntries(new FormData(form));
         if (data.method !== 'CASH' && !String(data.reference).trim()) return showToast('Enter the transaction code / reference number.', 'warning');
         const sure = `Record ${kes(data.amount)} ${METHOD_NAME[data.method]} from ${state.student.name} (${state.student.admNo})?\n\nA receipt number is given and the payment cannot be deleted, only reversed.`;
-        if (!confirm(sure)) return;
+        if (!await fewaConfirm(sure)) return;
         button.disabled = true;
         try {
             const payment = await call('POST', '/payment', { ...data, studentId: state.student.id });
@@ -521,7 +521,7 @@
             try { await call('PUT', '/fee-structure/' + encodeURIComponent(el.dataset.id), { item, amount }); showToast('Fee item changed. Charges already posted stay as they are.'); show('fees'); } catch (err) { fail(err); }
         },
         'delete-fee': async el => {
-            if (!confirm(`Remove "${el.dataset.item}" from the fee structure?\n\nCharges already posted to students stay.`)) return;
+            if (!await fewaConfirm(`Remove "${el.dataset.item}" from the fee structure?\n\nCharges already posted to students stay.`)) return;
             try { await call('DELETE', '/fee-structure/' + encodeURIComponent(el.dataset.id)); show('fees'); } catch (err) { fail(err); }
         },
         'post-confirm': confirmPost
