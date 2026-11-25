@@ -41,7 +41,14 @@
         .att-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
         .att-label { font-size: 14px; opacity: .92; }
         .att-card:not(.att-good):not(.att-risk):not(.att-poor) .att-value { color: #f3d27a; }
-        .att-note { font-size: 13px; margin-top: 8px; opacity: .95; }
+        .att-note { font-size: 13px; margin-top: 8px; opacity: .95; margin-right: -58px; }
+        @media (max-width: 500px) { .att-note { margin-right: 0; } }
+        /* The absent share under the present one, and a bar split present / absent */
+        .att-absent { font-size: 16px; font-weight: 700; margin-top: 2px; opacity: .95; white-space: nowrap; }
+        .att-absent[hidden], .att-bar[hidden] { display: none; }
+        .att-bar { height: 6px; border-radius: 99px; background: rgba(0, 0, 0, .22); overflow: hidden; margin-top: 8px; margin-right: -58px; }
+        .att-bar span { display: block; height: 100%; background: rgba(255, 255, 255, .9); border-radius: 99px; }
+        @media (max-width: 500px) { .att-bar { margin-right: 0; } }
         .att-pie { position: absolute; top: 16px; right: 14px; width: 50px; height: 50px; opacity: .9; }
         .att-foot { display: block; text-align: center; padding: 7px 10px; font-size: 13px; font-weight: 700; color: #fff !important;
             background: rgba(0, 0, 0, .14); text-decoration: none; }
@@ -218,6 +225,8 @@
                     <div class="att-body">
                         <div class="att-label">Today's attendance</div>
                         <div class="att-value" id="attPercent">—</div>
+                        <div class="att-absent" id="attAbsent" hidden></div>
+                        <div class="att-bar" id="attBar" hidden><span id="attBarIn"></span></div>
                         <div class="att-note" id="attCounts">No register taken yet today</div>
                     </div>
                     <svg class="att-pie" viewBox="0 0 42 42" aria-hidden="true">
@@ -504,6 +513,11 @@
             card.classList.remove('att-good', 'att-risk', 'att-poor');
             if (pc !== null) card.classList.add(pc >= 75 ? 'att-good' : pc >= 50 ? 'att-risk' : 'att-poor');
             document.getElementById('attPercent').textContent = pc === null ? '—' : `${pc}% Present`;
+            // The absent share: the rest of those counted (present + absent; excused left out)
+            document.getElementById('attAbsent').hidden = pc === null;
+            document.getElementById('attAbsent').textContent = pc === null ? '' : `${100 - pc}% Absent`;
+            document.getElementById('attBar').hidden = pc === null;
+            document.getElementById('attBarIn').style.width = `${pc || 0}%`;
             document.getElementById('attCounts').textContent = marks.size
                 ? `${present} Present | ${absent} Absent` + (late ? ` (${late} late)` : '') + (excused ? ` | ${excused} Excused` : '')
                 : 'No register taken yet today';

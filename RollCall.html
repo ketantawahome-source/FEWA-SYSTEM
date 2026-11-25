@@ -1016,16 +1016,26 @@
         ];
         let tdData = [], tdShown = [], tdPage = 1, tdSort = { key: 'school', dir: 1 };
 
-        /* The class of a batch, as the reference: "YEAR 1 MAY 2026" (the year of study the batch is in today, and the
-           month it started); Position is that year of study. */
+        /* The class, as the reference: "YEAR 1 MAY 2026" = the year of study the class is in, and the month its batch
+           started. The year of study comes from the Semester Schedule: the semester running today (or the last one
+           begun) for that batch and course, 3 semesters a year (SEMESTER 1-3 = YEAR 1, 4-6 = YEAR 2...); YEAR 1 when
+           the class has no semester yet. Position is that year of study. */
         const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-        function classOfBatch(batch, day) {
+        function yearOfStudy(batch, course, day) {
+            let period = periodOn(day, batch, course);
+            if (!period) {
+                const begun = schedules.filter(s => s.batch === batch && (s.course === course || !s.course) && s.startDate
+                    && String(s.startDate).slice(0, 10) <= day).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+                period = begun.length ? begun[0].period : '';
+            }
+            const semester = Number(String(period || '').replace(/\D+/g, '')) || 1;
+            return Math.ceil(semester / 3);
+        }
+        function classOfBatch(batch, course, day) {
+            const year = yearOfStudy(batch || '', course, day);
             const m = /^([A-Za-z]{3})[A-Za-z]*\s+(\d{4})/.exec(String(batch || '').trim());
-            if (!m || !MONTHS.includes(m[1].toUpperCase())) return { cls: String(batch || 'NO BATCH').toUpperCase(), position: 1 };
-            const start = Number(m[2]) * 12 + MONTHS.indexOf(m[1].toUpperCase());
-            const now = Number(day.slice(0, 4)) * 12 + Number(day.slice(5, 7)) - 1;
-            const year = Math.max(1, Math.floor((now - start) / 12) + 1);
-            return { cls: `YEAR ${year} ${m[1].toUpperCase()} ${m[2]}`, position: year };
+            const intake = m && MONTHS.includes(m[1].toUpperCase()) ? `${m[1].toUpperCase()} ${m[2]}` : String(batch || 'NO BATCH').toUpperCase();
+            return { cls: `YEAR ${year} ${intake}`, position: year };
         }
 
         function todayClasses(day) {
@@ -1039,7 +1049,7 @@
             for (const s of activeStudents()) {
                 if (!s.admissionCourse) continue;
                 const key = `${s.admissionCourse}\u0000${s.group || ''}`;
-                const c = classes.get(key) || { school: String(s.admissionCourse).toUpperCase(), ...classOfBatch(s.group, day),
+                const c = classes.get(key) || { school: String(s.admissionCourse).toUpperCase(), ...classOfBatch(s.group, s.admissionCourse, day),
                     population: 0, present: 0, absent: 0 };
                 c.population++;
                 const st = marks.get(s.id);
