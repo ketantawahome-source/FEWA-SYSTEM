@@ -912,7 +912,19 @@ function loginLocked(req, username) {
     return over(clientIp(req) + '|' + lower(username), LOGIN_MAX_FAILURES) || over('everywhere|' + lower(username), LOGIN_MAX_FAILURES_EVERYWHERE);
 }
 function loginFailed(req, username) {
-    if (loginFailures.size > 20000) loginFailures.clear();
+    /* The list is kept small, but never by forgetting a username that is locked: clearing everything let someone
+       who tried 20,000 made-up usernames wipe the lock on the account they were guessing. Old entries go first,
+       then the ones far from a lock. */
+    if (loginFailures.size > 20000) {
+        const now = Date.now();
+        for (const [key, entry] of loginFailures) if (now - entry.first > LOGIN_LOCK_MINUTES * 60000) loginFailures.delete(key);
+        if (loginFailures.size > 20000) {
+            for (const [key, entry] of loginFailures) {
+                if (entry.count < Math.min(LOGIN_MAX_FAILURES, 3) && !key.startsWith('everywhere|')) loginFailures.delete(key);
+                if (loginFailures.size <= 15000) break;
+            }
+        }
+    }
     for (const key of [clientIp(req) + '|' + lower(username), 'everywhere|' + lower(username)]) {
         const entry = loginFailures.get(key);
         if (!entry || Date.now() - entry.first > LOGIN_LOCK_MINUTES * 60000) loginFailures.set(key, { count: 1, first: Date.now() });
@@ -2605,6 +2617,11 @@ const handleRequest = async (req, res) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Content-Security-Policy', "frame-ancestors 'self'; base-uri 'self'");
     res.setHeader('Referrer-Policy', 'same-origin');
+    // The system never uses the camera, microphone, location or payments: browsers refuse them to any page script,
+    // and other websites may not load the system's files into theirs
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+    // (pictures stay open to others: an email may show the college logo straight from the website)
+    if (!/\.(jpe?g|png|gif|svg|ico)$/i.test(String(req.url || '').split('?')[0])) res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     if (isHttps(req)) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
     // A strange address (e.g. "//" or a broken %-code) gets "Bad request" instead of stopping the server
     let file;
