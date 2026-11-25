@@ -4,8 +4,10 @@
    with "Has Short Courses" YES (Settings > Program Setup > Courses, its short courses ticked), or lasts 6 months or less.
 
    - Online applicants for a short course get the next short course batch of the course's school (shortBatchFor).
-   - When a short course batch has ended (its Date To has passed, Kenya time), its students are made inactive by
-     the system: status Inactive, reason "Short course completed", the end date as the exit date, a line in the
+   - A short course student joins any day of the year: the course runs from their own Course Start Date (student
+     form; else the day they were added) for the course's length (e.g. 3 MONTHS). Once that has ended (Kenya time)
+     they are made inactive by the system (a short course batch student with no start date of their own ends with
+     the batch): status Inactive, reason "Short course completed", the end date as the exit date, a line in the
      status history, and their Student Portal password cancelled, which also ends any login they still have.
      Checked when the server starts and then every hour (endFinishedShortCourses); doing it twice changes nothing. */
 import { pool } from '../core/connection.mjs';
@@ -43,28 +45,53 @@ export async function shortBatchFor(courseName) {
     return (next || running || {}).name || '';
 }
 
-// Every student of a short course batch that has ended is made inactive; returns how many
+// The last day of a course that starts on `start` (YYYY-MM-DD): start + its length (e.g. 3 MONTHS), less a day
+export function courseEnd(start, course) {
+    if (!start) return '';
+    const [y, m, d] = start.split('-').map(Number);
+    const n = Number(course && course.duration) || 3;
+    const t = String((course && course.durationType) || 'MONTHS').toUpperCase().replace(/S$/, '');
+    const end = t === 'YEAR' ? new Date(Date.UTC(y + n, m - 1, d - 1)) : t === 'WEEK' ? new Date(Date.UTC(y, m - 1, d + n * 7 - 1))
+        : t === 'DAY' ? new Date(Date.UTC(y, m - 1, d + n - 1)) : new Date(Date.UTC(y, m - 1 + n, d - 1));
+    return end.toISOString().slice(0, 10);
+}
+
+/* Every active short course student whose course has ended is made inactive; returns how many.
+   A student joins any day: their own Course Start Date (student form), else the day they were added, plus the
+   course's length. A student of a short course batch (Settings > Batches) with no start date of their own ends
+   with the batch. */
 export async function endFinishedShortCourses() {
     const today = kenyaToday();
-    const ended = (((await getRecord('settings', 'batches')) || {}).items || [])
-        .filter(b => b.batchType === SHORT_BATCH && b.name && day(b.dateTo) && day(b.dateTo) < today);
-    if (!ended.length) return 0;
-    const endOf = new Map(ended.map(b => [b.name, day(b.dateTo)]));
-    const { rows } = await pool.query(`SELECT id FROM ${T('students')}
-        WHERE active_student IS DISTINCT FROM 'no' AND "group" = ANY($1)`, [[...endOf.keys()]]);
+    const courses = (((await getRecord('settings', 'courses')) || {}).items || []).filter(isShortCourse);
+    const shortByLabel = new Map(courses.map(c => [courseLabel(c), c]));
+    const batchEnd = new Map((((await getRecord('settings', 'batches')) || {}).items || [])
+        .filter(b => b.batchType === SHORT_BATCH && b.name && day(b.dateTo)).map(b => [b.name, day(b.dateTo)]));
+    if (!shortByLabel.size && !batchEnd.size) return 0;
+    const { rows } = await pool.query(`SELECT id, admission_course, "group", created_at, extra->>'courseStartDate' AS start
+        FROM ${T('students')} WHERE active_student IS DISTINCT FROM 'no'`);
+    const endOf = row => {
+        const course = shortByLabel.get(row.admission_course);
+        const start = day(row.start) || (row.created_at ? new Date(row.created_at).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) : '');
+        if (course && day(row.start)) return { end: courseEnd(start, course), why: `${course.duration} ${course.durationType} from ${start}` };
+        if (batchEnd.has(row.group)) return { end: batchEnd.get(row.group), why: `batch ${row.group}` };
+        if (course && start) return { end: courseEnd(start, course), why: `${course.duration} ${course.durationType} from ${start}` };
+        return null;
+    };
     let done = 0;
-    for (const { id } of rows) {
-        const student = await getRecord('students', id);
-        if (!student || student.activeStudent === 'no' || !endOf.has(student.group)) continue;
-        const endDate = endOf.get(student.group);
-        const reason = `Short course completed (batch ${student.group} ended on ${endDate})`;
+    for (const row of rows) {
+        const found = endOf(row);
+        if (!found || !found.end || found.end >= today) continue;
+        const student = await getRecord('students', row.id);
+        if (!student || student.activeStudent === 'no') continue;
+        const endDate = found.end;
+        const reason = `Short course completed (${found.why}, ended on ${endDate})`;
         const history = [...(student.statusHistory || [])];
         if (!history.length) history.push({ at: student.statusRecordedAt || student.createdAt || '', status: 'Active', by: '',
             date: day(student.statusRecordedAt || student.createdAt), reason: 'Admitted' });
         history.push({ at: new Date().toISOString(), status: 'Inactive', by: 'System (short course ended)', date: endDate, reason });
-        await putRecord('students', id, {
+        await putRecord('students', row.id, {
             ...student, activeStudent: 'no', exitDate: endDate, exitReason: reason, statusRecordedAt: new Date().toISOString(),
-            statusHistory: history,
+            courseEndDate: student.courseEndDate || endDate, statusHistory: history,
             // As when the office deactivates a student: the password is cancelled, so the Student Portal login ends
             loginHash: null, loginSalt: null, mustChangePassword: true, adminResetRequired: true
         });
@@ -72,7 +99,7 @@ export async function endFinishedShortCourses() {
     }
     if (done) {
         mirrorChanged(STORE_TABLES.students);
-        console.log(new Date().toLocaleString(), `Short courses: ${done} student(s) made inactive (their short course batch has ended).`);
+        console.log(new Date().toLocaleString(), `Short courses: ${done} student(s) made inactive (their short course has ended).`);
     }
     return done;
 }

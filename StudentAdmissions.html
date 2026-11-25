@@ -752,6 +752,18 @@
                                 <label>Batch <span class="req">*</span></label>
                                 <select name="group" required></select>
                             </div>
+                            <!-- A short course (Has Short Courses YES, or 6 months or less): the student joins any day; the
+                                 course runs from this date, and the system makes them inactive when it has ended -->
+                            <div class="form-group short-course-dates" hidden>
+                                <label>Course Start Date <span class="req">*</span></label>
+                                <input type="date" name="courseStartDate" onchange="showShortCourseEnd()">
+                            </div>
+                            <div class="form-group short-course-dates" hidden>
+                                <label>Course Ends</label>
+                                <input type="text" id="courseEndShown" readonly tabindex="-1">
+                                <small class="short-course-hint">The student becomes inactive and can no longer log in to the
+                                    Student Portal after this day.</small>
+                            </div>
                         </div>
                     </div>
 
@@ -5838,6 +5850,44 @@
                 form.elements['admNo'].value = await nextAdmissionNumber(course);
             }
             lockAdmissionNumber(!course);
+            await showShortCourseDates();
+        }
+
+        /* ---------- Short courses: each student's own 3 months ----------
+           A short course student can join any day of the year: Course Start Date (today for a new student) and the
+           day the course ends (start + the course's length, less a day). The server makes the student inactive after
+           that day (server/short-courses/short-courses.mjs). */
+        let shortCourseNow = null;
+        function isShortCourseItem(c) {
+            if (!c) return false;
+            if (String(c.hasShortCourses || '').toUpperCase() === 'YES') return true;
+            const n = Number(c.duration) || 0, t = String(c.durationType || '').toUpperCase().replace(/S$/, '');
+            return n > 0 && ((t === 'MONTH' && n <= 6) || t === 'WEEK' || t === 'DAY');
+        }
+        // The last day of the course: start + its length (e.g. 3 MONTHS), less a day
+        function shortCourseEnd(start, c) {
+            if (!start || !c) return '';
+            const [y, m, d] = start.split('-').map(Number);
+            const n = Number(c.duration) || 3, t = String(c.durationType || 'MONTHS').toUpperCase().replace(/S$/, '');
+            const end = t === 'YEAR' ? new Date(Date.UTC(y + n, m - 1, d - 1)) : t === 'WEEK' ? new Date(Date.UTC(y, m - 1, d + n * 7 - 1))
+                : t === 'DAY' ? new Date(Date.UTC(y, m - 1, d + n - 1)) : new Date(Date.UTC(y, m - 1 + n, d - 1));
+            return end.toISOString().slice(0, 10);
+        }
+        async function showShortCourseDates() {
+            const form = document.getElementById('studentAdmissionsForm');
+            const label = form.elements['admissionCourse'].value;
+            const c = label ? (await getSettingItems('courses')).find(i => courseLabel(i) === label) : null;
+            shortCourseNow = isShortCourseItem(c) ? c : null;
+            const start = form.elements['courseStartDate'];
+            document.querySelectorAll('.short-course-dates').forEach(el => el.hidden = !shortCourseNow);
+            start.required = !!shortCourseNow;
+            if (shortCourseNow && !start.value) start.value = new Date().toLocaleDateString('en-CA');
+            showShortCourseEnd();
+        }
+        function showShortCourseEnd() {
+            const form = document.getElementById('studentAdmissionsForm');
+            const end = shortCourseNow ? shortCourseEnd(form.elements['courseStartDate'].value, shortCourseNow) : '';
+            document.getElementById('courseEndShown').value = end ? `${formatDate(end)} (${durationText(shortCourseNow.duration, shortCourseNow.durationType)})` : '';
         }
 
         async function openStudentForm(id = null, keepAdmission = false) {
@@ -5867,6 +5917,9 @@
             }
             savedAdmission = student ? { course: student.admissionCourse, admNo: student.admNo } : null;
             lockAdmissionNumber(!form.elements['admissionCourse'].value);
+            // A short course student: their start date (older records: the day they were added) and end date
+            if (student && !student.courseStartDate && student.createdAt) form.elements['courseStartDate'].value = new Date(student.createdAt).toLocaleDateString('en-CA');
+            await showShortCourseDates();
             document.getElementById('resetStudentPasswordBtn').style.display = student ? 'inline-block' : 'none';
             // Records saved before Date Recorded existed: fall back to the exit date stamp or when the student was added
             savedStatus = student ? (student.activeStudent === 'no' ? 'no' : 'yes') : null;
@@ -5958,6 +6011,9 @@
                 [...new FormData(form)].filter(([key]) => key !== 'studentPhoto')
             );
             data.admNo = data.admNo.trim();
+            // A short course: the day it ends (start + its length); other courses have no end kept here
+            if (shortCourseNow && data.courseStartDate) data.courseEndDate = shortCourseEnd(data.courseStartDate, shortCourseNow);
+            else { data.courseEndDate = ''; if (!shortCourseNow) data.courseStartDate = ''; }
 
             const ageProblem = checkStudentAge(data.dob);
             if (ageProblem) {
