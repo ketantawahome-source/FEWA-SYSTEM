@@ -1782,7 +1782,7 @@
         /* ---------- Unit hours ----------
            The theory and practical hours of a unit on a course (table academics.unit_hours), one row per course and
            unit. Programme = Settings > Award Types; Course = the courses with that award; Unit = the course's programme
-           units (every unit while it has none). The year comes from the course's programme units, or the upload. */
+           units only (Course units tab). The year comes from the course's programme units, or the upload. */
         let unitHours = [], editingHours = null;
 
         function fillHoursCourses() {
@@ -1793,8 +1793,10 @@
         function fillHoursUnits() {
             const course = $('uhCourse').value;
             const codes = programmeUnits.filter(p => p.course === course).map(p => String(p.unitCode).toUpperCase());
-            const list = course && codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
-            fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]), '');
+            // Only the units set up for the chosen course in Course units (user): none before a course is chosen
+            const list = course ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : [];
+            fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]),
+                !course ? '-- choose the course first --' : list.length ? '-- select one --' : '-- no units set up for this course (Course units tab) --');
             // The programme's award as the certificate, until one is typed
             $('uhCertificate').placeholder = 'For example ' + (courseAward(course) || 'Diploma');
             renderUnitHours();
@@ -1832,6 +1834,8 @@
             const course = $('uhCourse').value, code = $('uhUnit').value, programme = courseAward(course);
             const theory = $('uhTheory').value.trim(), practical = $('uhPractical').value.trim();
             const missing = [[course, 'course'], [code, 'unit']].filter(([v]) => !v).map(([, n]) => n);
+            if (course && !code && $('uhUnit').options.length <= 1)
+                return alert(`${course} has no units yet. Set them up in the Course units tab first, then give them their hours here.`);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             if (!validHours(theory) || !validHours(practical)) return alert('Enter the theory and practical hours (0 for none).');
             const unit = unitByCode(code) || { code };
