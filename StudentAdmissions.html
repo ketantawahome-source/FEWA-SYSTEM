@@ -764,6 +764,16 @@
                                 <small class="short-course-hint">The student becomes inactive and can no longer log in to the
                                     Student Portal after this day.</small>
                             </div>
+                            <!-- The student's accounts (fees) run over the same days as their short course -->
+                            <div class="form-group short-course-dates" hidden>
+                                <label>Accounts Start Date</label>
+                                <input type="date" name="accountsStartDate" readonly tabindex="-1">
+                            </div>
+                            <div class="form-group short-course-dates" hidden>
+                                <label>Accounts End Date</label>
+                                <input type="date" name="accountsEndDate" readonly tabindex="-1">
+                                <small class="short-course-hint">The same as the course dates.</small>
+                            </div>
                         </div>
                     </div>
 
@@ -5089,6 +5099,9 @@
                 return !!option;
             };
             if (pick('admissionCourse', appliedCourse(a))) await admissionCourseChosen();
+            // A short course starts on the day the student applied (saved with the application)
+            const applied = a.courseStartDate || (a.submittedAt ? new Date(a.submittedAt).toLocaleDateString('en-CA') : '');
+            if (applied && form.elements['courseStartDate']) { form.elements['courseStartDate'].value = applied; showShortCourseEnd(); }
             pick('campus', a.campus);
             pick('studySession', a.studySession);
             pick('enrollment', appliedEnrollment(a)); // older applications: an enrollment named like the intake, e.g. "January 2027"
@@ -5887,6 +5900,9 @@
         function showShortCourseEnd() {
             const form = document.getElementById('studentAdmissionsForm');
             const end = shortCourseNow ? shortCourseEnd(form.elements['courseStartDate'].value, shortCourseNow) : '';
+            // The accounts run over the same days as the course
+            form.elements['accountsStartDate'].value = shortCourseNow ? form.elements['courseStartDate'].value : '';
+            form.elements['accountsEndDate'].value = end;
             document.getElementById('courseEndShown').value = end ? `${formatDate(end)} (${durationText(shortCourseNow.duration, shortCourseNow.durationType)})` : '';
         }
 
@@ -6012,8 +6028,14 @@
             );
             data.admNo = data.admNo.trim();
             // A short course: the day it ends (start + its length); other courses have no end kept here
-            if (shortCourseNow && data.courseStartDate) data.courseEndDate = shortCourseEnd(data.courseStartDate, shortCourseNow);
-            else { data.courseEndDate = ''; if (!shortCourseNow) data.courseStartDate = ''; }
+            if (shortCourseNow && data.courseStartDate) {
+                data.courseEndDate = shortCourseEnd(data.courseStartDate, shortCourseNow);
+                data.accountsStartDate = data.courseStartDate;
+                data.accountsEndDate = data.courseEndDate;
+            } else {
+                data.courseEndDate = data.accountsStartDate = data.accountsEndDate = '';
+                if (!shortCourseNow) data.courseStartDate = '';
+            }
 
             const ageProblem = checkStudentAge(data.dob);
             if (ageProblem) {

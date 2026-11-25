@@ -6,7 +6,7 @@ import { T } from '../core/database.mjs';
 import { closedMessage, globalControls } from '../global-settings/global-settings.mjs';
 import { sendSystemEmail } from '../messaging/email.mjs';
 import { getRecord, putRecord } from '../stores/stores.mjs';
-import { SHORT_BATCH, isShortCourse, shortBatchFor } from '../short-courses/short-courses.mjs';
+import { SHORT_BATCH, courseEnd, isShortCourse, kenyaDay, shortBatchFor, shortCourseNamed } from '../short-courses/short-courses.mjs';
 import { STORE_TABLES, mirrorChanged } from '../sync/mirror.mjs';
 
 /* ---------- Online applications (apply.html): anyone may apply, without logging in ----------
@@ -82,7 +82,10 @@ export async function applicationOptions() {
         // The batch new students get (Settings > Organisation Setup > Batches): the next to start, else the one running;
         // a short course (3 months) gets the next short course batch of its school instead (groupByCourse)
         group: await batchForApplicants(),
-        groupByCourse: await shortCourseBatches()
+        groupByCourse: await shortCourseBatches(),
+        // A short course's length, e.g. { "Hairdressing": "3 MONTHS" }: the apply page shows the start (today) and end
+        shortCourses: await shortCourseLengths(),
+        today: kenyaDay()
     };
 }
 async function batchForApplicants() {
@@ -93,6 +96,11 @@ async function batchForApplicants() {
     const next = items.find(b => b.dateFrom > today);
     const running = items.find(b => b.dateFrom <= today && today <= (b.dateTo || b.dateFrom));
     return (next || running || items[items.length - 1] || {}).name || '';
+}
+async function shortCourseLengths() {
+    const courses = (((await getRecord('settings', 'courses')) || {}).items || []).filter(c => c.enabled !== 'NO' && isShortCourse(c));
+    return Object.fromEntries(courses.map(c => [c.labelSuffix && c.name ? `${c.name} (${c.labelSuffix})` : c.name,
+        { duration: Number(c.duration) || 3, durationType: c.durationType || 'MONTHS' }]));
 }
 // { course: its short course batch } for every short course offered online
 async function shortCourseBatches() {
@@ -146,6 +154,12 @@ export async function receiveApplication(req, body) {
     if (options.studentType) record.studentType = options.studentType;
     const group = (options.groupByCourse || {})[record.admissionCourse] || options.group;
     if (group) record.admissionGroup = group;
+    // A short course: it starts on the day the student applies (and so do their accounts); it ends after its length
+    const shortCourse = await shortCourseNamed(record.admissionCourse);
+    if (shortCourse) {
+        record.courseStartDate = record.accountsStartDate = kenyaDay();
+        record.courseEndDate = record.accountsEndDate = courseEnd(record.courseStartDate, shortCourse);
+    }
 
     for (const [field, rule] of Object.entries(APPLY_FILES)) {
         const file = body[field];

@@ -30,6 +30,14 @@ export function isShortCourse(course) {
 
 const courseLabel = c => c.labelSuffix && c.name ? `${c.name} (${c.labelSuffix})` : c.name;
 
+// The short course with this name (as students and applicants have it), or null
+export async function shortCourseNamed(name) {
+    const courses = ((await getRecord('settings', 'courses')) || {}).items || [];
+    const course = courses.find(c => courseLabel(c) === name);
+    return course && isShortCourse(course) ? course : null;
+}
+export const kenyaDay = kenyaToday;
+
 // The batch an online applicant for this course gets: for a short course, the next short course batch of the
 // course's school (else the one running); '' when there is none (the usual batch is then used)
 export async function shortBatchFor(courseName) {

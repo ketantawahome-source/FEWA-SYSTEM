@@ -151,7 +151,10 @@
             .columns, .grid { grid-template-columns: 1fr; }
             header h1 { font-size: 17px; }
         }
-    </style>
+            .short-course-dates { margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: #f6eefc; border: 1px solid #e3cf9a;
+            color: #3b1d5e; font-size: 13px; line-height: 1.45; }
+        .short-course-dates[hidden] { display: none; }
+</style>
 </head>
 
 <body>
@@ -175,7 +178,9 @@
                     <div><label>Campus <span class="req" id="campusRequired">*</span></label>
                         <select name="campus"></select></div>
                     <div><label>Admission Course <span class="req">*</span></label>
-                        <select name="admissionCourse" required></select></div>
+                        <select name="admissionCourse" required></select>
+                        <!-- A short course: it starts on the day the student applies -->
+                        <div id="shortCourseDates" class="short-course-dates" hidden></div></div>
                     <div><label>Study Session</label>
                         <select name="studySession"></select></div>
                     <div><label>Enrollment <span class="req" id="enrollmentRequired">*</span></label>
@@ -370,6 +375,23 @@
                 document.getElementById('group').innerHTML = `<option>${escapeHtml(batch || '—')}</option>`;
             };
             form.elements.admissionCourse.addEventListener('change', showBatch);
+            // A short course: starts today (the day of applying), ends after its length (e.g. 3 MONTHS)
+            const showShortCourse = () => {
+                const box = document.getElementById('shortCourseDates');
+                const c = (options.shortCourses || {})[form.elements.admissionCourse.value];
+                box.hidden = !c;
+                if (!c) return;
+                const start = options.today || new Date().toLocaleDateString('en-CA');
+                const [y, m, d] = start.split('-').map(Number);
+                const n = c.duration, t = String(c.durationType).toUpperCase().replace(/S$/, '');
+                const end = (t === 'YEAR' ? new Date(Date.UTC(y + n, m - 1, d - 1)) : t === 'WEEK' ? new Date(Date.UTC(y, m - 1, d + n * 7 - 1))
+                    : t === 'DAY' ? new Date(Date.UTC(y, m - 1, d + n - 1)) : new Date(Date.UTC(y, m - 1 + n, d - 1))).toISOString().slice(0, 10);
+                const show = day => new Date(day + 'T00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                box.innerHTML = `<b>Short course: ${escapeHtml(n + ' ' + (n === 1 ? t : t + 'S'))}</b> - it starts on the day you apply, `
+                    + `<b>${show(start)}</b>, and ends on <b>${show(end)}</b>.`;
+            };
+            form.elements.admissionCourse.addEventListener('change', showShortCourse);
+            showShortCourse();
             showBatch();
         }
 
