@@ -1211,7 +1211,8 @@
                 banner: 'Enter new course information.', formGrid: 'grid-2',
                 // In form order, filled left to right; hideInList fields are on the form only, not in the table
                 fields: [
-                    { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Hair & Beauty Therapy' },
+                    // (the list shows the full name the course is picked by everywhere, e.g. "BeautyTherapy (Diploma, 2 YEARS)")
+                    { name: 'name', label: 'Name', required: true, placeholder: 'e.g. Hair & Beauty Therapy', listValue: i => courseLabel(i) },
                     // optionsFrom: choices come from that Settings list; choicesFrom: the college name in School Setup
                     { name: 'institution', label: 'Institution Name', choicesFrom: 'organization' },
                     { name: 'code', label: 'Code', placeholder: 'e.g. HBT01',
@@ -1264,17 +1265,12 @@
                 prepare: (item, items) => {
                     // 1 YEAR, 2 YEARS: the duration type follows the number
                     if (item.durationType) item.durationType = durationText(item.duration || 2, item.durationType).replace(/^\S+\s/, '');
-                    const same = name => (name || '').trim().toLowerCase() === item.name.trim().toLowerCase();
-                    const twin = items.some(i => i.id !== item.id && same(i.name));
-                    const old = items.find(i => i.id === item.id);
-                    // The course first added under a name keeps being known by the name alone
-                    const keepPlainName = old && !old.labelSuffix && same(old.name);
-                    if (twin && !keepPlainName) {
-                        // e.g. "Certificate, 1 YEAR" or "Diploma, 2 YEARS" (older "1 YEARS" names were renamed everywhere by the
-                        // server, server/settings/course-names.mjs)
-                        item.labelSuffix = [item.award, item.duration && durationText(item.duration, item.durationType)]
-                            .filter(Boolean).join(', ');
-                    } else delete item.labelSuffix;
+                    // Every course is known by its name with its award and length (user's wish), e.g.
+                    // "BeautyTherapy (Diploma, 2 YEARS)", "BeautyTherapy (Certificate, 1 YEAR)" and, for a short course,
+                    // "BeautyTherapy (Short Course, 3 MONTHS)" (the same as the server, server/settings/course-names.mjs)
+                    const suffix = [isShortCourseItem(item) ? 'Short Course' : item.award,
+                        item.duration ? durationText(item.duration, item.durationType) : ''].filter(Boolean).join(', ');
+                    if (suffix) item.labelSuffix = suffix; else delete item.labelSuffix;
                 },
                 duplicateMessage: label => `"${label}" already exists. A course with the same name needs a different Award or Duration.`,
                 label: courseLabel,
