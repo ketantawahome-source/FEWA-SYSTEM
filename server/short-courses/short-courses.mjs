@@ -1,7 +1,7 @@
 /* ---------- Short courses (3 months) ----------
    A short course runs in a batch of its own: Settings > Organisation Setup > Batches, Batch Type
-   "SHORT COURSE (3 MONTHS)" (e.g. Jan 2027 - Mar 2027 (Short course)). A course is a short course when it lasts 6
-   months or less (Settings > Program Setup > Courses, Duration + Duration Type), e.g. Certificate, 3 MONTHS.
+   "SHORT COURSE (3 MONTHS)" (e.g. Jan 2027 - Mar 2027 (Short course)). A course is a short course when it is set up
+   with "Has Short Courses" YES (Settings > Program Setup > Courses, its short courses ticked), or lasts 6 months or less.
 
    - Online applicants for a short course get the next short course batch of the course's school (shortBatchFor).
    - When a short course batch has ended (its Date To has passed, Kenya time), its students are made inactive by
@@ -17,8 +17,10 @@ export const SHORT_BATCH = 'SHORT COURSE (3 MONTHS)';
 const kenyaToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
 const day = value => String(value || '').slice(0, 10);
 
-// 6 months or less (YEAR / YEARS, MONTH / MONTHS... both accepted)
+// "Has Short Courses" YES in Settings > Program Setup > Courses (its short courses ticked there), or 6 months or less
+// (YEAR / YEARS, MONTH / MONTHS... both accepted)
 export function isShortCourse(course) {
+    if (course && String(course.hasShortCourses || '').toUpperCase() === 'YES') return true;
     const n = Number(course && course.duration) || 0;
     const type = String((course && course.durationType) || '').toUpperCase().replace(/S$/, '');
     return n > 0 && ((type === 'MONTH' && n <= 6) || type === 'WEEK' || type === 'DAY');

@@ -1194,8 +1194,8 @@
                     { name: 'institution', label: 'Institution Name', choicesFrom: 'organization' },
                     { name: 'code', label: 'Code', placeholder: 'e.g. HBT01',
                         hint: 'Used for [PROG] / [CLS] in registration numbers. Blank uses the initials of the name.' },
-                    // Duration: a dropdown (1 to 12), with Duration Type beside it: 1 YEAR, 2 YEARS, 3 MONTHS...
-                    { name: 'duration', label: 'Duration', options: Array.from({ length: 12 }, (_, n) => String(n + 1)), placeholder: '-- select one --',
+                    // Duration: typed (a number), with the Duration Type dropdown right after it: 1 YEAR, 2 YEARS, 3 MONTHS...
+                    { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 1',
                         listValue: i => durationText(i.duration, i.durationType) },
                     // YEAR for 1 year, YEARS for more (either way, it is saved to match the number: 1 YEAR, 2 YEARS)
                     { name: 'durationType', label: 'Duration Type', options: ['YEAR', 'YEARS', 'MONTH', 'MONTHS', 'WEEK', 'WEEKS', 'DAY', 'DAYS'],
