@@ -13,6 +13,28 @@
     <script src="topbar-search.js?v=20261111c"></script>
     <script>requireLogin();</script>
     <link rel="stylesheet" href="styles.css?v=20261125b">
+    <style>
+        /* Headline numbers: five across with today's attendance */
+        .dash-grid-4.dash-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        .dash-grid-4.dash-grid-5.no-attendance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        @media (max-width: 1250px) { .dash-grid-4.dash-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 900px) { .dash-grid-4.dash-grid-5, .dash-grid-4.dash-grid-5.no-attendance { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+        /* Today's attendance: coloured by how many are present (green, amber, red; grey before any register) */
+        .att-card { position: relative; display: flex; flex-direction: column; padding: 0 !important; overflow: hidden; color: #fff;
+            border-top: 0 !important; background: #8b8597; }
+        .att-card[hidden] { display: none; }
+        .att-card.att-good { background: #2e8b57; } .att-card.att-risk { background: #d08a00; } .att-card.att-poor { background: #dd4b39; }
+        .att-body { flex: 1; padding: 16px 76px 12px 18px; }
+        .att-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
+        .att-label { font-size: 14px; opacity: .9; }
+        .att-note { font-size: 13px; margin-top: 8px; opacity: .95; }
+        .att-pie { position: absolute; top: 16px; right: 14px; width: 50px; height: 50px; opacity: .9; }
+        .att-foot { display: block; text-align: center; padding: 7px 10px; font-size: 13px; font-weight: 700; color: #fff !important;
+            background: rgba(0, 0, 0, .14); text-decoration: none; }
+        @media (max-width: 500px) { .att-pie { display: none; } .att-body { padding-right: 14px; } .att-value { font-size: 21px; } }
+        .att-foot:hover { background: rgba(0, 0, 0, .24); }
+        .att-foot svg { width: 13px; height: 13px; vertical-align: -2px; margin-left: 4px; }
+    </style>
 </head>
 
 <body>
@@ -176,7 +198,21 @@
             </div>
 
             <!-- Headline numbers -->
-            <div class="dash-grid-4">
+            <div class="dash-grid-4 dash-grid-5 no-attendance" id="dashStats">
+                <!-- Today's attendance from the Roll Call registers (hidden for a role that cannot read them) -->
+                <div class="dash-card att-card" id="attCard" hidden>
+                    <div class="att-body">
+                        <div class="att-label">Today's attendance</div>
+                        <div class="att-value" id="attPercent">—</div>
+                        <div class="att-note" id="attCounts">No register taken yet today</div>
+                    </div>
+                    <svg class="att-pie" viewBox="0 0 42 42" aria-hidden="true">
+                        <circle cx="21" cy="21" r="15.9" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="8"/>
+                        <circle id="attArc" cx="21" cy="21" r="15.9" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="8"
+                            stroke-dasharray="0 100" stroke-dashoffset="25"/>
+                    </svg>
+                    <a class="att-foot" href="RollCall.html?tab=today">Current Day Attendance<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M10 8l4 4-4 4"/></svg></a>
+                </div>
                 <div class="dash-card dash-stat">
                     <div class="dash-stat-label">Active students</div>
                     <div id="statActive" class="dash-stat-value">—</div>
@@ -428,6 +464,34 @@
                 : '<tr class="empty-row"><td colspan="4">No applications yet.</td></tr>';
         }
 
+        /* Today's attendance: every student marked in today's Roll Call registers, once each (with more than one
+           register, the mark that matters most: absent, then late, excused, present). Present = present + late. */
+        async function renderTodayAttendance() {
+            const registers = await fewaDB.getAll('attendance_registers').catch(() => null);
+            document.getElementById('attCard').hidden = !registers;
+            document.getElementById('dashStats').classList.toggle('no-attendance', !registers);
+            if (!registers) return;
+            const day = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' });
+            const WEIGHT = { Absent: 4, Late: 3, Excused: 2, Present: 1 };
+            const marks = new Map();
+            for (const r of registers.filter(r => r.registerDate === day)) for (const m of r.marks || []) {
+                const was = marks.get(m.studentId);
+                if (!was || WEIGHT[m.status] > WEIGHT[was]) marks.set(m.studentId, m.status);
+            }
+            const count = status => [...marks.values()].filter(s => s === status).length;
+            const present = count('Present') + count('Late'), absent = count('Absent'), late = count('Late'), excused = count('Excused');
+            const counted = present + absent;
+            const pc = counted ? Math.round(present * 100 / counted) : null;
+            const card = document.getElementById('attCard');
+            card.classList.remove('att-good', 'att-risk', 'att-poor');
+            if (pc !== null) card.classList.add(pc >= 75 ? 'att-good' : pc >= 50 ? 'att-risk' : 'att-poor');
+            document.getElementById('attPercent').textContent = pc === null ? '—' : `${pc}% Present`;
+            document.getElementById('attCounts').textContent = marks.size
+                ? `${present} Present | ${absent} Absent` + (late ? ` (${late} late)` : '') + (excused ? ` | ${excused} Excused` : '')
+                : 'No register taken yet today';
+            document.getElementById('attArc').setAttribute('stroke-dasharray', `${pc || 0} ${100 - (pc || 0)}`);
+        }
+
         async function loadDashboard() {
             const today = new Date();
             const settings = await readAll('settings');
@@ -443,6 +507,8 @@
             document.getElementById('statNew').innerText = students.filter(s => inTerm(s.createdAt)).length;
             document.getElementById('statLeft').innerText =
                 left.filter(s => inTerm(s.exitDate || s.statusRecordedAt)).length;
+
+            renderTodayAttendance();
 
             // Teaching staff are tutors, trainers and lecturers; everyone else active is support staff
             const staff = getAccounts();

@@ -4047,6 +4047,28 @@
             role: { label: 'Role', all: '-- all roles --', choices: async () => [...new Set([...(await getSettingLabels('roles')),
                 ...getAccounts().map(a => a.jobTitle).filter(Boolean)])].sort() },
             staffStatus: { label: 'Status', all: '-- all staff --', choices: async () => ['Active', 'Inactive'] },
+            // Roll Call reports
+            courseRequired: { label: 'Course', all: '-- select one --', required: true, field: 'course', choices: () => getSettingLabels('courses') },
+            year: { label: 'Year Admitted', all: '-- all years --', choices: async () =>
+                [...new Set((await getAll('students')).map(s => (dayOf(s.createdAt) || '').slice(0, 4)).filter(Boolean))].sort().reverse() },
+            batch: { label: 'Batch', all: '-- all batches --', choices: () => batchNames() },
+            attPeriod: { label: 'Period Name', all: '-- all periods --', choices: async () => {
+                const [registers, schedules] = await Promise.all(['attendance_registers', 'period_schedules'].map(s => fewaDB.getAll(s).catch(() => [])));
+                const most = Math.max(3, ...[...registers.map(r => r.period), ...schedules.map(p => p.period)]
+                    .map(p => Number(String(p || '').replace(/\D+/g, '')) || 0));
+                return Array.from({ length: most }, (_, i) => `SEMESTER ${i + 1}`);
+            } },
+            unit: { label: 'Unit Name', all: '-- all units --', choices: async () => {
+                const [registers, units] = await Promise.all(['attendance_registers', 'units'].map(s => fewaDB.getAll(s).catch(() => [])));
+                return [...new Set(registers.map(r => r.unitCode).filter(Boolean))].map(code => {
+                    const u = units.find(x => String(x.code).toLowerCase() === String(code).toLowerCase());
+                    return u ? `${u.code} - ${u.title || ''}` : code;
+                }).sort();
+            } },
+            rcSession: { label: 'Rollcall Session', all: '-- all rollcall sessions --', choices: async () => ['Whole day', 'Morning', 'Afternoon', 'Evening'] },
+            // Typed, with the students to pick from
+            student: { label: 'Student', typed: true, placeholder: 'Type the name or AdmNo', choices: async () =>
+                (await getAll('students')).sort((a, b) => fullName(a).localeCompare(fullName(b))).map(studentOptionLabel) },
             // A year or a term: used instead of the From / To dates
             period: { label: 'Year or Semester', all: '-- use the dates below --', choices: async () => {
                 const { terms, years } = await periodChoices(await getAll('students'));
@@ -4191,6 +4213,31 @@
                     };
                 }
             },
+            // Roll Call: the same reports as Student Reports (same filters, same figures), as a spreadsheet
+            {
+                key: 'rollCallList', category: 'Roll Call', title: 'Roll Call List',
+                about: 'A class list with empty Mon - Fri columns for two weeks, to take the roll by hand.',
+                filters: ['courseRequired', 'year', 'enrollment', 'batch', 'status'],
+                build: f => rollCallSheet('ROLL_CALL_LIST', f)
+            },
+            {
+                key: 'classCheckList', category: 'Roll Call', title: 'Class Check List',
+                about: 'A class list with phone, batch, a check box, signature and remarks.',
+                filters: ['courseRequired', 'year', 'enrollment', 'batch', 'status'],
+                build: f => rollCallSheet('CLASS_CHECK_LIST', f)
+            },
+            {
+                key: 'attendance', category: 'Roll Call', title: 'Students Attendance',
+                about: 'Class Attendance Report: each student\'s registers, present, late, absent, excused and attendance %.',
+                filters: ['course', 'year', 'enrollment', 'batch', 'attPeriod', 'unit', 'student', 'rcSession'], dateLabel: 'Register Date',
+                build: f => rollCallSheet('ATTENDANCE', f)
+            },
+            {
+                key: 'attendanceMatrix', category: 'Roll Call', title: 'Attendance Matrix',
+                about: 'Class Attendance Report Matrix: one line per student, one column per day (P, A, L, E), then the totals and attendance %.',
+                filters: ['course', 'year', 'enrollment', 'batch', 'attPeriod', 'student', 'rcSession'], dateLabel: 'Register Date',
+                build: f => rollCallSheet('ATTENDANCE_MATRIX', f)
+            },
             {
                 key: 'staff', category: 'HR & Payroll', title: 'Staff List', adminOnly: true,
                 about: 'Staff accounts: role, access level, contacts and status.',
@@ -4206,6 +4253,42 @@
                 })
             }
         ];
+
+        /* A Roll Call report of Student Reports as spreadsheet rows: its tables one under the other, as plain text
+           (the matrix: Batch on every line and the full date over each day). */
+        async function rollCallSheet(key, f) {
+            if (f.rcSession === 'Whole day') f.rcSession = '(day)';
+            const courses = await getSettingItems('courses');
+            reportCourseSchools = new Map(courses.map(c => [courseLabel(c), c.institute || '']));
+            const result = await STUDENT_LIST_REPORTS[key].build({ ...f, student: (f.student || '').trim() });
+            if (result.error) return { error: result.error };
+            const text = html => {
+                const box = document.createElement('div');
+                box.innerHTML = String(html ?? '');
+                box.querySelectorAll('.report-checkbox').forEach(b => b.remove()); // an empty box to tick by hand
+                return box.textContent.replace(/ /g, ' ').trim();
+            };
+            const out = { headers: [], rows: [] };
+            for (const section of result.sections || []) {
+                if (section.rawTable) {
+                    const table = new DOMParser().parseFromString(section.rawTable, 'text/html').querySelector('table');
+                    const days = [...table.querySelectorAll('thead tr:nth-child(2) th.mx-day')].map(th => th.title);
+                    out.headers = ['Batch', 'Adm No. - Student', ...days, 'Present', 'Absent', 'Late', 'Excused', 'Attendance'];
+                    let batch = '';
+                    for (const tr of table.querySelectorAll('tbody tr')) {
+                        const cells = [...tr.cells];
+                        if (cells[0].classList.contains('mx-batch')) batch = text(cells.shift().innerHTML);
+                        out.rows.push([batch, ...cells.map(td => text(td.innerHTML))]);
+                    }
+                    continue;
+                }
+                if (!section.rows.length) continue;
+                if (!out.headers.length) out.headers = section.headers.map(text);
+                else out.rows.push([], [text(section.title || '')], section.headers.map(text));
+                out.rows.push(...section.rows.map(row => row.map(text)));
+            }
+            return out;
+        }
 
         // The Excel Reports table: Category | Report Name | Action, with a search box per column,
         // click a heading to sort, and 10 / 25 / 50 / 100 per page
@@ -4301,9 +4384,12 @@
             for (const name of report.filters) {
                 const filter = EXCEL_FILTERS[name];
                 const choices = await filter.choices();
-                selects.push(`
-                    <label for="excelFilter_${name}">${filter.label}</label>
-                    <select id="excelFilter_${name}" name="${name}">
+                const field = filter.field || name;
+                const label = `<label for="excelFilter_${name}">${filter.label}${filter.required ? ' <span class="req">*</span>' : ''}</label>`;
+                selects.push(filter.typed ? `${label}
+                    <input type="text" id="excelFilter_${name}" name="${field}" list="excelList_${name}" autocomplete="off" placeholder="${escapeHtml(filter.placeholder || '')}">
+                    <datalist id="excelList_${name}">${choices.map(c => `<option value="${escapeHtml(c)}">`).join('')}</datalist>` : `${label}
+                    <select id="excelFilter_${name}" name="${field}"${filter.required ? ' required' : ''}>
                         <option value="">${filter.all}</option>
                         ${choices.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
                     </select>`);
@@ -4345,7 +4431,9 @@
             }
             if (f.dateFrom && f.dateTo && f.dateTo < f.dateFrom) return alert('The "To" date cannot be before the "From" date.');
 
-            const { headers, rows } = await report.build(f);
+            const built = await report.build(f);
+            if (built.error) return alert(built.error);
+            const { headers, rows } = built;
             if (!rows.length) return alert(`Nothing in "${report.title}" matches these choices.`);
             const period = chosenPeriod ? ` ${f.period}`
                 : f.dateFrom || f.dateTo ? ` ${f.dateFrom || 'start'} to ${f.dateTo || 'today'}` : '';

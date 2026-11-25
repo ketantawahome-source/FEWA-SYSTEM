@@ -119,6 +119,33 @@
         .rc-mark-row { grid-template-columns: 34px minmax(0, 1fr) auto 110px minmax(120px, 220px); }
         .rc-mark-late { width: 100%; box-sizing: border-box; font-size: 13px; padding: 6px 9px; border: 1px solid #d6d0de; border-radius: 4px; }
         .rc-mark-late:disabled { background: #f6f6f8; }
+        /* Current day attendance */
+        .rc-tabline { border-bottom: 1px solid #e6e8ee; padding: 0 20px; margin: 0 0 18px !important; }
+        .rc-tabname { display: inline-block; padding: 12px 18px; font-size: 15px; font-weight: 700; color: #333; border-top: 3px solid #3c8dbc;
+            border-left: 1px solid #e6e8ee; border-right: 1px solid #e6e8ee; background: #fff; margin-bottom: -1px; }
+        .td-tools { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 18px !important; margin-bottom: 10px !important; }
+        .td-left, .td-right { display: flex; flex-direction: column; gap: 8px; }
+        .td-right { flex-direction: row; flex-wrap: wrap; gap: 16px; }
+        .td-excel { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+        .td-excel svg { width: 16px; height: 16px; }
+        .td-show { font-size: 15px; color: #333; display: inline-flex; align-items: center; gap: 6px; }
+        .td-show select, .td-show input { font-size: 14px; padding: 6px 8px; border: 1px solid #ccd1d9; border-radius: 2px; min-height: 34px; box-sizing: border-box; }
+        .td-show select { min-width: 110px; }
+        .td-show input[type="search"] { width: 230px; }
+        .td-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+        .td-table th.sort-asc::after { content: ' \25B2'; font-size: 10px; } .td-table th.sort-desc::after { content: ' \25BC'; font-size: 10px; }
+        .td-table .td-search-row th { cursor: default; padding-top: 4px; padding-bottom: 8px; }
+        .td-table .td-search-row input { width: 100%; min-width: 80px; box-sizing: border-box; font-size: 12px; padding: 4px 7px; border: 1px solid #d6dbe3; border-radius: 3px; }
+        .td-table tbody tr:nth-child(odd) td { background: #f9f9fa; }
+        .td-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px !important; font-size: 14px; color: #555; }
+        .td-pager button { min-width: 32px; height: 30px; margin-left: 3px; border: 1px solid #d6dbe3; background: #fff; border-radius: 3px; cursor: pointer; }
+        .td-pager button.on { background: #3c8dbc; border-color: #3c8dbc; color: #fff; }
+        .td-pager button:disabled { opacity: .5; cursor: default; }
+        @media (max-width: 700px) {
+            .td-right { flex-direction: column; gap: 8px; width: 100%; }
+            .td-show input[type="search"], .td-show input[type="date"] { flex: 1; width: auto; }
+            .td-right .td-show { width: 100%; }
+        }
         /* The students, as the reference: a plain table with a Present / Absent / Late switch */
         .rc-sum { font-size: 15px; color: #666; margin: 12px 0 12px; }
         .rc-sum b, .rc-sum-text { color: #444; font-weight: 700; }
@@ -437,6 +464,30 @@
                 </div>
             </div>
 
+            <!-- ===== Current day attendance (from the Dashboard): each class's population, present, absent and % present ===== -->
+            <div id="rcToday" class="form-section rc-section rc-panel" hidden>
+                <div class="rc-tabline"><span class="rc-tabname">Current day attendance</span></div>
+                <div class="rc-info">Search any column with the boxes under the headings, sort by clicking a heading, and save the whole list with Download Excel.</div>
+                <div class="td-tools">
+                    <div class="td-left">
+                        <button type="button" class="rc-clear td-excel" onclick="downloadToday()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6M9 12l6 6M15 12l-6 6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg> Download Excel</button>
+                        <label class="td-show">Show <select id="tdSize" onchange="tdPage = 1; renderToday()"><option>10</option><option selected>20</option><option>50</option><option>100</option><option value="0">All</option></select> entries</label>
+                    </div>
+                    <div class="td-right">
+                        <label class="td-show">Date <input type="date" id="tdDay" onchange="tdPage = 1; renderToday()"></label>
+                        <label class="td-show">Search: <input type="search" id="tdSearch" oninput="tdPage = 1; renderToday()"></label>
+                    </div>
+                </div>
+                <div class="table-wrap"><table class="data-table rc-table td-table">
+                    <thead>
+                        <tr id="tdHead"></tr>
+                        <tr class="td-search-row" id="tdSearchRow"></tr>
+                    </thead>
+                    <tbody id="tdRows"></tbody>
+                </table></div>
+                <div class="td-foot"><span id="tdCount"></span><span class="td-pager" id="tdPager"></span></div>
+            </div>
+
             <!-- ===== Registers taken ===== -->
             <div id="rcTaken" class="form-section rc-section" hidden>
                 <div class="rc-banner">The registers taken: choose the days (and a course, batch or unit to narrow the list). The pencil opens a register to correct it.</div>
@@ -520,7 +571,7 @@
            every active student of the course and batch when none is registered. */
         const $ = id => document.getElementById(id);
         const params = new URLSearchParams(location.search);
-        const TAB = ['mark', 'taken', 'nottaken', 'status'].includes(params.get('tab')) ? params.get('tab') : 'status';
+        const TAB = ['mark', 'taken', 'nottaken', 'status', 'today'].includes(params.get('tab')) ? params.get('tab') : 'status';
         const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
         const MARK_CHOICES = ['Present', 'Absent', 'Late']; // the switch on Mark Register, as the reference
         const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
@@ -945,6 +996,90 @@
                 .catch(err => alert(err.message));
         }
 
+        /* ---------- Current day attendance ----------
+           Every class (course + batch with active students): its school, population, and the students marked present
+           (present or late) and absent in that day's registers; a student in several registers counts once, by the
+           mark that matters most (absent, then late, excused, present). */
+        const TD_COLUMNS = [
+            { key: 'school', label: 'School' }, { key: 'course', label: 'Course' }, { key: 'batch', label: 'Class (Batch)' },
+            { key: 'population', label: 'Class population', num: true }, { key: 'present', label: 'Present', num: true },
+            { key: 'absent', label: 'Absent', num: true }, { key: 'pct', label: '% present', num: true }
+        ];
+        let tdData = [], tdShown = [], tdPage = 1, tdSort = { key: 'school', dir: 1 };
+
+        function todayClasses(day) {
+            const WEIGHT = { Absent: 4, Late: 3, Excused: 2, Present: 1 };
+            const marks = new Map();
+            for (const r of registers.filter(r => r.registerDate === day)) for (const m of r.marks || []) {
+                const was = marks.get(m.studentId);
+                if (!was || WEIGHT[m.status] > WEIGHT[was]) marks.set(m.studentId, m.status);
+            }
+            const classes = new Map();
+            for (const s of activeStudents()) {
+                if (!s.admissionCourse) continue;
+                const key = `${s.admissionCourse}\u0000${s.group || ''}`;
+                const c = classes.get(key) || { school: (courseItems.find(x => same(x.name, s.admissionCourse)) || {}).school || '',
+                    course: s.admissionCourse, batch: s.group || '', population: 0, present: 0, absent: 0 };
+                c.population++;
+                const st = marks.get(s.id);
+                if (st === 'Present' || st === 'Late') c.present++;
+                else if (st === 'Absent') c.absent++;
+                classes.set(key, c);
+            }
+            return [...classes.values()].map(c => ({ ...c, pct: c.present + c.absent ? Math.round(c.present * 100 / (c.present + c.absent)) : 0 }));
+        }
+
+        function startToday() {
+            $('tdDay').value = today();
+            $('tdDay').max = today();
+            $('tdHead').innerHTML = TD_COLUMNS.map(c => `<th data-key="${c.key}"${c.num ? ' class="num"' : ''} onclick="sortToday('${c.key}')">${c.label}</th>`).join('');
+            $('tdSearchRow').innerHTML = TD_COLUMNS.map(c => `<th><input type="search" data-key="${c.key}" placeholder="Search..." aria-label="Search ${c.label}" oninput="tdPage = 1; renderToday()"></th>`).join('');
+            renderToday();
+        }
+
+        function sortToday(key) {
+            tdSort = { key, dir: tdSort.key === key ? -tdSort.dir : 1 };
+            renderToday();
+        }
+
+        function renderToday() {
+            tdData = todayClasses($('tdDay').value || today());
+            const all = $('tdSearch').value.trim().toLowerCase();
+            const per = [...document.querySelectorAll('#tdSearchRow input')].map(i => [i.dataset.key, i.value.trim().toLowerCase()]).filter(([, v]) => v);
+            const col = TD_COLUMNS.find(c => c.key === tdSort.key);
+            tdShown = tdData.filter(r => (!all || TD_COLUMNS.some(c => String(r[c.key]).toLowerCase().includes(all)))
+                && per.every(([k, v]) => String(r[k]).toLowerCase().includes(v)))
+                .sort((a, b) => (col.num ? a[col.key] - b[col.key] : String(a[col.key]).localeCompare(String(b[col.key]), undefined, { numeric: true })) * tdSort.dir
+                    || a.school.localeCompare(b.school) || a.course.localeCompare(b.course) || a.batch.localeCompare(b.batch));
+            document.querySelectorAll('#tdHead th').forEach(th => {
+                th.classList.toggle('sort-asc', th.dataset.key === tdSort.key && tdSort.dir === 1);
+                th.classList.toggle('sort-desc', th.dataset.key === tdSort.key && tdSort.dir === -1);
+            });
+            const size = Number($('tdSize').value) || tdShown.length || 1;
+            const pages = Math.max(1, Math.ceil(tdShown.length / size));
+            tdPage = Math.min(tdPage, pages);
+            const first = (tdPage - 1) * size;
+            $('tdRows').innerHTML = tdShown.length ? tdShown.slice(first, first + size).map(r => `<tr>
+                <td>${escapeHtml(r.school || '—')}</td><td>${escapeHtml(r.course)}</td><td>${escapeHtml(r.batch || '—')}</td>
+                <td class="num">${r.population}</td><td class="num">${r.present}</td><td class="num">${r.absent}</td>
+                <td class="num">${r.present + r.absent ? `<span class="rc-pct ${pctClass(r.pct)}">${r.pct}</span>` : '0'}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="${TD_COLUMNS.length}">${tdData.length ? 'No class matches the search.' : 'There is no active student in any class.'}</td></tr>`;
+            $('tdCount').textContent = tdShown.length ? `Showing ${first + 1} to ${Math.min(first + size, tdShown.length)} of ${tdShown.length} classes` : '';
+            const button = (label, page, on, off) => `<button type="button"${on ? ' class="on"' : ''}${off ? ' disabled' : ''} onclick="tdPage = ${page}; renderToday()">${label}</button>`;
+            $('tdPager').innerHTML = pages > 1 ? button('&laquo;', tdPage - 1, false, tdPage === 1) +
+                Array.from({ length: pages }, (_, i) => button(i + 1, i + 1, i + 1 === tdPage)).join('') + button('&raquo;', tdPage + 1, false, tdPage === pages) : '';
+        }
+
+        function downloadToday() {
+            if (!tdShown.length) return alert('There is nothing to download: no class is listed.');
+            const day = $('tdDay').value || today();
+            FewaExcel.writeWorkbook(`current-day-attendance-${day}.xlsx`, [{ name: 'Attendance ' + day, freeze: true,
+                widths: [30, 34, 22, 16, 10, 10, 11],
+                rows: [TD_COLUMNS.map(c => ({ v: c.label, s: 9 })), ...tdShown.map(r => [r.school, r.course, r.batch,
+                    String(r.population), String(r.present), String(r.absent), String(r.pct)])] }])
+                .catch(err => alert(err.message));
+        }
+
         /* ---------- Opening the page ---------- */
         function showCurrentUser() {
             const account = currentAccount();
@@ -955,16 +1090,17 @@
 
         async function start() {
             showCurrentUser();
-            const menu = { mark: 'menuRcMark', taken: 'menuRcTaken', nottaken: 'menuRcNotTaken', status: 'menuRcStatus' }[TAB];
+            const menu = { mark: 'menuRcMark', taken: 'menuRcTaken', nottaken: 'menuRcNotTaken', status: 'menuRcStatus', today: 'menuRcStatus' }[TAB];
             document.getElementById(menu).classList.add('active');
             const need = TAB === 'mark' ? ['attendance', 'mark'] : ['attendance', 'view'];
-            if (!can(...need)) {
+            // Current day attendance opens from the Dashboard: Reports readers may see it too
+            if (!can(...need) && !(TAB === 'today' && can('reports', 'view'))) {
                 $('rcNoRight').hidden = false;
                 $('rcNoRightText').textContent = `You do not have the right to ${TAB === 'mark' ? 'mark registers' : 'open Roll Call Management'}. ` +
                     'Ask an administrator to assign it to your role under Settings > Access Management > Role Operations.';
                 return;
             }
-            document.title = { mark: 'Mark Register', taken: 'Registers taken', nottaken: 'Registers not taken', status: 'Attendance Status' }[TAB] +
+            document.title = { mark: 'Mark Register', taken: 'Registers taken', nottaken: 'Registers not taken', status: 'Attendance Status', today: 'Current day attendance' }[TAB] +
                 ' - FEWA Beauty & Fashion College';
             await loadData();
             const courseChoices = courses.map(c => [c, c]), batchChoices = batches.map(b => [b, b]);
@@ -1000,10 +1136,14 @@
                     $('mkUnit').value = params.get('unit') || '';
                     markChoicesChanged(true);
                 }
+            } else if (TAB === 'today') {
+                $('rcToday').hidden = false;
+                startToday();
             } else if (TAB === 'taken') {
                 $('rcTaken').hidden = false;
                 const t = today();
-                $('tkFrom').value = t.slice(0, 8) + '01';
+                // From the Dashboard's "Current Day Attendance": today's registers only
+                $('tkFrom').value = params.get('day') === 'today' ? t : t.slice(0, 8) + '01';
                 $('tkTo').value = t;
                 fill($('tkCourse'), courseChoices, 'All courses');
                 fill($('tkBatch'), batchChoices, 'All batches');
