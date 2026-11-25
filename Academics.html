@@ -1034,6 +1034,11 @@
                 showToast(`Unit ${code} ${before ? 'updated' : 'saved'}.`);
                 clearUnitForm();
                 await loadData();
+                if (shortSetup && same(shortSetup.code, code) && unitByCode(code)) {
+                    const { course } = shortSetup;
+                    shortSetup = null;
+                    backToCourseUnits(course, unitByCode(code));
+                }
             } catch (err) { alert('The unit could not be saved: ' + err.message); }
         }
 
@@ -1506,41 +1511,52 @@
             const box = $('pmShort'), course = $('pmCourse').value, list = shortCourseUnits(course);
             box.hidden = !list.length;
             if (!list.length) { box.innerHTML = ''; return; }
-            // One by one (user): each short course has its own Add button and its own question
+            // One by one, like any other unit (user): Set up opens the Units register with the code and title filled in
+            // (enter the credit hours, Save unit), then comes back here with the unit filled in for Add unit to course
             box.innerHTML = `<div class="pm-short-head"><span class="sch-short-badge">Short course</span>
-                    <span>The short courses ticked for <b>${escapeHtml(course)}</b> (Settings &gt; Courses) are its units.
-                    Confirm them one by one: <b>Add</b> asks before it saves each one.</span></div>
+                    <span>The short courses ticked for <b>${escapeHtml(course)}</b> (Settings &gt; Courses) are its units. Set them up one by one:
+                    <b>Set up</b> opens the Units register with the code and title filled in (enter the credit hours and Save unit), then
+                    brings you back here to <b>Add unit to course</b>.</span></div>
                 <div class="pm-short-list">${list.map((x, i) => {
                     const state = x.mapped ? '<span class="pm-short-state pm-short-done">&#10003; already a unit of this course</span>'
                         : x.clash ? `<span class="pm-short-state pm-short-clash">code ${escapeHtml(x.code)} is already used by "${escapeHtml(x.clashTitle)}"</span>`
                         : !x.code ? '<span class="pm-short-state pm-short-clash">no code: add one in Settings &gt; Short Courses</span>'
-                        : x.unit ? '<span class="pm-short-state">in the Units register</span>'
-                        : '<span class="pm-short-state">new: goes into the Units register too</span>';
+                        : x.unit ? '<span class="pm-short-state">in the Units register: add it to the course</span>'
+                        : '<span class="pm-short-state">not yet in the Units register</span>';
                     const can = !x.mapped && !x.clash && x.code && mayEdit();
                     return `<div class="pm-short-item"><span><span class="pm-short-code">${escapeHtml(x.code || '-')}</span> ${escapeHtml(x.name)}${state}</span>
-                        ${can ? `<button type="button" class="btn-secondary pm-short-add" data-edit onclick="addShortCourseUnit(${i})">Add</button>` : ''}</div>`;
+                        ${can ? `<button type="button" class="btn-secondary pm-short-add" onclick="setUpShortCourseUnit(${i})">Set up</button>` : ''}</div>`;
                 }).join('')}</div>
                 ${list.every(x => x.mapped) ? '<div class="sched-note">All of them are units of this course.</div>' : ''}`;
         }
 
-        async function addShortCourseUnit(index) {
+        // The short course being set up in the Units register: after Save unit, back to Course units with it filled in
+        let shortSetup = null;
+        function setUpShortCourseUnit(index) {
             if (!allowed('academics', 'edit')) return;
             const course = $('pmCourse').value, x = shortCourseUnits(course)[index];
             if (!x || x.mapped || x.clash || !x.code) return renderShortCourseUnits();
-            if (!await fewaConfirm(`Add ${x.code} - ${x.name} as a unit of ${course} (all academic years, the whole course)?` +
-                (x.unit ? '' : `\n\nIt is new: it goes into the Units register too (code ${x.code}, title ${x.name}).`),
-                { yes: 'Yes, add', danger: false })) return;
-            try {
-                let unit = x.unit;
-                if (!unit) {
-                    unit = { id: newId(), code: x.code, title: x.name, creditHours: null, createdAt: new Date().toISOString() };
-                    await save('units', unit);
-                }
-                await save('programme_units', { id: newId(), course, unitCode: unit.code, yearOfStudy: 1, semester: 1, batch: '',
-                    unitType: $('pmCluster').value || 'Course units' });
-                showToast(`${unit.code} - ${unit.title} added to ${course}.`);
-            } catch (err) { alert(`${x.code} could not be added: ` + err.message); }
-            await loadData();
+            if (x.unit) return backToCourseUnits(course, x.unit);
+            shortSetup = { course, code: x.code };
+            showTab('units');
+            clearUnitForm();
+            const form = $('unitForm');
+            form.elements.code.value = x.code;
+            form.elements.title.value = x.name;
+            form.elements.creditHours.value = '';
+            form.elements.creditHours.focus();
+            showToast(`${x.code} - ${x.name}: enter the credit hours, then Save unit.`);
+        }
+        function backToCourseUnits(course, unit) {
+            showTab('programme');
+            const box = $('pmCourse');
+            if (box.value !== course) { box.value = course; box.dispatchEvent(new Event('change', { bubbles: true })); }
+            stopEditingMapping();
+            $('pmUnit').value = unitLabel(unit);
+            renderProgrammeMapping();
+            $('pmAdd').scrollIntoView({ block: 'center' });
+            $('pmAdd').focus();
+            showToast(`${unit.code} - ${unit.title} is filled in: press Add unit to course.`);
         }
 
         // "HBT 101 - Hair Basics", "HBT 101" or the title, as typed
