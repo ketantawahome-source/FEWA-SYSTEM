@@ -364,6 +364,13 @@
             for (const id of ['studentType', 'group']) {
                 document.getElementById(id).innerHTML = `<option>${escapeHtml(options[id] || '—')}</option>`;
             }
+            // A short course (3 months) has its own batch: shown as soon as the course is chosen
+            const showBatch = () => {
+                const batch = (options.groupByCourse || {})[form.elements.admissionCourse.value] || options.group;
+                document.getElementById('group').innerHTML = `<option>${escapeHtml(batch || '—')}</option>`;
+            };
+            form.elements.admissionCourse.addEventListener('change', showBatch);
+            showBatch();
         }
 
         // Age, worked out from the date of birth

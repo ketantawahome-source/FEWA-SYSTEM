@@ -25,7 +25,7 @@ const activeGroups = () => examRows('exam_groups').filter(g => g.status !== 'INA
 function classChoices(courseName) {
     const c = courseItems.find(x => x.name === courseName);
     if (!c) return [];
-    const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase();
+    const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase().replace(/^(YEAR|MONTH|WEEK|DAY)$/, '$1S');
     const fromUnits = Math.max(0, ...programmeUnits.filter(p => p.course === courseName).map(p => Number(p.yearOfStudy) || 0));
     const years = Math.max(1, fromUnits, type === 'YEARS' ? n : type === 'MONTHS' ? Math.ceil(n / 12) : 1);
     return Array.from({ length: years }, (_, i) => [`YEAR ${i + 1}`, `YEAR ${i + 1} - ${courseName}`]);

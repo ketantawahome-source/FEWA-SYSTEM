@@ -1164,6 +1164,25 @@
         // What a course is known by (and saved on students as): its name, plus award and duration when another course shares the name
         function courseLabel(c) { return c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name; }
 
+        /* Batch types (Settings > Organisation Setup > Batches): an academic year (about 12 months), or a short course
+           batch of 3 months for the short courses (a course of 6 months or less). The server makes the students of a
+           short course batch inactive once it has ended (server/short-courses/short-courses.mjs). */
+        const BATCH_ACADEMIC = 'ACADEMIC YEAR', BATCH_SHORT = 'SHORT COURSE (3 MONTHS)';
+        const BATCH_TYPES = [BATCH_ACADEMIC, BATCH_SHORT];
+        const isShortBatch = b => !!b && b.batchType === BATCH_SHORT;
+        // Date To when left blank: 3 months (short course) or one year after Date From, less a day
+        function batchEndFrom(from, type) {
+            const [y, m, d] = from.split('-').map(Number);
+            return type === BATCH_SHORT
+                ? new Date(Date.UTC(y, m - 1 + 3, d - 1)).toISOString().slice(0, 10)
+                : new Date(Date.UTC(y + 1, m - 1, d - 1)).toISOString().slice(0, 10);
+        }
+        // "1 YEAR", "2 YEARS", "3 MONTHS" (one is singular, more are plural)
+        function durationText(duration, type) {
+            const n = Number(duration), base = String(type || '').toUpperCase().replace(/S$/, '');
+            return [duration, base && (n === 1 ? base : base + 'S')].filter(Boolean).join(' ');
+        }
+
         const SETTINGS_LISTS = {
             courses: {
                 title: 'Courses', singular: 'Course', studentField: 'admissionCourse',
@@ -1175,8 +1194,12 @@
                     { name: 'institution', label: 'Institution Name', choicesFrom: 'organization' },
                     { name: 'code', label: 'Code', placeholder: 'e.g. HBT01',
                         hint: 'Used for [PROG] / [CLS] in registration numbers. Blank uses the initials of the name.' },
-                    { name: 'duration', label: 'Duration', type: 'number', placeholder: 'e.g. 1',
-                        listValue: i => [i.duration, i.durationType].filter(Boolean).join(' ') },
+                    // Duration: a dropdown (1 to 12), with Duration Type beside it: 1 YEAR, 2 YEARS, 3 MONTHS...
+                    { name: 'duration', label: 'Duration', options: Array.from({ length: 12 }, (_, n) => String(n + 1)), placeholder: '-- select one --',
+                        listValue: i => durationText(i.duration, i.durationType) },
+                    // YEAR for 1 year, YEARS for more (either way, it is saved to match the number: 1 YEAR, 2 YEARS)
+                    { name: 'durationType', label: 'Duration Type', options: ['YEAR', 'YEARS', 'MONTH', 'MONTHS', 'WEEK', 'WEEKS', 'DAY', 'DAYS'],
+                        placeholder: '-- select one --', hideInList: true },
                     // Institute: one of the Schools saved under Program Setup > Schools
                     { name: 'institute', label: 'Institute', optionsFrom: 'schools', hideInList: true },
                     // Award: one of the Award Types saved under Program Setup > Award Types
@@ -1186,7 +1209,6 @@
                     { name: 'shortCourses', label: 'Short Courses', type: 'checklist', optionsFrom: 'shortCourses', hideInList: true,
                         showIf: ['hasShortCourses', 'YES', false], wide: true },
                     { name: 'department', label: 'Department', optionsFrom: 'departments', hideInList: true },
-                    { name: 'durationType', label: 'Duration Type', options: ['YEARS', 'MONTHS', 'WEEKS', 'DAYS'], hideInList: true },
                     { name: 'applyExamWeight', label: 'Apply Exam Weight', options: ['YES', 'NO'], hideInList: true },
                     { name: 'enabled', label: 'Course Enabled', options: ['YES', 'NO'] },
                     { name: 'use100Conversion', label: 'Use 100% Conversion', options: ['YES', 'NO'], hideInList: true },
@@ -1218,13 +1240,17 @@
                 /* The same course name can be added again with another award or duration: that one is then known by
                    its name with them, e.g. "Hair Dressing (Certificate, 6 MONTHS)", so students on each stay apart */
                 prepare: (item, items) => {
+                    // 1 YEAR, 2 YEARS: the duration type follows the number
+                    if (item.durationType) item.durationType = durationText(item.duration || 2, item.durationType).replace(/^\S+\s/, '');
                     const same = name => (name || '').trim().toLowerCase() === item.name.trim().toLowerCase();
                     const twin = items.some(i => i.id !== item.id && same(i.name));
                     const old = items.find(i => i.id === item.id);
                     // The course first added under a name keeps being known by the name alone
                     const keepPlainName = old && !old.labelSuffix && same(old.name);
                     if (twin && !keepPlainName) {
-                        item.labelSuffix = [item.award, item.duration && [item.duration, item.durationType].filter(Boolean).join(' ')]
+                        // e.g. "Certificate, 1 YEAR" or "Diploma, 2 YEARS" (older "1 YEARS" names were renamed everywhere by the
+                        // server, server/settings/course-names.mjs)
+                        item.labelSuffix = [item.award, item.duration && durationText(item.duration, item.durationType)]
                             .filter(Boolean).join(', ');
                     } else delete item.labelSuffix;
                 },
@@ -1307,6 +1333,8 @@
                 banner: "A batch is one ACADEMIC YEAR (about 12 months), for example 1 Jan 2027 to 31 Dec 2027, or 1 Sep 2026 to 31 Aug 2027 for a course that starts in September. It is not a semester: the semesters inside a batch (SEMESTER 1, 2, 3...) are set in Academic Management > Semester Schedule. Choose the school and the academic year it starts in, type Date From if it does not start in January, and Save (a blank Date To is one year later).",
                 fields: [
                     { name: 'school', label: 'School', required: true, optionsFrom: 'schools' },
+                    // ACADEMIC YEAR (about 12 months) or SHORT COURSE (3 MONTHS): a short course runs in a batch of its own
+                    { name: 'batchType', label: 'Batch Type', options: BATCH_TYPES },
                     { name: 'academicYear', label: 'Academic Year (starts in)', required: true, placeholder: '-- select one --',
                         // 2026 onwards, up to next year (2026 and 2027 now; a new year appears by itself)
                         options: Array.from({ length: Math.max(2, new Date().getFullYear() + 2 - 2026) }, (_, i) => String(2026 + i)) },
@@ -1324,6 +1352,10 @@
                 validate: i => !i.school ? 'Choose the school.' : !i.academicYear ? 'Choose the academic year.'
                     : i.dateTo < i.dateFrom ? 'Date To must be on or after Date From.'
                     : i.dateFrom.slice(0, 4) !== i.academicYear ? `Date From is in ${i.dateFrom.slice(0, 4)}: choose that as the academic year (the year the batch starts).`
+                    // A short course batch is 3 months (about 80 to 100 days)
+                    : isShortBatch(i) ? ((new Date(i.dateTo) - new Date(i.dateFrom)) / 86400000 < 80
+                        || (new Date(i.dateTo) - new Date(i.dateFrom)) / 86400000 > 100
+                        ? 'A short course batch is 3 months (e.g. 5 Jan 2027 - 4 Apr 2027): leave Date To blank and it is filled in for you.' : '')
                     // A batch is a year (11 to 13 months); a shorter period is a semester, set in the Semester Schedule
                     : (new Date(i.dateTo) - new Date(i.dateFrom)) / 86400000 < 330
                         ? 'A batch is a whole academic year (about 12 months, e.g. 1 Sep 2026 - 31 Aug 2027). A shorter period is a semester: set semesters in Academic Management > Semester Schedule.'
@@ -1333,14 +1365,12 @@
                     // A batch is a year: a blank Date From is 1 Jan of the academic year, a blank Date To one year after
                     // Date From (1 Jan - 31 Dec, or 1 Sep 2026 - 31 Aug 2027 for a course starting in September)
                     if (item.academicYear && !item.dateFrom) item.dateFrom = `${item.academicYear}-01-01`;
-                    if (item.dateFrom && !item.dateTo) {
-                        const [y, m, d] = item.dateFrom.split('-').map(Number);
-                        item.dateTo = new Date(Date.UTC(y + 1, m - 1, d - 1)).toISOString().slice(0, 10);
-                    }
+                    if (item.dateFrom && !item.dateTo) item.dateTo = batchEndFrom(item.dateFrom, item.batchType);
                     // e.g. Sep 2026 (always three letters, whatever the browser's language)
                     const month = d => d ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(d.slice(5, 7)) - 1]
                         + ' ' + d.slice(0, 4) : '';
-                    item.name = item.dateFrom && item.dateTo ? `${month(item.dateFrom)} - ${month(item.dateTo)}` : '';
+                    item.name = item.dateFrom && item.dateTo
+                        ? `${month(item.dateFrom)} - ${month(item.dateTo)}${isShortBatch(item) ? ' (Short course)' : ''}` : '';
                     // Comes after / precedes, for this batch and its neighbours (the list is saved with them)
                     linkBatches([...items.filter(i => i.id !== item.id), item]);
                 },
@@ -1495,7 +1525,9 @@
             if (chosenBatchSchool && !schools.includes(chosenBatchSchool)) chosenBatchSchool = '';
             const banner = document.getElementById('settingsBanner');
             banner.innerText = "A batch is a school's academic year (for example 1 Sep 2026 to 31 Aug 2027), not a semester: semesters are set in "
-                + 'Academic Management > Semester Schedule. Choose the school, then add or edit its batches.';
+                + 'Academic Management > Semester Schedule. A short course (3 months) has a batch of its own: choose Batch Type '
+                + 'SHORT COURSE (3 MONTHS) and Date From; Date To is filled in 3 months later. When a short course batch ends, its '
+                + 'students are made inactive by the system and can no longer log in to the Student Portal. Choose the school, then add or edit its batches.';
             banner.classList.add('info-banner');
             const years = list.fields.find(f => f.name === 'academicYear').options;
             // (value given in full: without it the browser squeezes double spaces, e.g. "School of  Cosmetology")
@@ -1509,6 +1541,11 @@
                             <option value="">-- select one --</option>${schools.map(v => option(v, chosenBatchSchool)).join('')}</select>
                         <label for="batchYear">Academic Year <span class="req">*</span></label>
                         <select id="batchYear" onchange="batchYearChosen()"><option value="">-- select one --</option>${years.map(v => option(v)).join('')}</select>
+
+                        <label for="batchType">Batch Type <span class="req">*</span></label>
+                        <div><select id="batchType" onchange="batchTypeChosen()">${BATCH_TYPES.map(v => option(v, BATCH_ACADEMIC)).join('')}</select>
+                            <small>SHORT COURSE: 3 months, for the short courses; its students are made inactive when it ends.</small></div>
+                        <span></span><span></span>
 
                         <label for="batchFrom">Date From <span class="req">*</span></label>
                         <input type="date" id="batchFrom" onchange="batchFromChosen()">
@@ -1542,9 +1579,10 @@
                 ? '<p class="batch-empty">Choose the school to see its batches.</p>'
                 : !mine.length ? '<p class="batch-empty">This school has no batches yet. Add one above.</p>'
                 : `<div class="table-wrap"><table class="data-table batch-table">
-                    <thead><tr><th>Name</th><th>Academic Year</th><th>Date From</th><th>Date To</th><th>Comes after</th><th>Comes before</th><th></th></tr></thead>
+                    <thead><tr><th>Name</th><th>Type</th><th>Academic Year</th><th>Date From</th><th>Date To</th><th>Comes after</th><th>Comes before</th><th></th></tr></thead>
                     <tbody>${mine.map(b => `<tr${b.id === batchEditing ? ' class="editing"' : ''}>
-                        <td><b>${escapeHtml(b.name)}</b></td><td>${escapeHtml(b.academicYear || '')}</td>
+                        <td><b>${escapeHtml(b.name)}</b></td>
+                        <td>${isShortBatch(b) ? '<span class="badge inactive">Short course</span>' : 'Academic year'}</td><td>${escapeHtml(b.academicYear || '')}</td>
                         <td>${batchDay(b.dateFrom)}</td><td>${batchDay(b.dateTo)}</td>
                         <td>${escapeHtml(b.comesAfter || '—')}</td><td>${escapeHtml(b.precedes || '—')}</td>
                         <td class="batch-actions"><button type="button" class="btn-small" onclick="editBatch('${b.id}')">Edit</button>
@@ -1565,21 +1603,26 @@
             previewBatch();
         }
 
-        // Date From typed: an empty Date To becomes one year later (less a day), and the academic year its year
+        // Date From typed: an empty Date To becomes one year (short course: 3 months) later, less a day, and the
+        // academic year its year
         function batchFromChosen() {
             const from = document.getElementById('batchFrom').value, to = document.getElementById('batchTo');
-            if (from && !to.value) {
-                const [y, m, d] = from.split('-').map(Number);
-                to.value = new Date(Date.UTC(y + 1, m - 1, d - 1)).toISOString().slice(0, 10);
-            }
+            if (from && !to.value) to.value = batchEndFrom(from, document.getElementById('batchType').value);
             const year = document.getElementById('batchYear');
             if (from && [...year.options].some(o => o.value === from.slice(0, 4))) year.value = from.slice(0, 4);
             previewBatch();
         }
 
+        // The batch type changed: Date To is worked out again from Date From (3 months or one year)
+        function batchTypeChosen() {
+            document.getElementById('batchTo').value = '';
+            batchFromChosen();
+        }
+
         function batchFromForm() {
             const v = id => document.getElementById(id).value.trim();
-            return { id: batchEditing || newId(), school: v('batchSchool'), academicYear: v('batchYear'), dateFrom: v('batchFrom'), dateTo: v('batchTo') };
+            return { id: batchEditing || newId(), school: v('batchSchool'), batchType: v('batchType') || BATCH_ACADEMIC, academicYear: v('batchYear'),
+                dateFrom: v('batchFrom'), dateTo: v('batchTo') };
         }
 
         // Name, comes after and precedes as they will be saved
@@ -1597,6 +1640,7 @@
         function fillBatchForm(b) {
             if (!b) return;
             document.getElementById('batchYear').value = b.academicYear || '';
+            document.getElementById('batchType').value = b.batchType || BATCH_ACADEMIC;
             document.getElementById('batchFrom').value = String(b.dateFrom || '').slice(0, 10);
             document.getElementById('batchTo').value = String(b.dateTo || '').slice(0, 10);
             document.getElementById('batchSave').textContent = 'Save change';
@@ -1853,11 +1897,15 @@
         // Batches: each school's batches in date order, each told the one before and after it
         function linkBatches(batches) {
             for (const school of new Set(batches.map(b => b.school))) {
-                const ordered = batches.filter(b => b.school === school && b.dateFrom).sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-                ordered.forEach((b, n) => {
-                    b.comesAfter = n > 0 ? ordered[n - 1].name : '';
-                    b.precedes = n < ordered.length - 1 ? ordered[n + 1].name : '';
-                });
+                // Academic years follow academic years; short course batches follow short course batches
+                for (const short of [false, true]) {
+                    const ordered = batches.filter(b => b.school === school && b.dateFrom && isShortBatch(b) === short)
+                        .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+                    ordered.forEach((b, n) => {
+                        b.comesAfter = n > 0 ? ordered[n - 1].name : '';
+                        b.precedes = n < ordered.length - 1 ? ordered[n + 1].name : '';
+                    });
+                }
             }
         }
 
@@ -2308,10 +2356,12 @@
             list.fields.filter(f => !f.hideInForm && f.type !== 'checklist').forEach(f => {
                 const el = form.elements[f.name];
                 // Keep a choice that has since been removed or renamed in Settings, so editing doesn't lose it
-                if ((f.optionsFrom || f.choicesFrom || f.options) && item[f.name] && ![...el.options].some(o => o.value === item[f.name])) {
-                    el.add(new Option(item[f.name], item[f.name]));
+                // (compared as text: a number saved, e.g. Duration 2, matches the choice "2")
+                const saved = item[f.name] == null ? '' : String(item[f.name]);
+                if ((f.optionsFrom || f.choicesFrom || f.options) && saved && ![...el.options].some(o => o.value === saved)) {
+                    el.add(new Option(saved, saved));
                 }
-                el.value = item[f.name] || (f.options && !f.placeholder ? f.options[0] : '');
+                el.value = saved || (f.options && !f.placeholder ? f.options[0] : '');
             });
             // Show the fields that depend on others, then put their saved values back
             applyShowIf(form);
@@ -4212,7 +4262,7 @@
                         rows: (await getSettingItems('courses'))
                             .filter(c => (!f.school || c.institute === f.school) && (!f.enabled || (c.enabled || 'YES') === f.enabled))
                             .map(c => [c.name, c.code, c.institution, c.institute, c.award,
-                                [c.duration, c.durationType].filter(Boolean).join(' '), c.department, c.enabled,
+                                durationText(c.duration, c.durationType), c.department, c.enabled,
                                 students.filter(s => s.admissionCourse === c.name).length])
                     };
                 }

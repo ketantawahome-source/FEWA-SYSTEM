@@ -6,6 +6,7 @@ import { T } from '../core/database.mjs';
 import { closedMessage, globalControls } from '../global-settings/global-settings.mjs';
 import { sendSystemEmail } from '../messaging/email.mjs';
 import { getRecord, putRecord } from '../stores/stores.mjs';
+import { SHORT_BATCH, isShortCourse, shortBatchFor } from '../short-courses/short-courses.mjs';
 import { STORE_TABLES, mirrorChanged } from '../sync/mirror.mjs';
 
 /* ---------- Online applications (apply.html): anyone may apply, without logging in ----------
@@ -78,18 +79,31 @@ export async function applicationOptions() {
         studySessions: await names('studySessions', ['Full Time', 'Part Time']),
         enrollments: await names('enrollmentTypes', [], e => e.status !== 'Inactive'),
         studentType: (await names('studentTypes', ['STUDENT']))[0] || '',
-        // The batch new students get (Settings > Organisation Setup > Batches): the next to start, else the one running
-        group: await batchForApplicants()
+        // The batch new students get (Settings > Organisation Setup > Batches): the next to start, else the one running;
+        // a short course (3 months) gets the next short course batch of its school instead (groupByCourse)
+        group: await batchForApplicants(),
+        groupByCourse: await shortCourseBatches()
     };
 }
 async function batchForApplicants() {
     const record = await getRecord('settings', 'batches');
     const today = new Date().toISOString().slice(0, 10);
-    const items = ((record && record.items) || []).filter(b => b.name && b.dateFrom)
+    const items = ((record && record.items) || []).filter(b => b.name && b.dateFrom && b.batchType !== SHORT_BATCH)
         .sort((a, b) => String(a.dateFrom).localeCompare(String(b.dateFrom)));
     const next = items.find(b => b.dateFrom > today);
     const running = items.find(b => b.dateFrom <= today && today <= (b.dateTo || b.dateFrom));
     return (next || running || items[items.length - 1] || {}).name || '';
+}
+// { course: its short course batch } for every short course offered online
+async function shortCourseBatches() {
+    const courses = (((await getRecord('settings', 'courses')) || {}).items || []).filter(c => c.enabled !== 'NO' && isShortCourse(c));
+    const result = {};
+    for (const c of courses) {
+        const label = c.labelSuffix && c.name ? `${c.name} (${c.labelSuffix})` : c.name;
+        const batch = await shortBatchFor(label);
+        if (batch) result[label] = batch;
+    }
+    return result;
 }
 export async function receiveApplication(req, body) {
     const problem = message => Object.assign(new Error(message), { status: 400 });
@@ -130,7 +144,8 @@ export async function receiveApplication(req, body) {
     fromList('enrollment', options.enrollments, 'enrollment');
     // Not the applicant's choice: the college's first Student Type and Group, given to the student on Admit
     if (options.studentType) record.studentType = options.studentType;
-    if (options.group) record.admissionGroup = options.group;
+    const group = (options.groupByCourse || {})[record.admissionCourse] || options.group;
+    if (group) record.admissionGroup = group;
 
     for (const [field, rule] of Object.entries(APPLY_FILES)) {
         const file = body[field];

@@ -624,6 +624,8 @@
                     <div class="units-heading">Semester schedule</div>
                     <div class="settings-banner info-banner">A batch is an academic year (Settings > Organisation Setup > Batches, e.g.
                         Sep 2026 - Aug 2027); here you set the semesters inside it (SEMESTER 1, 2, 3... with their dates).
+                        A short course batch (3 months, e.g. Jan 2027 - Mar 2027 (Short course)) has one period: choose it and press
+                        Auto populate, and SEMESTER 1 is made for each short course with the batch's dates.
                         Choose the batch to see its semesters (and the course, to see only its periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
                     <div class="up-filters reg-fields lec-fields sched-fields">
                         <label for="schCourse">Course</label><select id="schCourse"></select>
@@ -735,7 +737,12 @@
 
         /* ---------- Data (all in the database; read when the page opens and after each change) ---------- */
         let units = [], programmeUnits = [], offers = [], registrations = [], students = [], allocations = [];
-        let courses = [], terms = [], lecturers = [], groups = [], courseItems = [], programmes = [], categories = [];
+        let courses = [], terms = [], lecturers = [], groups = [], courseItems = [], programmes = [], categories = [], batchItems = [];
+        // Short courses (3 months): a course of 6 months or less, run in a SHORT COURSE (3 MONTHS) batch (Settings > Batches)
+        const BATCH_SHORT = 'SHORT COURSE (3 MONTHS)';
+        const isShortCourse = c => { const n = Number(c && c.duration) || 0, t = String((c && c.durationType) || '').toUpperCase().replace(/S$/, '');
+            return n > 0 && ((t === 'MONTH' && n <= 6) || t === 'WEEK' || t === 'DAY'); };
+        const batchNamed = name => batchItems.find(b => b.name === name);
 
         async function settingNames(key, usable = () => true, label = i => i.name) {
             const record = await fewaDB.getOne('settings', key).catch(readFailed);
@@ -770,7 +777,8 @@
             terms = Array.from({ length: most }, (_, i) => periodName(i + 1));
             // Batches: Settings > Organisation Setup > Batches (newest first), then any group students already have
             const batchRecord = await fewaDB.getOne('settings', 'batches').catch(readFailed);
-            const batchNames = ((batchRecord && batchRecord.items) || []).filter(b => b.name)
+            batchItems = ((batchRecord && batchRecord.items) || []).filter(b => b.name);
+            const batchNames = batchItems
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name);
             // (the old "DEFAULT GROUP" is not a batch and is not offered, though a few students still have it)
             groups = [...new Set([...batchNames, ...students.map(s => s.group).filter(Boolean).sort()])]
@@ -2162,7 +2170,7 @@
                 .map(p => `${p.yearOfStudy}|${p.semester || 1}`));
             if (pairs.size) return pairs.size;
             const c = courseItems.find(x => x.name === courseName) || {};
-            const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase();
+            const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase().replace(/^(YEAR|MONTH|WEEK|DAY)$/, '$1S');
             if (type === 'YEARS') return Math.max(1, n * SEMESTERS_A_YEAR);
             if (type === 'MONTHS') return Math.max(1, Math.ceil(n / SEMESTER_MONTHS));
             return 1;
@@ -2327,12 +2335,15 @@
             if (!allowed('schedule', 'edit')) return;
             const batch = $('schBatch').value, course = $('schCourse').value;
             if (!batch) return alert('Choose the batch first: the periods are made for that batch.');
+            const chosen = batchNamed(batch);
+            if (chosen && chosen.batchType === BATCH_SHORT) return autoPopulateShortCourse(chosen, course);
             const year = Number(($('schStart').value || '').slice(0, 4)) || new Date().getFullYear();
             const intakes = enrolments.filter(e => e.active).map(e => ({ ...e, start: enrolmentStart(e) }))
                 .filter(e => e.start && Number(e.start.slice(0, 4)) === year);
             if (!intakes.length) return alert(`No active enrolment starts in ${year} (Settings > Organisation Setup > Enrollment Types). ` +
                 'Type a start date in another year to use that year, or add the enrolment with its start date.');
-            const classes = courseItems.filter(c => !course || c.name === course);
+            // (short courses have their own 3-month batches: they are left out of an academic year)
+            const classes = courseItems.filter(c => !course || c.name === course).filter(c => course || !isShortCourse(c));
             if (!classes.length) return alert('There are no courses in Settings > Program Setup > Courses.');
             const made = [];
             for (const c of classes) for (const e of intakes) for (let n = 1; n <= semesterCount(c.name); n++) {
@@ -2351,6 +2362,31 @@
             try {
                 for (const record of made) { await save('period_schedules', record); saved++; }
                 showToast(`${saved} period${saved === 1 ? '' : 's'} added to the schedule of ${batch}.`);
+            } catch (err) { alert(`${saved} of ${made.length} periods were saved; the rest could not be: ` + err.message); }
+            await loadData();
+        }
+
+        // A short course batch: one period (SEMESTER 1) for each short course, covering the whole batch (its 3 months)
+        async function autoPopulateShortCourse(batch, course) {
+            if (!batch.dateFrom || !batch.dateTo) return alert(`${batch.name} has no dates: set them in Settings > Organisation Setup > Batches.`);
+            const classes = courseItems.filter(c => course ? c.name === course : isShortCourse(c));
+            if (!classes.length) return alert('There are no short courses (6 months or less) in Settings > Program Setup > Courses.');
+            const start = String(batch.dateFrom).slice(0, 10), end = String(batch.dateTo).slice(0, 10);
+            const made = [];
+            for (const c of classes) {
+                const record = { batch: batch.name, course: c.name, enrolment: '', period: periodName(1), programme: c.award || '' };
+                if (schedules.some(s => sameSlot(s, record))) continue;
+                made.push({ ...record, id: newId(), periodNumber: 1, startDate: start, endDate: end,
+                    accountsStartDate: '', accountsEndDate: '', accountsStatus: 'OPEN',
+                    updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
+            }
+            if (!made.length) return alert(`Every short course already has its period in ${batch.name}.`);
+            if (!await fewaConfirm(`Create the short course period of ${made.map(r => r.course).join(', ')} in ${batch.name}: ` +
+                `SEMESTER 1, ${start} to ${end} (the whole 3 months)? The dates can be changed afterwards.`, { yes: 'Yes, create', danger: false })) return;
+            let saved = 0;
+            try {
+                for (const record of made) { await save('period_schedules', record); saved++; }
+                showToast(`${saved} short course period${saved === 1 ? '' : 's'} added to ${batch.name}.`);
             } catch (err) { alert(`${saved} of ${made.length} periods were saved; the rest could not be: ` + err.message); }
             await loadData();
         }

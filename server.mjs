@@ -55,6 +55,8 @@ import { readBody, send } from './server/core/http.mjs';
 import { serveStatic } from './server/core/static.mjs';
 import { PUBLIC_SITE, staffCan } from './server/messaging/email.mjs';
 import { SENTRY_ENVIRONMENT, reportError, sentryDsn } from './server/monitoring/sentry.mjs';
+import { startCourseNameCheck } from './server/settings/course-names.mjs';
+import { startShortCourseCheck } from './server/short-courses/short-courses.mjs';
 import { SYNC_ORDER, mirrorChanged } from './server/sync/mirror.mjs';
 
 /* The backups (database backups, the password-protected download, uploading corrected students) are in backups.mjs */
@@ -137,6 +139,10 @@ server.listen(port, listenAddress, () => {
         execFile('cmd', ['/c', 'start', '', `http://localhost:${port}/`], () => { });
     }
     connectDatabase();
+    // Short course students are made inactive when their 3-month batch has ended (checked every hour)
+    startShortCourseCheck(reportError);
+    // Course names saying "1 YEARS" become "1 YEAR" everywhere (once)
+    startCourseNameCheck(reportError);
     // Render's free plan puts the online system to sleep after 15 minutes without visitors, and the first visit
     // after that waits 20+ seconds. While the office computer is on, it visits the online system every 10 minutes
     // so it stays awake.

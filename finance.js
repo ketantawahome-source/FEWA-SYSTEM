@@ -33,7 +33,7 @@
         const courseItems = ((courses && courses.items) || []).filter(c => c.enabled !== 'NO' && c.name);
         state.courses = courseItems.map(c => c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name);
         const semestersOf = c => {
-            const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase();
+            const n = Number(c.duration) || 0, type = String(c.durationType || '').toUpperCase().replace(/^(YEAR|MONTH|WEEK|DAY)$/, '$1S');
             return type === 'YEARS' ? n * 3 : type === 'MONTHS' ? Math.ceil(n / 4) : 1;
         };
         const periods = Array.isArray(schedules) ? schedules : [];
