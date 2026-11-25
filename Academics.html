@@ -383,15 +383,17 @@
                 <!-- ===== Student units upload ===== -->
                 <div id="pane-upload" class="units-pane" hidden>
                     <div class="units-heading">Student units upload</div>
-                    <div class="settings-banner info-banner">Student units upload: fill the Excel template (batch, period, unit code,
-                        registration number, exam reason and the lecturer's staff code) and upload it. Choose a batch, period and
-                        unit below to see who is registered.</div>
+                    <div class="settings-banner info-banner">Student units upload: fill the Excel template (course, batch, period, unit code,
+                        registration number, exam reason and the lecturer's staff code) and upload it. Choose the course, batch, period
+                        and unit below to see who is registered (a short course: Academic Year instead of batch, no period).</div>
                     <div class="up-filters">
+                        <label for="upCourse">Course</label><select id="upCourse"></select>
                         <label for="upBatch">Batch</label><select id="upBatch"></select>
                         <label for="upPeriod">Period</label><select id="upPeriod"></select>
                         <label for="upUnit">Unit</label>
                         <input type="text" id="upUnit" list="upUnitChoices" placeholder="Start typing the unit code or title" autocomplete="off">
                         <datalist id="upUnitChoices"></datalist>
+                        <span></span><span></span>
                         <span></span><div><button type="button" class="btn-secondary" onclick="clearUploadFilters()">Clear</button></div>
                     </div>
 
@@ -401,7 +403,7 @@
                             <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
                             <div class="up-template-text"><b>Excel template</b>
-                                <span>Batch, period, unit code, registration number, exam reason (blank = first attempt) and the
+                                <span>Course, batch / academic year, period (blank for a short course), unit code, registration number, exam reason (blank = first attempt) and the
                                     lecturer's staff code, one registration per row.</span></div>
                             <div class="up-template-buttons">
                                 <button type="button" class="btn-secondary" onclick="downloadTemplate()">Download</button>
@@ -428,7 +430,7 @@
                     </div>
 
                     <div class="units-count" id="upRegisteredCount"></div>
-                    <p id="upRegisteredHint" class="up-hint">Choose the batch, period and unit to list the students registered on it.</p>
+                    <p id="upRegisteredHint" class="up-hint">Choose the course, batch (or academic year), period and unit to list the students registered on it.</p>
                     <div class="table-wrap" id="upRegisteredTable" hidden><table class="data-table">
                         <thead><tr><th>Registration number</th><th>Student</th><th>Batch</th><th>Course</th><th>Exam reason</th><th>Lecturer</th><th>Registered</th></tr></thead>
                         <tbody id="upRegisteredRows"></tbody></table></div>
@@ -888,7 +890,8 @@
             fill($('regTerm'), termChoices, '-- select one --');
             fill($('regBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('upBatch'), groups.map(g => [g, g]), '-- select one --');
-            $('upUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
+            fill($('upCourse'), courseItems.map(c => [c.name, c.name]), '-- select one --');
+            fillUploadUnits();
             const courseChoices = courses.map(c => [c, c]);
             fill($('regClass'), courseChoices, '-- select one --');
             fillUnitsOf();
@@ -925,11 +928,11 @@
            course (Has Short Courses YES, or 6 months or less) closes those boxes and shows its length instead; the boxes
            are set to the first period (Year 1, Semester 1 / SEMESTER 1), so everything saved still works as before. */
         const SHORT_COURSE_FIELDS = { offerCourse: ['offerTerm'], regClass: ['regTerm'], lecProgramme: ['lecStage', 'lecTerm'],
-            pmCourse: ['pmSemester'], ex_course: ['ex_className', 'ex_period'] };
+            pmCourse: ['pmSemester'], ex_course: ['ex_className', 'ex_period'], upCourse: ['upPeriod'] };
         /* A short course has no batch either (user's wish): its students enrol any day of the year, so the Batch box
            becomes a Year box (2026, 2027...); the year is kept where the batch would be. */
         const SHORT_COURSE_BATCH = { schCourse: 'schBatch', offerCourse: 'offerBatch', regClass: 'regBatch', lecProgramme: 'lecBatch',
-            pmCourse: 'pmBatch' };
+            pmCourse: 'pmBatch', upCourse: 'upBatch' };
         const kenyaYear = () => Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4));
         // The Academic Years of Settings > Organisation Setup > Batches (2026 up to next year, and any year a batch is set up for)
         const shortYears = () => [...new Set([...Array.from({ length: Math.max(2, kenyaYear() + 2 - 2026) }, (_, i) => String(2026 + i)),
@@ -1574,7 +1577,8 @@
         }
 
         function renderShortCourseUnits() {
-            const box = $('pmShort'), course = $('pmCourse').value, list = shortCourseUnits(course);
+            const box = $('pmShort'), course = $('pmCourse').value;
+            const list = fewaSession.shortCourses === false ? [] : shortCourseUnits(course);
             box.hidden = !list.length;
             if (!list.length) { box.innerHTML = ''; return; }
             // One by one, like any other unit (user): Set up opens the Units register with the code and title filled in
@@ -2238,7 +2242,15 @@
         const examReasonOf = text => !String(text || '').trim() ? 'First attempt' : EXAM_REASONS.find(r => same(r, text));
 
         // The upload tab's lower table: who is registered for the chosen period and unit (and batch)
+        // The Unit suggestions follow the Course box: only that course's units (all units before a course is chosen)
+        function fillUploadUnits() {
+            const course = $('upCourse').value;
+            const list = course ? courseUnitList(course) : units;
+            $('upUnitChoices').innerHTML = list.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
+        }
+
         function renderRegisteredOnUnit() {
+            const course = $('upCourse').value;
             const batch = $('upBatch').value, period = $('upPeriod').value, unit = unitFromText($('upUnit').value);
             // Until all three are chosen: only the grey note, no table
             const ready = !!(batch && period && unit);
@@ -2250,7 +2262,7 @@
             }
             const rows = registrations.filter(r => r.term === period && same(r.unitCode, unit.code))
                 .map(r => ({ r, s: students.find(x => x.id === r.studentId) || {} }))
-                .filter(({ s }) => !batch || s.group === batch)
+                .filter(({ s }) => (!batch || s.group === batch) && (!course || s.admissionCourse === course))
                 .sort((a, b) => String(a.s.admNo || a.r.admNo).localeCompare(String(b.s.admNo || b.r.admNo), undefined, { numeric: true }));
             $('upRegisteredCount').textContent = `${unit.code} - ${unit.title}, ${period}${batch ? ', ' + batch : ''}: ${rows.length} student${rows.length === 1 ? '' : 's'}`;
             $('upRegisteredRows').innerHTML = rows.length ? rows.map(({ r, s }) => `<tr><td>${escapeHtml(s.admNo || r.admNo)}</td>
@@ -2268,6 +2280,8 @@
         }
 
         function clearUploadFilters() {
+            $('upCourse').value = '';
+            $('upCourse').dispatchEvent(new Event('change', { bubbles: true }));
             $('upBatch').value = '';
             $('upPeriod').value = '';
             $('upUnit').value = '';
@@ -2287,6 +2301,7 @@
         // An empty template: the column headings, and a second sheet explaining them (no college data)
         function downloadTemplate() {
             FewaExcel.template('student-units-template.xlsx', [
+                { title: 'Course', field: 'course', required: true, choices: courseItems.map(c => c.name), help: "The student's course, as in Settings > Program Setup > Courses (a short course: Academic Year instead of batch, no period)" },
                 { title: 'Batch / Academic Year', field: 'batch', choices: uploadBatchChoices(), help: "The student's batch (Settings > Organisation Setup > Batches), or for a short course student the Academic Year, e.g. 2026 (may be left blank)" },
                 { title: 'Period', field: 'period', choices: terms, help: 'The period as in Academic Management > Semester Schedule, e.g. SEMESTER 1; leave blank for a short course student (the whole course)' },
                 { title: 'Unit code', field: 'unit', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, as in Manage Units > Units register' },
@@ -2325,6 +2340,7 @@
             const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
             const col = names => header.findIndex(h => names.includes(h));
             const at = {
+                course: col(['course', 'programme', 'program', 'class']),
                 batch: col(BATCH_HEADINGS.filter(h => h !== 'year')),
                 period: col(['period', 'term', 'academicterm']),
                 unit: col(['unitcode', 'unit', 'code']),
@@ -2332,13 +2348,15 @@
                 reason: col(['examreason', 'reason']),
                 lecturer: col(['lecturerstaffcode', 'lecturerstaffnumber', 'staffcode', 'staffnumber', 'lecturer'])
             };
-            if (at.unit < 0 || at.admNo < 0) {
-                return alert('The first row must hold the headings, with at least Unit code and Registration number. Download the template to see them.');
+            if (at.course < 0 || at.unit < 0 || at.admNo < 0) {
+                return alert('The first row must hold the headings, with at least Course, Unit code and Registration number. Download the template to see them.');
             }
             const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
             const lines = rows.slice(1).map((r, i) => {
-                const admNo = cell(r, 'admNo'), batch = cell(r, 'batch'), period = cell(r, 'period');
+                const admNo = cell(r, 'admNo'), batch = cell(r, 'batch'), period = cell(r, 'period'), courseText = cell(r, 'course');
+                const course = (courseItems.find(c => c.name === courseText) || courseItems.find(c => same(c.name, courseText)) || {}).name;
+                const shortCourse = !!course && isShortCourse(courseNamed(course));
                 const code = cell(r, 'unit').toUpperCase().replace(/\s+/g, ' ');
                 const student = students.find(s => s.admNo === admNo) || students.find(s => same(s.admNo, admNo));
                 const unit = unitByCode(code);
@@ -2346,11 +2364,14 @@
                 const lecturerCode = cell(r, 'lecturer');
                 const lecturer = lecturerCode ? lecturerByCode(lecturerCode) : null;
                 // A short course student: no semesters, the whole course
-                const term = student && isShortCourse(courseNamed(student.admissionCourse)) ? periodName(1) : periodOf(period);
+                const term = shortCourse ? periodName(1) : periodOf(period);
                 let result = 'ok', note = 'OK';
                 const problem = text => { if (result === 'ok') [result, note] = ['bad', text]; };
-                if (!student) problem('Registration number not found');
-                else if (batch && !same(student.group, batch)) problem(`The student's batch is ${student.group || 'not set'}`);
+                if (!course) problem(courseText ? 'Course not in Settings > Courses' : 'No course');
+                else if (!student) problem('Registration number not found');
+                else if (student.admissionCourse !== course) problem(`The student is on ${student.admissionCourse || 'no course'}, not ${course}`);
+                else if (shortCourse && batch && !shortYearOf(batch)) problem('Short course: the Batch / Academic Year must be the year, e.g. ' + kenyaYear());
+                else if (batch && !same(student.group, batch)) problem(`The student's ${shortCourse ? 'academic year' : 'batch'} is ${student.group || 'not set'}`);
                 if (!term) problem('Period not like SEMESTER 1');
                 if (!unit) problem('Unit code not in the Units register');
                 else if (student && !isCourseUnit(student.admissionCourse, unit.code)) problem(`Not a unit of the student's course (${student.admissionCourse || 'no course'}): add it to the course in Units register first`);
@@ -2421,6 +2442,10 @@
             // Show who is now registered for the file's first period and unit
             const first = lines.find(l => l.result === 'done');
             if (first) {
+                if ([...$('upCourse').options].some(o => o.value === first.student.admissionCourse)) {
+                    $('upCourse').value = first.student.admissionCourse;
+                    $('upCourse').dispatchEvent(new Event('change', { bubbles: true }));
+                }
                 if ([...$('upBatch').options].some(o => o.value === first.student.group)) $('upBatch').value = first.student.group;
                 $('upPeriod').value = first.term;
                 $('upUnit').value = unitLabel(first.unit);
@@ -2762,6 +2787,7 @@
             if (event.dataTransfer.files.length) { $('offerFile').files = event.dataTransfer.files; chosenOfferFile(); }
         });
         for (const id of ['upBatch', 'upPeriod']) $(id).addEventListener('change', renderRegisteredOnUnit);
+        $('upCourse').addEventListener('change', () => { fillUploadUnits(); renderRegisteredOnUnit(); });
         $('upUnit').addEventListener('input', renderRegisteredOnUnit);
         $('uploadFile').addEventListener('change', chosenFile);
         // A file can also be dragged onto the box

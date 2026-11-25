@@ -14,7 +14,7 @@ import { logOutEveryone } from '../system-update/system-update.mjs';
    passwords) and the switches are rows of private_settings.server_keys, so no page, backup or office copy has them:
      global_settings_password  {"salt": ..., "hash": ...}
      global_controls           {"systemOpen", "closedMessage", "staffLogins", "studentLogins", "applications",
-                                "shortCourses" (the Short Courses tab and a course's short course fields shown),
+                                "shortCourses" (short courses on: Settings tab and fields, online applications, new students, Course units panel),
                                 "attendanceBackdating" (registers may be taken for past days), "attendanceBackdateDays" (how many),
                                 "newSidebar" (the new floating sidebar; false: the classic one)}
    The first password can only be set by a logged-in Administrator. A forgotten password: delete the row

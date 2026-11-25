@@ -1966,7 +1966,12 @@
 
             for (const [field, listKey] of Object.entries(listsForFields)) {
                 // The student's batch: the Batches of Organisation Setup by name (one per year, newest first)
-                const labels = field === 'group' ? await batchNames() : await getSettingLabels(listKey);
+                let labels = field === 'group' ? await batchNames() : await getSettingLabels(listKey);
+                // Global Settings SHORT_COURSES_ENABLED NO: short courses are not offered (a student already on one keeps it)
+                if (field === 'admissionCourse' && fewaSession.shortCourses === false) {
+                    const shortLabels = (await getSettingItems('courses')).filter(isShortCourseItem).map(courseLabel);
+                    labels = labels.filter(l => !shortLabels.includes(l));
+                }
                 const placeholder = labels.length
                     ? `-- select ${SETTINGS_LISTS[listKey].singular.toLowerCase()} --`
                     : `-- none set up yet (${settingsLocation(listKey)}) --`;
@@ -4654,6 +4659,14 @@
            imported and each problem is listed. AdmNo is required too (each one only once). After every
            upload a copy of the file with a Feedback column is downloaded. No welcome email is sent: Reset Password on a
            student's record gives them a Student Portal password. */
+        // Courses offered for new students: short courses left out while Global Settings SHORT_COURSES_ENABLED is NO
+        async function importCourseLabels() {
+            const labels = await getSettingLabels('courses');
+            if (fewaSession.shortCourses !== false) return labels;
+            const shortLabels = (await getSettingItems('courses')).filter(isShortCourseItem).map(courseLabel);
+            return labels.filter(l => !shortLabels.includes(l));
+        }
+
         async function studentImportColumns() {
             const campuses = await getSettingLabels('campuses');
             return [
@@ -4677,7 +4690,7 @@
                 { title: 'Emergency Email', field: 'emergencyEmail', kind: 'email' },
                 { title: 'Emergency Address', field: 'emergencyAddress', help: 'Physical / Postal Address of the contact' },
                 { title: 'Campus', field: 'campus', required: campuses.length > 0, choices: campuses, help: 'As in Settings > Organisation Setup > Campuses' },
-                { title: 'Admission Course', field: 'admissionCourse', required: true, choices: await getSettingLabels('courses'), help: 'As in Settings > Program Setup > Courses' },
+                { title: 'Admission Course', field: 'admissionCourse', required: true, choices: await importCourseLabels(), help: 'As in Settings > Program Setup > Courses' },
                 { title: 'Study Session', field: 'studySession', choices: await getSettingLabels('studySessions') },
                 { title: 'Enrollment', field: 'enrollment', required: true, choices: await getSettingLabels('enrollmentTypes') },
                 { title: 'Student Type', field: 'studentType', required: true, choices: await getSettingLabels('studentTypes') },

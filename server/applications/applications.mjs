@@ -75,7 +75,8 @@ export async function applicationOptions() {
         closed: !controls.systemOpen || !controls.applications,
         closedMessage: !controls.systemOpen ? closedMessage(controls) : '',
         campuses: await names('campuses'),
-        courses: await names('courses', [], c => c.enabled !== 'NO'),
+        // Global Settings SHORT_COURSES_ENABLED NO: short courses are not offered online (and refused if sent)
+        courses: await names('courses', [], c => c.enabled !== 'NO' && (controls.shortCourses !== false || !isShortCourse(c))),
         studySessions: await names('studySessions', ['Full Time', 'Part Time']),
         enrollments: await names('enrollmentTypes', [], e => e.status !== 'Inactive'),
         studentType: (await names('studentTypes', ['STUDENT']))[0] || '',
