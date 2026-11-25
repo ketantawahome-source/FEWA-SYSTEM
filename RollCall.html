@@ -512,14 +512,14 @@
                 <div class="rc-filters rc-filters-wide">
                     <label for="tkFrom">From</label><input type="date" id="tkFrom" onchange="renderTaken()">
                     <label for="tkTo">To</label><input type="date" id="tkTo" onchange="renderTaken()">
-                    <label for="tkCourse">Course</label><select id="tkCourse" onchange="linkUnitFilter('tkCourse', 'tkUnit'); renderTaken()"></select>
+                    <label for="tkCourse">Course</label><select id="tkCourse" onchange="followCourse('tkCourse', 'tkBatch'); linkUnitFilter('tkCourse', 'tkUnit'); renderTaken()"></select>
                     <label for="tkBatch">Batch</label><select id="tkBatch" onchange="renderTaken()"></select>
                     <label for="tkUnit">Unit</label><select id="tkUnit" onchange="renderTaken()"></select>
                     <label for="tkSearch">Find</label><input type="search" id="tkSearch" placeholder="Unit, lecturer or course" oninput="renderTaken()">
                 </div>
                 <div class="rc-count" id="tkCount"></div>
                 <div class="table-wrap"><table class="data-table rc-table">
-                    <thead><tr><th>Date</th><th>Session</th><th>Course</th><th>Batch</th><th>Period</th><th>Unit</th><th>Lecturer</th>
+                    <thead><tr><th>Date</th><th>Session</th><th>Course</th><th>Batch / Year</th><th>Period</th><th>Unit</th><th>Lecturer</th>
                         <th class="num">Present</th><th class="num">Absent</th><th class="num">Late</th><th class="num">Excused</th><th class="num">Attendance</th><th></th></tr></thead>
                     <tbody id="tkRows"></tbody>
                 </table></div>
@@ -531,13 +531,13 @@
                 <div class="rc-filters rc-filters-wide">
                     <label for="ntFrom">From</label><input type="date" id="ntFrom" onchange="renderNotTaken()">
                     <label for="ntTo">To</label><input type="date" id="ntTo" onchange="renderNotTaken()">
-                    <label for="ntCourse">Course</label><select id="ntCourse" onchange="renderNotTaken()"></select>
+                    <label for="ntCourse">Course</label><select id="ntCourse" onchange="followCourse('ntCourse', 'ntBatch'); renderNotTaken()"></select>
                     <label for="ntBatch">Batch</label><select id="ntBatch" onchange="renderNotTaken()"></select>
                     <label class="rc-check"><input type="checkbox" id="ntWeekends" onchange="renderNotTaken()"> Include Saturdays and Sundays</label>
                 </div>
                 <div class="rc-count" id="ntCount"></div>
                 <div class="table-wrap"><table class="data-table rc-table">
-                    <thead><tr><th>Date</th><th>Course</th><th>Batch</th><th>Period</th><th>Unit</th><th>Lecturer</th><th class="num">Students</th><th></th></tr></thead>
+                    <thead><tr><th>Date</th><th>Course</th><th>Batch / Year</th><th>Period</th><th>Unit</th><th>Lecturer</th><th class="num">Students</th><th></th></tr></thead>
                     <tbody id="ntRows"></tbody>
                 </table></div>
             </div>
@@ -546,7 +546,7 @@
             <div id="rcStatus" class="form-section rc-section" hidden>
                 <div class="rc-banner">Each student's attendance in the registers taken. Present and Late count as attended; Excused is left out. Below 75% is at risk, below 50% poor.</div>
                 <div class="rc-filters rc-filters-wide">
-                    <label for="stCourse">Course</label><select id="stCourse" onchange="linkUnitFilter('stCourse', 'stUnit'); renderStatus()"></select>
+                    <label for="stCourse">Course</label><select id="stCourse" onchange="followCourse('stCourse', 'stBatch', 'stPeriod'); linkUnitFilter('stCourse', 'stUnit'); renderStatus()"></select>
                     <label for="stBatch">Batch</label><select id="stBatch" onchange="renderStatus()"></select>
                     <label for="stPeriod">Period</label><select id="stPeriod" onchange="renderStatus()"></select>
                     <label for="stUnit">Unit</label><select id="stUnit" onchange="renderStatus()"></select>
@@ -563,7 +563,7 @@
                     <div class="rc-listbuttons"><button type="button" class="btn-secondary" onclick="downloadStatus()">Download Excel</button></div>
                 </div>
                 <div class="table-wrap"><table class="data-table rc-table">
-                    <thead><tr><th>AdmNo</th><th>Student Name</th><th>Course</th><th>Batch</th><th class="num">Registers</th><th class="num">Present</th>
+                    <thead><tr><th>AdmNo</th><th>Student Name</th><th>Course</th><th>Batch / Year</th><th class="num">Registers</th><th class="num">Present</th>
                         <th class="num">Late</th><th class="num">Absent</th><th class="num">Excused</th><th class="num">Attendance</th><th>Status</th></tr></thead>
                     <tbody id="stRows"></tbody>
                 </table></div>
@@ -607,7 +607,7 @@
         const pctText = p => p === null ? '-' : p + '%';
         const pctClass = p => p === null ? '' : p >= 75 ? 'rc-good' : p >= 50 ? 'rc-risk' : 'rc-poor';
 
-        let students = [], units = [], offers = [], registrations = [], schedules = [], registers = [];
+        let students = [], units = [], offers = [], registrations = [], schedules = [], registers = [], academicYears = [];
         let courses = [], batches = [], periods = [], lecturers = [], schools = [], courseItems = [], enrolments = [];
         let studySessions = [], studentTypes = [];
         const LESSONS = Array.from({ length: 10 }, (_, i) => `Lesson ${i + 1}`);
@@ -634,7 +634,12 @@
             const batchRecord = await fewaDB.getOne('settings', 'batches').catch(() => null);
             batches = [...new Set([...((batchRecord && batchRecord.items) || []).filter(b => b.name)
                 .sort((a, b) => String(b.dateFrom || '').localeCompare(String(a.dateFrom || ''))).map(b => b.name),
-                ...students.map(s => s.group).filter(Boolean)])].filter(g => !/^DEFAULT( GROUP)?$/i.test(String(g).trim()));
+                ...students.map(s => s.group).filter(Boolean)])].filter(g => !/^DEFAULT( GROUP)?$/i.test(String(g).trim()) && !/^\d{4}$/.test(String(g).trim()));
+            // Short courses have no batch: the Academic Year (Settings > Batches years, 2026 to next year, and students' years)
+            const thisYear = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4));
+            academicYears = [...new Set([...Array.from({ length: Math.max(2, thisYear + 2 - 2026) }, (_, i) => String(2026 + i)),
+                ...((batchRecord && batchRecord.items) || []).map(b => String(b.academicYear || '')),
+                ...students.map(s => String(s.group || '').trim())].filter(y => /^\d{4}$/.test(y)))].sort().reverse();
             const most = Math.max(3, ...schedules.map(s => Number(String(s.period || '').replace(/\D+/g, '')) || 0),
                 ...offers.map(o => Number(String(o.term || '').replace(/\D+/g, '')) || 0));
             periods = Array.from({ length: most }, (_, i) => `SEMESTER ${i + 1}`);
@@ -712,8 +717,7 @@
             if (short && batchBox.dataset.mode !== 'year') {
                 batchBox.dataset.normal = batchBox.innerHTML;
                 const year = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }).slice(0, 4));
-                const years = Array.from({ length: Math.max(2, year + 2 - 2026) }, (_, i) => String(2026 + i)).reverse();
-                fill(batchBox, years, '-- select one --', /^\d{4}$/.test(batchBox.value) ? batchBox.value : String(year));
+                fill(batchBox, academicYears, '-- select one --', /^\d{4}$/.test(batchBox.value) ? batchBox.value : String(year));
                 batchBox.dataset.mode = 'year';
                 batchLabel.innerHTML = 'Academic Year <span class="req">*</span>';
             } else if (!short && batchBox.dataset.mode === 'year') {
@@ -728,6 +732,42 @@
                 &middot; the whole course, no semesters</span>`;
             const first = [...box.options].find(o => /^SEMESTER 1$/i.test(o.value)) || [...box.options].find(o => o.value);
             if (first) box.value = first.value;
+        }
+
+        /* Registers taken / not taken / Attendance status: the filters follow the Course filter (user). A short course:
+           the Batch filter lists the Academic Years and the Period filter closes (the whole course, no semesters). */
+        function followCourse(courseId, batchId, periodId) {
+            const c = courseItems.find(x => x.name === $(courseId).value);
+            const short = isShortCourse(c), box = $(batchId), label = document.querySelector(`label[for="${batchId}"]`);
+            const keep = box.value;
+            if (short) fill(box, academicYears, 'All academic years', /^\d{4}$/.test(keep) ? keep : '');
+            else fill(box, batches, 'All batches', /^\d{4}$/.test(keep) ? '' : keep);
+            if (label) label.textContent = short ? 'Academic Year' : 'Batch';
+            if (periodId) {
+                const period = $(periodId), plabel = document.querySelector(`label[for="${periodId}"]`);
+                if (short) period.value = '';
+                period.hidden = short;
+                let note = $(periodId + 'Short');
+                if (!note) {
+                    note = document.createElement('div');
+                    note.id = periodId + 'Short';
+                    note.className = 'rc-short-note';
+                    period.insertAdjacentElement('afterend', note);
+                }
+                note.hidden = !short;
+                if (short) {
+                    const n = Number(c.duration) || 3, t = String(c.durationType || 'MONTHS').toUpperCase().replace(/S$/, '');
+                    note.innerHTML = `<span class="rc-short-badge">Short course</span><span><b>${escapeHtml(n + ' ' + (n === 1 ? t : t + 'S'))}</b> &middot; the whole course</span>`;
+                }
+                if (plabel) plabel.textContent = short ? 'Duration' : 'Period';
+            }
+        }
+        // A short course's period is shown as its length: "3 MONTHS (whole course)"
+        function periodShown(course, period) {
+            const c = courseItems.find(x => same(x.name, course));
+            if (!isShortCourse(c)) return period || '';
+            const n = Number(c.duration) || 3, t = String(c.durationType || 'MONTHS').toUpperCase().replace(/S$/, '');
+            return `${n} ${n === 1 ? t : t + 'S'} (whole course)`;
         }
 
         function markChoicesChanged(keepPeriod) {
@@ -945,7 +985,7 @@
                 const p = pct((r.present || 0) + (r.late || 0), (r.total || 0) - (r.excused || 0));
                 return `<tr>
                     <td>${escapeHtml(dayText(r.registerDate))}</td><td>${escapeHtml(r.session || '')}</td><td>${escapeHtml(r.course)}</td>
-                    <td>${escapeHtml(r.batch)}</td><td>${escapeHtml(r.period)}</td><td>${escapeHtml(unitLabel(r.unitCode))}</td>
+                    <td>${escapeHtml(r.batch)}</td><td>${escapeHtml(periodShown(r.course, r.period))}</td><td>${escapeHtml(unitLabel(r.unitCode))}</td>
                     <td>${escapeHtml(r.lecturerName || '')}</td><td class="num">${r.present || 0}</td><td class="num">${r.absent || 0}</td>
                     <td class="num">${r.late || 0}</td><td class="num">${r.excused || 0}</td><td class="num"><span class="rc-pct ${pctClass(p)}">${pctText(p)}</span></td>
                     <td class="rc-actions">${iconButton('edit', 'Open this register', `openInMark(${escapeHtml(JSON.stringify({ date: r.registerDate,
@@ -1003,7 +1043,7 @@
             $('ntCount').textContent = `${rows.length} register${rows.length === 1 ? '' : 's'} not taken` +
                 (days.length ? ` (${days.length} day${days.length === 1 ? '' : 's'})` : '');
             $('ntRows').innerHTML = rows.length ? rows.map(x => `<tr>
-                <td>${escapeHtml(dayText(x.day))}</td><td>${escapeHtml(x.course)}</td><td>${escapeHtml(x.batch)}</td><td>${escapeHtml(x.period)}</td>
+                <td>${escapeHtml(dayText(x.day))}</td><td>${escapeHtml(x.course)}</td><td>${escapeHtml(x.batch)}</td><td>${escapeHtml(periodShown(x.course, x.period))}</td>
                 <td>${escapeHtml(unitLabel(x.unit))}</td><td>${escapeHtml(x.lecturer)}</td><td class="num">${x.size}</td>
                 <td>${mayMark && dayAllowed(x.day) ? `<button type="button" class="btn-small" onclick="openInMark(${escapeHtml(JSON.stringify({ date: x.day, course: x.course,
                     batch: x.batch, period: x.period, unit: x.unit }))})">Mark now</button>` : ''}</td></tr>`).join('')
@@ -1051,7 +1091,7 @@
 
         function downloadStatus() {
             if (!statusRows.length) return alert('There is nothing to download: no student is listed.');
-            const head = ['AdmNo', 'Student Name', 'Course', 'Batch', 'Registers', 'Present', 'Late', 'Absent', 'Excused', 'Attendance %', 'Status'];
+            const head = ['AdmNo', 'Student Name', 'Course', 'Batch / Academic Year', 'Registers', 'Present', 'Late', 'Absent', 'Excused', 'Attendance %', 'Status'];
             FewaExcel.writeWorkbook(`attendance-status-${today()}.xlsx`, [{ name: 'Attendance', freeze: true,
                 widths: [16, 30, 22, 22, 11, 10, 8, 9, 10, 13, 12],
                 rows: [head.map(h => ({ v: h, s: 9 })), ...statusRows.map(r => [r.admNo, r.name, r.course, r.batch, String(r.registers),

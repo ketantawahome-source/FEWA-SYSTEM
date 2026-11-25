@@ -106,6 +106,14 @@
         .sch-short-badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a;
             font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
+        /* Student units upload: the class list with tick boxes */
+        .up-tick-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 10px; }
+        .up-tick-bar[hidden] { display: none; }
+        .up-tick-bar select { width: auto; min-width: 160px; }
+        .up-tick-all { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+        .up-tick-all input, .up-tick-col input { width: auto; height: auto; margin: 0; }
+        .up-tick-col { width: 42px; text-align: center; }
+        .up-done { color: #1f7a4a; font-weight: 600; }
         /* Course units: the short courses ticked for a short course (Settings > Courses) are its units */
         .pm-short { margin: 14px 0 6px; padding: 14px 16px; border-radius: 12px; border: 1px solid #e3cf9a;
             background: linear-gradient(135deg, #f6eefc, #fdf7e8); color: #3b1d5e; }
@@ -397,6 +405,18 @@
                         <span></span><div><button type="button" class="btn-secondary" onclick="clearUploadFilters()">Clear</button></div>
                     </div>
 
+                    <div class="units-count" id="upRegisteredCount"></div>
+                    <p id="upRegisteredHint" class="up-hint">Choose the course, batch (or academic year), period and unit to list the class's students:
+                        tick the ones to register on the unit, then Register ticked students.</p>
+                    <div id="upTickBar" class="up-tick-bar" hidden>
+                        <label class="up-tick-all"><input type="checkbox" id="upTickAll"> Tick all not yet registered</label>
+                        <label for="upTickReason">Exam reason</label><select id="upTickReason"></select>
+                        <button type="button" class="btn-submit" id="upTickSave" data-register onclick="registerTickedStudents()">Register ticked students</button>
+                    </div>
+                    <div class="table-wrap" id="upRegisteredTable" hidden><table class="data-table">
+                        <thead><tr><th class="up-tick-col"></th><th>Registration number</th><th>Student</th><th>Batch / Year</th><th>Course</th><th>Exam reason</th><th>Lecturer</th><th>Registered</th></tr></thead>
+                        <tbody id="upRegisteredRows"></tbody></table></div>
+
                     <div class="units-subhead">Upload student units</div>
                     <div class="up-box">
                         <div class="up-template">
@@ -429,11 +449,6 @@
                             <tbody id="uploadRows"></tbody></table></div>
                     </div>
 
-                    <div class="units-count" id="upRegisteredCount"></div>
-                    <p id="upRegisteredHint" class="up-hint">Choose the course, batch (or academic year), period and unit to list the students registered on it.</p>
-                    <div class="table-wrap" id="upRegisteredTable" hidden><table class="data-table">
-                        <thead><tr><th>Registration number</th><th>Student</th><th>Batch</th><th>Course</th><th>Exam reason</th><th>Lecturer</th><th>Registered</th></tr></thead>
-                        <tbody id="upRegisteredRows"></tbody></table></div>
                 </div>
 
                 <!-- ===== Student unit registration ===== -->
@@ -2249,27 +2264,70 @@
             $('upUnitChoices').innerHTML = list.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
         }
 
+        /* The class list (user): every active student of the chosen course and batch (or academic year), with a tick box;
+           the ones already registered on the unit in that period are marked Registered. Register ticked students asks
+           first, then registers them (the unit is put on offer for the course if it is not yet), like the Excel upload. */
+        let upClass = [];
         function renderRegisteredOnUnit() {
             const course = $('upCourse').value;
             const batch = $('upBatch').value, period = $('upPeriod').value, unit = unitFromText($('upUnit').value);
-            // Until all three are chosen: only the grey note, no table
-            const ready = !!(batch && period && unit);
+            const ready = !!(course && batch && period && unit);
             $('upRegisteredHint').hidden = ready;
             $('upRegisteredTable').hidden = !ready;
+            $('upTickBar').hidden = !ready;
             if (!ready) {
                 $('upRegisteredCount').textContent = '';
+                upClass = [];
                 return;
             }
-            const rows = registrations.filter(r => r.term === period && same(r.unitCode, unit.code))
-                .map(r => ({ r, s: students.find(x => x.id === r.studentId) || {} }))
-                .filter(({ s }) => (!batch || s.group === batch) && (!course || s.admissionCourse === course))
-                .sort((a, b) => String(a.s.admNo || a.r.admNo).localeCompare(String(b.s.admNo || b.r.admNo), undefined, { numeric: true }));
-            $('upRegisteredCount').textContent = `${unit.code} - ${unit.title}, ${period}${batch ? ', ' + batch : ''}: ${rows.length} student${rows.length === 1 ? '' : 's'}`;
-            $('upRegisteredRows').innerHTML = rows.length ? rows.map(({ r, s }) => `<tr><td>${escapeHtml(s.admNo || r.admNo)}</td>
-                <td>${escapeHtml(studentName(s))}</td><td>${escapeHtml(s.group || '')}</td><td>${escapeHtml(s.admissionCourse || '')}</td>
-                <td>${escapeHtml(r.examReason || 'First attempt')}</td><td>${escapeHtml(r.lecturerName || '-')}</td>
-                <td>${r.registeredAt ? escapeHtml(new Date(r.registeredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : ''}</td></tr>`).join('')
-                : '<tr class="empty-row"><td colspan="7">Nobody is registered for this unit in this period yet.</td></tr>';
+            const regOf = s => registrations.find(r => r.studentId === s.id && r.term === period && same(r.unitCode, unit.code));
+            upClass = students.filter(s => s.activeStudent !== 'no' && s.admissionCourse === course && same(s.group, batch))
+                .map(s => ({ s, r: regOf(s) }))
+                .sort((a, b) => String(a.s.admNo).localeCompare(String(b.s.admNo), undefined, { numeric: true }));
+            const done = upClass.filter(x => x.r).length;
+            $('upRegisteredCount').textContent = `${unit.code} - ${unit.title}, ${periodLabel(course, period)}, ${batch}: ` +
+                `${upClass.length} student${upClass.length === 1 ? '' : 's'} in the class, ${done} registered`;
+            if (!$('upTickReason').options.length) fill($('upTickReason'), EXAM_REASONS.map(r => [r, r]), null);
+            $('upTickAll').checked = false;
+            $('upRegisteredRows').innerHTML = upClass.length ? upClass.map(({ s, r }, i) => `<tr>
+                <td class="up-tick-col">${r ? '<span class="up-done" title="Registered">&#10003;</span>'
+                    : `<input type="checkbox" class="up-tick" data-i="${i}" aria-label="Register ${escapeHtml(s.admNo)}">`}</td>
+                <td>${escapeHtml(s.admNo || '')}</td><td>${escapeHtml(studentName(s))}</td><td>${escapeHtml(s.group || '')}</td><td>${escapeHtml(s.admissionCourse || '')}</td>
+                <td>${r ? escapeHtml(r.examReason || 'First attempt') : '-'}</td><td>${r ? escapeHtml(r.lecturerName || '-') : '-'}</td>
+                <td>${r ? (r.registeredAt ? escapeHtml(new Date(r.registeredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : 'Registered')
+                    : '<span class="sched-note">Not registered</span>'}</td></tr>`).join('')
+                : `<tr class="empty-row"><td colspan="8">No active student of ${escapeHtml(course)} in ${escapeHtml(batch)}.</td></tr>`;
+            $('upTickSave').disabled = !mayRegister() || upClass.every(x => x.r);
+        }
+
+        async function registerTickedStudents() {
+            if (!allowed('academics', 'register')) return;
+            const course = $('upCourse').value, batch = $('upBatch').value, term = $('upPeriod').value, unit = unitFromText($('upUnit').value);
+            if (!course || !batch || !term || !unit) return alert('Choose the course, batch (or academic year), period and unit first.');
+            const ticked = [...document.querySelectorAll('#upRegisteredRows .up-tick:checked')].map(b => upClass[Number(b.dataset.i)]).filter(x => x && !x.r);
+            if (!ticked.length) return alert('Tick the students to register first.');
+            const reason = $('upTickReason').value || 'First attempt';
+            if (!await fewaConfirm(`Register ${ticked.length} student${ticked.length === 1 ? '' : 's'} on ${unit.code} - ${unit.title} ` +
+                `(${periodLabel(course, term)}, ${batch}, ${reason})?\n\n` + ticked.slice(0, 15).map(x => `${x.s.admNo} - ${studentName(x.s)}`).join('\n') +
+                (ticked.length > 15 ? `\n...and ${ticked.length - 15} more` : ''), { yes: 'Yes, register', danger: false })) return;
+            let done = 0;
+            try {
+                // The unit's offer for the class (with its lecturer), or a new one when it is not on offer yet
+                let offer = offersForClass(course, term, batch).find(o => same(o.unitCode, unit.code));
+                if (!offer) {
+                    offer = { id: newId(), term, unitCode: unit.code, course, batch, lecturer: '', lecturerName: '' };
+                    await save('unit_offers', offer);
+                    offers.push(offer);
+                }
+                for (const { s } of ticked) {
+                    await save('unit_registrations', { ...registrationRecord(s, term, unit.code), examReason: reason,
+                        lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: course, batch });
+                    done++;
+                }
+                showToast(`${done} student${done === 1 ? '' : 's'} registered on ${unit.code}.`);
+            } catch (err) { alert(`${done} registered; the rest could not be: ` + err.message); }
+            await loadData();
+            renderRegisteredOnUnit();
         }
 
         // "HBT 101 - Hair Basics", "HBT 101" or the exact title
@@ -2788,6 +2846,7 @@
         });
         for (const id of ['upBatch', 'upPeriod']) $(id).addEventListener('change', renderRegisteredOnUnit);
         $('upCourse').addEventListener('change', () => { fillUploadUnits(); renderRegisteredOnUnit(); });
+        $('upTickAll').addEventListener('change', () => document.querySelectorAll('#upRegisteredRows .up-tick').forEach(b => b.checked = $('upTickAll').checked));
         $('upUnit').addEventListener('input', renderRegisteredOnUnit);
         $('uploadFile').addEventListener('change', chosenFile);
         // A file can also be dragged onto the box
