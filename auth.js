@@ -628,6 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     search.insertBefore(menuButton, search.firstChild);
 
+    if (newSidebarOn()) buildSidebarExtras(sidebar);
+
     // Parts of the system this person may not view are taken out of the sidebar (Role Operations)
     // (Academic Management goes when all three of its items are hidden)
     const menuPart = { 'Manage Finance': 'finance', 'Reports': 'reports', 'Settings': 'settings' };
@@ -652,6 +654,98 @@ document.addEventListener('DOMContentLoaded', () => {
         if (subs.length && subs.every(sub => sub.style.display === 'none')) item.style.display = 'none';
     });
 });
+
+/* Global Settings > NEW_SIDEBAR_ENABLED: the new sidebar (class sb-v2 on the page, set before it is drawn so the
+   classic one never flashes first), or the classic one */
+const newSidebarOn = () => typeof fewaSession === 'undefined' || fewaSession.newSidebar !== false;
+if (newSidebarOn()) document.documentElement.classList.add('sb-v2');
+
+/* ---------- Sidebar v2: a search box and "MENU" under the brand, a round button on the edge that folds the
+   sidebar to its icons, and Change Password / Log Out at the bottom ---------- */
+function buildSidebarExtras(sidebar) {
+    const brand = sidebar.querySelector('.brand');
+    const list = sidebar.querySelector('.menu-list');
+    if (!brand || !list || sidebar.querySelector('.sb-search')) return;
+
+    // The round fold button on the sidebar's edge (the ☰ in the top bar still works too)
+    const fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'sb-fold';
+    fold.title = 'Fold or open the menu';
+    fold.setAttribute('aria-label', 'Fold or open the menu');
+    fold.innerHTML = navIconSvg('<path d="M15 6l-6 6 6 6"/>');
+    fold.addEventListener('click', event => {
+        event.stopPropagation();
+        if (window.matchMedia('(max-width: 768px)').matches) return document.documentElement.classList.remove('mobile-menu-open');
+        setSidebarCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
+    });
+    sidebar.appendChild(fold);
+
+    // Search: shows only the menu items whose names match (a menu opens when one of its items matches)
+    const box = document.createElement('div');
+    box.className = 'sb-search';
+    box.innerHTML = `${navIconSvg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>')}
+        <input type="search" placeholder="Search the menu" aria-label="Search the menu" autocomplete="off">`;
+    const label = document.createElement('div');
+    label.className = 'sb-label';
+    label.textContent = 'Menu';
+    brand.after(box);
+    box.after(label);
+    const input = box.querySelector('input');
+    // Folded: the magnifier opens the sidebar and puts the cursor in the box
+    box.addEventListener('click', () => {
+        if (document.documentElement.classList.contains('sidebar-collapsed')) { setSidebarCollapsed(false); setTimeout(() => input.focus(), 220); }
+    });
+    const wasOpen = new Map();
+    input.addEventListener('input', () => {
+        const text = input.value.trim().toLowerCase();
+        list.querySelectorAll('.menu-list > .nav-item').forEach(item => {
+            if (item.dataset.roleHidden === undefined) item.dataset.roleHidden = item.style.display === 'none' ? '1' : '';
+            if (item.dataset.roleHidden === '1') return;
+            const name = (item.querySelector('.nav-label') || item).textContent.trim().toLowerCase();
+            const subList = item.querySelector('.submenu');
+            const subs = [...item.querySelectorAll('.submenu-item')].filter(sub => {
+                if (sub.dataset.roleHidden === undefined) sub.dataset.roleHidden = sub.style.display === 'none' ? '1' : '';
+                return sub.dataset.roleHidden !== '1';
+            });
+            if (subList && !wasOpen.has(subList)) wasOpen.set(subList, subList.classList.contains('open'));
+            if (!text) {
+                item.classList.remove('sb-hidden');
+                subs.forEach(sub => sub.classList.remove('sb-hidden'));
+                if (subList) subList.classList.toggle('open', wasOpen.get(subList));
+                return;
+            }
+            const nameHit = name.includes(text);
+            const subHits = subs.filter(sub => sub.textContent.trim().toLowerCase().includes(text));
+            subs.forEach(sub => sub.classList.toggle('sb-hidden', !nameHit && !subHits.includes(sub)));
+            item.classList.toggle('sb-hidden', !nameHit && !subHits.length);
+            if (subList) subList.classList.toggle('open', nameHit || subHits.length > 0);
+        });
+        if (!text) wasOpen.clear();
+    });
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { input.value = ''; input.dispatchEvent(new Event('input')); }
+        // Enter opens the first item that matches
+        if (event.key === 'Enter') {
+            const first = list.querySelector('.menu-list > .nav-item:not(.sb-hidden) .submenu-item:not(.sb-hidden)')
+                || list.querySelector('.menu-list > .nav-item:not(.sb-hidden):not(.has-submenu) > a');
+            if (first) first.click();
+        }
+    });
+
+    // The bottom: Change Password and Log Out
+    const foot = document.createElement('div');
+    foot.className = 'sb-foot';
+    foot.innerHTML = `
+        <a class="sb-foot-item" href="ChangePassword.html" title="Change Password">${navIconSvg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')}<span class="nav-label">Change Password</span>
+            <span class="sb-foot-arrow">${navIconSvg('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></a>
+        <button type="button" class="sb-foot-item sb-logout" title="Log Out">${navIconSvg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>')}<span class="nav-label">Log Out</span></button>`;
+    sidebar.appendChild(foot);
+    foot.querySelector('.sb-logout').addEventListener('click', () => {
+        if (typeof confirmLogout === 'function') confirmLogout();
+        else if (confirm('Log out of the system?')) logout();
+    });
+}
 
 // A refresh button (two arrows going round) beside the top bar search: takes you home to the Dashboard
 // with fresh figures (the browser's own refresh reloads the page you are on)

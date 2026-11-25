@@ -61,6 +61,8 @@ export async function handleApi(req, res, parts) {
             admin: !!admin, studentId: session.kind === 'student' ? session.studentId : null,
             // Global Settings: the short courses part shown or hidden
             shortCourses: (await globalControls().catch(() => DEFAULT_CONTROLS)).shortCourses !== false,
+            // Global Settings: the new floating sidebar, or the classic one
+            newSidebar: (await globalControls().catch(() => DEFAULT_CONTROLS)).newSidebar !== false,
             // Roll Call: how many days back a register may be taken (0: today only)
             attendanceBackDays: await attendanceBackDays(),
             resetEmail: session.kind === 'reset' ? session.email : null

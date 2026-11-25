@@ -15,13 +15,14 @@ import { logOutEveryone } from '../system-update/system-update.mjs';
      global_settings_password  {"salt": ..., "hash": ...}
      global_controls           {"systemOpen", "closedMessage", "staffLogins", "studentLogins", "applications",
                                 "shortCourses" (the Short Courses tab and a course's short course fields shown),
-                                "attendanceBackdating" (registers may be taken for past days), "attendanceBackdateDays" (how many)}
+                                "attendanceBackdating" (registers may be taken for past days), "attendanceBackdateDays" (how many),
+                                "newSidebar" (the new floating sidebar; false: the classic one)}
    The first password can only be set by a logged-in Administrator. A forgotten password: delete the row
    'global_settings_password' in pgAdmin (Supabase), then an Administrator sets a new one. */
 const GLOBAL_COOKIE = 'fewa_global';
 const GLOBAL_MINUTES = 30;
 export const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogins: true, studentLogins: true, applications: true,
-    shortCourses: true, attendanceBackdating: false, attendanceBackdateDays: 0 };
+    shortCourses: true, attendanceBackdating: false, attendanceBackdateDays: 0, newSidebar: true };
 // Read at most every 10 seconds (every request asks)
 let controlsCache = { at: 0, value: null };
 export async function globalControls() {
@@ -114,7 +115,7 @@ export async function handleGlobal(req, res, session, action, method) {
     if (method === 'PUT' && action === 'controls') {
         const current = await globalControls();
         const next = { ...current };
-        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses', 'attendanceBackdating']) {
+        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses', 'attendanceBackdating', 'newSidebar']) {
             if (typeof body[key] === 'boolean') next[key] = body[key];
         }
         if (body.attendanceBackdateDays !== undefined) {

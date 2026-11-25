@@ -9,7 +9,7 @@
     <!-- The owner's hidden page, opened at /GLOBALSETTINGS (server.mjs, "Global Settings"). It is not linked from
          any other page. Everything here is checked again by the server; the page only shows the settings.
          Laid out as a settings table: SETTING_NAME | value | ticked when changed | description. -->
-    <link rel="stylesheet" href="styles.css?v=20261125c">
+    <link rel="stylesheet" href="styles.css?v=20261125e">
     <!-- The settings table's font: Source Sans 3, small and plain like a settings list -->
     <style>
         body.gs-open, body.gs-open input, body.gs-open select, body.gs-open textarea, body.gs-open button {
@@ -172,6 +172,9 @@
               off: 'Switch off backdating of attendance? Registers can then only be taken or changed for today.' },
             { control: 'attendanceBackdateDays', name: 'ATTENDANCE_BACKDATE_DAYS', number: true,
               description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365), e.g. 7: today and the 7 days before it.' },
+            { control: 'newSidebar', name: 'NEW_SIDEBAR_ENABLED', yesNo: true,
+              description: 'YES: the new floating sidebar (menu search, glowing open item, Change Password and Log Out at the bottom). NO: the classic sidebar.',
+              off: 'Go back to the classic sidebar? Staff see the change the next time they open or refresh a page.' },
             { control: 'shortCourses', name: 'SHORT_COURSES_ENABLED', yesNo: true,
               description: 'NO hides the Short Courses tab (Settings > Program Setup) and the short course choices on a course. Nothing saved is deleted.',
               off: 'Hide the short courses part? Staff see the change the next time they open or refresh a page.' }

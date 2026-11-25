@@ -6298,3 +6298,180 @@ body.login-page .btn-login {
     .fin-paper { max-width: none; padding: 0; }
     .fin-paper-bar { display: none !important; }
 }
+/* =====================================================================================================
+   Sidebar v2: a floating dark panel with rounded corners, the brand, a search box, "MENU", items with a soft
+   purple glow and a glowing bar on the open one, Change Password / Log Out at the bottom, and a round button
+   on the edge that folds it to icons (auth.js buildSidebarExtras). The college's purple and gold throughout.
+   ===================================================================================================== */
+html.sb-v2 #sidebar {
+    position: relative;
+    margin: 10px 0 10px 10px;
+    height: calc(100% - 20px);
+    width: 250px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #1b0d2c 0%, #170a26 55%, #120720 100%);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 18px 40px rgba(20, 8, 34, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    overflow: visible !important;
+    z-index: 60; /* above the top bar, so the fold button on its edge shows */
+}
+html.sb-v2 #sidebar > .brand {
+    border-radius: 18px 18px 0 0;
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    min-height: 72px;
+    padding: 14px 16px;
+}
+html.sb-v2 #sidebar > .brand.brand-home:hover,
+html.sb-v2 #sidebar > .brand.brand-home:focus-visible { background: rgba(255, 255, 255, 0.03); }
+html.sb-v2 #sidebar .brand-logo { width: 46px; height: 46px; }
+html.sb-v2 #sidebar .brand-name b { font-size: 21px; }
+
+/* The round fold button on the edge */
+html.sb-v2 .sb-fold {
+    position: absolute;
+    top: 26px;
+    right: -13px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid rgba(223, 177, 91, 0.55);
+    background: #24103a;
+    color: #f3d27a;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    z-index: 5;
+    box-shadow: 0 4px 12px rgba(20, 8, 34, 0.4);
+    transition: transform 0.2s, background 0.2s;
+}
+html.sb-v2 .sb-fold svg { width: 14px; height: 14px; }
+html.sb-v2 .sb-fold:hover { background: #3b1d5e; transform: scale(1.08); }
+html.sb-v2.sidebar-collapsed .sb-fold svg { transform: rotate(180deg); }
+
+/* Search */
+html.sb-v2 .sb-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 14px 6px;
+    padding: 0 12px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: #a99bbd;
+    flex-shrink: 0;
+    transition: border-color 0.2s, background 0.2s;
+}
+html.sb-v2 .sb-search:focus-within { border-color: rgba(176, 124, 240, 0.6); background: rgba(255, 255, 255, 0.09); box-shadow: 0 0 0 3px rgba(176, 124, 240, 0.15); }
+html.sb-v2 .sb-search svg { width: 16px; height: 16px; flex-shrink: 0; }
+html.sb-v2 .sb-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: #fff; font-size: 13px; }
+html.sb-v2 .sb-search input::placeholder { color: #8f80a6; }
+html.sb-v2 .sb-label { margin: 12px 22px 4px; font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #8f80a6; flex-shrink: 0; }
+
+/* Menu items */
+html.sb-v2 #sidebar > .menu-list { padding: 2px 10px 10px; }
+html.sb-v2 #sidebar .menu-list > .nav-item {
+    position: relative;
+    padding: 0;
+    margin: 2px 0;
+    border-radius: 10px;
+    background: transparent;
+}
+html.sb-v2 #sidebar .menu-list > .nav-item > a {
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: #d9cfe8;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.18s, color 0.18s;
+}
+html.sb-v2 #sidebar .menu-list > .nav-item > a .nav-icon { color: #a99bbd; transition: color 0.18s; }
+html.sb-v2 #sidebar .menu-list > .nav-item:hover,
+html.sb-v2 #sidebar .menu-list > .nav-item.has-submenu:hover { background: transparent; }
+html.sb-v2 #sidebar .menu-list > .nav-item:hover > a { background: rgba(255, 255, 255, 0.06); color: #fff; }
+html.sb-v2 #sidebar .menu-list > .nav-item:hover > a .nav-icon { color: #f3d27a; }
+/* The open page: a soft purple glow and a glowing bar on the left */
+html.sb-v2 #sidebar .menu-list > .nav-item.active,
+html.sb-v2 #sidebar .menu-list > .nav-item.has-submenu.active { background: transparent; }
+html.sb-v2 #sidebar .menu-list > .nav-item.active > a {
+    background: linear-gradient(90deg, rgba(150, 88, 220, 0.38) 0%, rgba(150, 88, 220, 0.10) 100%);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(176, 124, 240, 0.18);
+}
+html.sb-v2 #sidebar .menu-list > .nav-item.active > a .nav-icon { color: #f3d27a; }
+html.sb-v2 #sidebar .menu-list > .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 8px;
+    width: 4px;
+    height: 24px;
+    border-radius: 0 4px 4px 0;
+    background: #c08cff;
+    box-shadow: 0 0 10px 2px rgba(192, 140, 255, 0.75), 0 0 22px 4px rgba(150, 88, 220, 0.45);
+}
+html.sb-v2 #sidebar .menu-list > .nav-item.sb-hidden,
+html.sb-v2 #sidebar .submenu-item.sb-hidden { display: none !important; }
+
+/* Sub-items: a fine line down the left, a dot that lights on the open one */
+html.sb-v2 #sidebar .submenu { background: transparent; margin: 2px 0 4px 21px; padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.09); }
+html.sb-v2 #sidebar .submenu-item {
+    padding: 8px 10px;
+    margin: 1px 0;
+    border-radius: 8px;
+    color: #b9abcd;
+    font-size: 13px;
+    background: transparent;
+    border-left: 0;
+}
+html.sb-v2 #sidebar .submenu-item:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+html.sb-v2 #sidebar .submenu-item.active { background: rgba(223, 177, 91, 0.12); color: #f3d27a; font-weight: 700; }
+html.sb-v2 #sidebar .submenu-item .icon-circle { border-color: #8f80a6; }
+html.sb-v2 #sidebar .submenu-item.active .icon-circle { background: #f3d27a; border-color: #f3d27a; box-shadow: 0 0 8px rgba(243, 210, 122, 0.8); }
+
+/* The bottom: Change Password and Log Out */
+html.sb-v2 .sb-foot { flex-shrink: 0; margin: 0 10px; padding: 10px 0 12px; border-top: 1px solid rgba(255, 255, 255, 0.07); display: grid; gap: 2px; }
+html.sb-v2 .sb-foot-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #d9cfe8;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    text-align: left;
+}
+html.sb-v2 .sb-foot-item svg { width: 18px; height: 18px; flex-shrink: 0; color: #a99bbd; }
+html.sb-v2 .sb-foot-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+html.sb-v2 .sb-foot-item:hover svg { color: #f3d27a; }
+html.sb-v2 .sb-foot-arrow { margin-left: auto; display: inline-flex; opacity: 0.7; }
+html.sb-v2 .sb-foot-arrow svg { width: 16px; height: 16px; }
+html.sb-v2 .sb-logout:hover { background: rgba(229, 96, 79, 0.14); color: #ffb3a7; }
+html.sb-v2 .sb-logout:hover svg { color: #ff7a66; }
+
+/* Folded to icons */
+html.sb-v2.sidebar-collapsed #sidebar { width: 72px; }
+html.sb-v2.sidebar-collapsed #sidebar .sb-label,
+html.sb-v2.sidebar-collapsed #sidebar .sb-foot-arrow,
+html.sb-v2.sidebar-collapsed #sidebar .sb-search input { display: none; }
+html.sb-v2.sidebar-collapsed #sidebar .sb-search { justify-content: center; margin: 14px 12px 8px; padding: 0; cursor: pointer; }
+html.sb-v2.sidebar-collapsed #sidebar .menu-list > .nav-item > a,
+html.sb-v2.sidebar-collapsed .sb-foot-item { justify-content: center; padding: 11px 0; }
+html.sb-v2.sidebar-collapsed #sidebar .menu-list > .nav-item { padding: 0; }
+html.sb-v2.sidebar-collapsed .sb-foot-item .nav-label { display: none; }
+
+/* Phones: the panel slides in from the left with the same look */
+@media (max-width: 768px) {
+    html.sb-v2 #sidebar { position: fixed; z-index: 1100; margin: 0; height: auto; border-radius: 0 18px 18px 0; top: 0; bottom: 0; left: 0; }
+    html.sb-v2 #sidebar > .brand { border-radius: 0 18px 0 0; }
+    html.sb-v2 .sb-fold { right: 12px; top: 24px; }
+    html.sb-v2 .sb-fold svg { transform: none !important; }
+}
