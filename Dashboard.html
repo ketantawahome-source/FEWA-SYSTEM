@@ -40,7 +40,6 @@
         .att-body { flex: 1; padding: 16px 76px 12px 18px; }
         .att-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
         .att-label { font-size: 14px; opacity: .92; }
-        .att-card:not(.att-good):not(.att-risk):not(.att-poor) .att-value { color: #f3d27a; }
         .att-note { font-size: 13px; margin-top: 8px; opacity: .95; margin-right: -58px; }
         @media (max-width: 500px) { .att-note { margin-right: 0; } }
         /* The absent share under the present one, and a bar split present / absent */
@@ -512,15 +511,14 @@
             const card = document.getElementById('attCard');
             card.classList.remove('att-good', 'att-risk', 'att-poor');
             if (pc !== null) card.classList.add(pc >= 75 ? 'att-good' : pc >= 50 ? 'att-risk' : 'att-poor');
-            document.getElementById('attPercent').textContent = pc === null ? '—' : `${pc}% Present`;
-            // The absent share: the rest of those counted (present + absent; excused left out)
-            document.getElementById('attAbsent').hidden = pc === null;
-            document.getElementById('attAbsent').textContent = pc === null ? '' : `${100 - pc}% Absent`;
-            document.getElementById('attBar').hidden = pc === null;
+            // Always the two shares and the counts (0% and 0 before any register is taken today)
+            document.getElementById('attPercent').textContent = `${pc || 0}% Present`;
+            document.getElementById('attAbsent').hidden = false;
+            document.getElementById('attAbsent').textContent = `${pc === null ? 0 : 100 - pc}% Absent`;
+            document.getElementById('attBar').hidden = false;
             document.getElementById('attBarIn').style.width = `${pc || 0}%`;
-            document.getElementById('attCounts').textContent = marks.size
-                ? `${present} Present | ${absent} Absent` + (late ? ` (${late} late)` : '') + (excused ? ` | ${excused} Excused` : '')
-                : 'No register taken yet today';
+            document.getElementById('attCounts').textContent = `${present} Present | ${absent} Absent`
+                + (late ? ` (${late} late)` : '') + (excused ? ` | ${excused} Excused` : '') + (marks.size ? '' : ' · no register yet today');
             document.getElementById('attArc').setAttribute('stroke-dasharray', `${pc || 0} ${100 - (pc || 0)}`);
         }
 
