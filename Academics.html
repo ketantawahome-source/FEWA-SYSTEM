@@ -102,6 +102,7 @@
         .sch-short-note b { color: #24103a; }
         .sched-fields input:disabled { background: #eeeaf3; color: #9a8fae; cursor: not-allowed; }
         .sch-own-dates { color: #4b2a72; font-style: italic; }
+        .sch-all { color: #8a7d9c; }
         .sch-short-badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a;
             font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
@@ -640,7 +641,7 @@
                         Choose the batch to see its semesters (and the course, to see only its periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
                     <div class="up-filters reg-fields lec-fields sched-fields">
                         <label for="schCourse">Course</label><select id="schCourse"></select>
-                        <label for="schBatch">Batch <span class="req">*</span></label><select id="schBatch"></select>
+                        <label for="schBatch">Batch <span class="req req-batch">*</span></label><select id="schBatch"></select>
                         <label for="schEnrolment">Enrolment</label><select id="schEnrolment"></select>
                         <label for="schPeriod" id="schPeriodLabel">Period</label>
                         <div class="sch-period-cell"><select id="schPeriod"></select>
@@ -2253,7 +2254,7 @@
                 $(id).disabled = short;
                 if (short) $(id).value = '';
             }
-            document.querySelectorAll('.sched-fields .req-date').forEach(el => el.hidden = short);
+            document.querySelectorAll('.sched-fields .req-date, .sched-fields .req-batch').forEach(el => el.hidden = short);
             $('schPeriod').hidden = short;
             $('schShortNote').hidden = !short;
             $('schPeriodLabel').textContent = short ? 'Duration' : 'Period';
@@ -2279,22 +2280,24 @@
 
         function renderSchedule() {
             const course = $('schCourse').value, batch = $('schBatch').value;
-            const chosen = !!batch;
+            // A short course is shown without a batch too: its periods for all batches (and the chosen batch)
+            const shortChosen = !!course && isShortCourse(courseNamed(course));
+            const chosen = !!batch || shortChosen;
             $('schHint').hidden = chosen;
             $('schPanel').hidden = !chosen;
             if (!chosen) return;
             const words = scheduleFind.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            const rows = schedules.filter(s => s.batch === batch && (!course || s.course === course))
+            const rows = schedules.filter(s => (s.batch === batch || (shortChosen && (!batch || !s.batch))) && (!course || s.course === course))
                 .filter(s => words.every(w => `${s.course} ${s.enrolment} ${s.period}`.toLowerCase().includes(w)))
                 .sort((a, b) => String(a.course).localeCompare(String(b.course)) || String(a.enrolment).localeCompare(String(b.enrolment))
                     || (a.periodNumber || periodNumber(a.period)) - (b.periodNumber || periodNumber(b.period)));
             const closed = rows.filter(s => s.accountsStatus === 'CLOSED').length;
-            $('schCount').textContent = `${rows.length} period${rows.length === 1 ? '' : 's'} for ${batch}` +
+            $('schCount').textContent = `${rows.length} period${rows.length === 1 ? '' : 's'} for ${batch || 'all batches'}` +
                 (course ? `, ${course}` : '') + (closed ? `, ${closed} closed for accounts` : '');
             $('schRows').innerHTML = rows.length ? rows.map(s => `<tr${s.id === editingSchedule ? ' class="editing"' : ''}>
                     <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(periodLabel(s.course, s.period)), `editSchedule('${s.id}')`) +
                         iconButton('delete', 'Remove ' + escapeHtml(periodLabel(s.course, s.period)), `deleteSchedule('${s.id}')`) : ''}</td>
-                    <td>${escapeHtml(s.course || '')}</td>
+                    <td>${escapeHtml(s.course || '')}${!s.batch ? ' <small class="sch-all">(all batches)</small>' : ''}</td>
                     <td>${escapeHtml(s.enrolment || '')}</td><td>${escapeHtml(periodLabel(s.course, s.period))}</td>
                     ${!s.startDate && isShortCourse(courseNamed(s.course))
                         ? `<td colspan="4" class="sch-own-dates">Each student's own ${escapeHtml(shortLength(courseNamed(s.course)))} (from their Course Start Date)</td>`
@@ -2313,7 +2316,8 @@
             const batch = v('schBatch'), course = v('schCourse'), period = v('schPeriod');
             const start = v('schStart'), end = v('schEnd'), accStart = v('schAccStart'), accEnd = v('schAccEnd');
             const shortCourse = isShortCourse(courseNamed(course));
-            const missing = [[batch, 'the batch'], [period, 'the period'], ...(shortCourse ? [] : [[start, 'the start date'], [end, 'the end date']])]
+            // A short course: the batch may be left empty (its students join any day: the period is for all batches)
+            const missing = [...(shortCourse ? [] : [[batch, 'the batch']]), [period, 'the period'], ...(shortCourse ? [] : [[start, 'the start date'], [end, 'the end date']])]
                 .filter(([x]) => !x).map(([, n]) => n);
             if (missing.length) return alert('Please fill in ' + missing.join(', ') + '.');
             if (!shortCourse && end < start) return alert('The end date is before the start date.');
@@ -2322,7 +2326,10 @@
                 programme: courseAward(course) };
             const existing = schedules.find(s => s.id !== editingSchedule && sameSlot(s, record));
             const label = [periodLabel(record.course, record.period), record.course, record.enrolment].filter(Boolean).join(', ');
-            if (existing && !await fewaConfirm(`${batch} already has ${label}. Replace its dates?`)) return;
+            const where = batch || 'All batches';
+            // Asked here (after the checks above), not by safe-actions.js before them
+            if (existing ? !await fewaConfirm(`${where} already has ${label}. Replace it?`, { yes: 'Yes, replace', danger: false })
+                : !await fewaConfirm(`Save ${label} for ${where}?`)) return;
             const old = schedules.find(s => s.id === editingSchedule);
             const base = existing || old || {};
             Object.assign(record, { ...base, ...record, id: base.id || newId(), periodNumber: periodNumber(period),
@@ -2331,7 +2338,7 @@
             try {
                 await save('period_schedules', record);
                 if (existing && old && existing.id !== old.id) await fewaDB.remove('period_schedules', old.id);
-                showToast(`${batch}: ${label} saved.`);
+                showToast(`${where}: ${label} saved.`);
                 editingSchedule = null;
                 $('schSave').textContent = 'Save period';
                 for (const id of ['schStart', 'schEnd', 'schAccStart', 'schAccEnd']) $(id).value = '';
@@ -2400,7 +2407,8 @@
         async function autoPopulateSchedules() {
             if (!allowed('schedule', 'edit')) return;
             const batch = $('schBatch').value, course = $('schCourse').value;
-            if (!batch) return alert('Choose the batch first: the periods are made for that batch.');
+            // (a short course needs no batch: its period is then for all batches)
+            if (!batch && !(course && isShortCourse(courseNamed(course)))) return alert('Choose the batch first: the periods are made for that batch.');
             const chosen = batchNamed(batch);
             // A short course (or a short course batch): one whole-course period, no dates, no enrolment needed
             if ((chosen && chosen.batchType === BATCH_SHORT) || (course && isShortCourse(courseNamed(course))))
@@ -2465,13 +2473,14 @@
                     accountsStartDate: '', accountsEndDate: '', accountsStatus: 'OPEN',
                     updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
             }
-            if (!made.length) return alert(`Every short course already has its period in ${batch.name}.`);
-            if (!await fewaConfirm(`Create the short course period of ${made.map(r => r.course).join(', ')} in ${batch.name}: ` +
+            const where = batch.name || 'all batches';
+            if (!made.length) return alert(`Every short course already has its period in ${where}.`);
+            if (!await fewaConfirm(`Create the short course period of ${made.map(r => r.course).join(', ')} for ${where}: ` +
                 `the whole course (no semesters, no dates: each student's own months from their Course Start Date)?`, { yes: 'Yes, create', danger: false })) return;
             let saved = 0;
             try {
                 for (const record of made) { await save('period_schedules', record); saved++; }
-                showToast(`${saved} short course period${saved === 1 ? '' : 's'} added to ${batch.name}.`);
+                showToast(`${saved} short course period${saved === 1 ? '' : 's'} added for ${where}.`);
             } catch (err) { alert(`${saved} of ${made.length} periods were saved; the rest could not be: ` + err.message); }
             await loadData();
         }
