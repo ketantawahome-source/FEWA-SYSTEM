@@ -1298,9 +1298,12 @@
         /* ---------- Programme units (unit programme mapping) ----------
            The units a course takes, by batch and by year and semester (table academics.programme_units, the same
            records as Settings > Program Setup > Programme Units). Programme = Settings > Award Types; Course = the
-           Settings courses with that award; Batch = Settings > Organisation Setup > Batches; Cluster group = Core or Elective. A unit
+           Settings courses with that award; Batch = Settings > Organisation Setup > Batches; Cluster group = Course units or Common units (old records: Core = Course units, Elective = Common units). A unit
            mapped with no batch (as from Settings) is taken by every batch. */
-        const CLUSTER_GROUPS = ['Core', 'Elective'];
+        const CLUSTER_GROUPS = ['Course units', 'Common units'];
+        // The names used before (user's wish 2026-11-25): Core is now Course units, Elective is now Common units
+        const OLD_CLUSTERS = { core: 'Course units', elective: 'Common units', 'course unit': 'Course units', 'common unit': 'Common units' };
+        const clusterName = v => CLUSTER_GROUPS.find(g => same(g, v)) || OLD_CLUSTERS[String(v || '').trim().toLowerCase()] || '';
         const stageOf = (y, s) => `Year ${y}, Semester ${s}`;
 
         function fillMappingCourses() {
@@ -1334,7 +1337,7 @@
             $('pmRows').innerHTML = rows.length ? rows.map(p => `<tr${p.id === editingMapping ? ' class="editing"' : ''}><td>${escapeHtml(stageOf(p.yearOfStudy, p.semester))}</td>
                     <td>${escapeHtml(p.unitCode)}</td><td>${escapeHtml((unitByCode(p.unitCode) || {}).title || '(not in the Units register)')}</td>
                     <td class="num">${escapeHtml((unitByCode(p.unitCode) || {}).creditHours ?? '')}</td>
-                    <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(p.unitType || 'Core')}</td>
+                    <td>${escapeHtml(p.batch || 'All batches')}</td><td>${escapeHtml(clusterName(p.unitType) || p.unitType || 'Course units')}</td>
                     <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(p.unitCode), `editUnitInCourse('${p.id}')`) +
                         iconButton('delete', 'Take ' + escapeHtml(p.unitCode) + ' off the course', `removeUnitFromCourse('${p.id}')`) : ''}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="7">${escapeHtml(course)} has no units${batch ? ' for ' + escapeHtml(batch) : ''} yet. Add them above, or upload them.</td></tr>`;
@@ -1359,14 +1362,32 @@
             const missing = [['pmCourse', 'course'], ['pmSemester', 'semester']].filter(([id]) => !$(id).value).map(([, name]) => name);
             if (!batch && !old) missing.splice(1, 0, 'batch');
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
-            const unit = unitFromTyped($('pmUnit').value);
-            if (!unit) return alert('Pick the unit from the list that appears as you type (units come from the Units register).');
+            const typed = $('pmUnit').value.trim();
+            const unit = unitFromTyped(typed);
+            if (!unit) {
+                if (!typed) return alert('Type the unit, then pick it from the list that appears (units come from the Units register).');
+                // Not in the Units register yet: offer to go there with the title filled in, then come back
+                const go = await fewaConfirm(`"${typed}" is not in the Units register yet${units.length ? '' : ' (the Units register is still empty)'}.\n\n` +
+                    'A unit must be in the Units register (code, title and credit hours) before it can be added to a course. ' +
+                    'Open the Units register now with this title filled in?', { yes: 'Open Units register', danger: false });
+                if (!go) return;
+                showTab('units');
+                clearUnitForm();
+                $('unitTitle').value = typed;
+                $('unitCode').focus();
+                return;
+            }
             const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code) && p.id !== editingMapping);
             if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageOf(already.yearOfStudy, already.semester)}).`);
             const [yearOfStudy, semester] = stage.split('|').map(Number);
+            // Asked here (not by safe-actions.js) so the unit is checked before the question
+            if (!await fewaConfirm(old
+                ? `Save the change to ${unit.code} - ${unit.title} on ${course}?`
+                : `Add ${unit.code} - ${unit.title} to ${course} (${batch || 'all batches'}, ${stageOf(yearOfStudy, semester)})?`,
+                { yes: old ? 'Yes, save' : 'Yes, add', danger: false })) return;
             try {
                 await save('programme_units', { ...(old || { id: newId() }), course, unitCode: unit.code, yearOfStudy, semester, batch,
-                    unitType: $('pmCluster').value || 'Core' });
+                    unitType: $('pmCluster').value || 'Course units' });
                 showToast(old ? `${unit.code} on ${course} changed.` : `${unit.code} added to ${course} (${batch}, ${stageOf(yearOfStudy, semester)}).`);
                 stopEditingMapping();
                 await loadData();
@@ -1384,7 +1405,7 @@
             };
             pick('pmBatch', p.batch || '');
             pick('pmSemester', `${p.yearOfStudy}|${p.semester}`);
-            pick('pmCluster', p.unitType || 'Core');
+            pick('pmCluster', clusterName(p.unitType) || 'Course units');
             const u = unitByCode(p.unitCode);
             $('pmUnit').value = u ? unitLabel(u) : p.unitCode;
             $('pmAdd').textContent = 'Save change';
@@ -1427,7 +1448,7 @@
                 { title: 'Unit code', field: 'code', required: true, choices: units.map(u => u.code).filter(Boolean), open: true, help: 'The unit code, e.g. HBT 101' },
                 { title: 'Unit title', field: 'title', help: 'Needed only for a unit code not yet on the Units register (it is then created there)' },
                 { title: 'Credit hours', field: 'hours', help: 'For a new unit; may be left blank' },
-                { title: 'Cluster group', field: 'cluster', choices: CLUSTER_GROUPS, help: 'Core or Elective (blank = the Cluster group chosen on the page, else Core). Each unit is mapped for the Batch chosen on the page (none = all batches).' }
+                { title: 'Cluster group', field: 'cluster', choices: CLUSTER_GROUPS, help: 'Course units or Common units (blank = the Cluster group chosen on the page, else Course units). Each unit is mapped for the Batch chosen on the page (none = all batches).' }
             ], 'Course units').catch(err => alert(err.message));
         }
 
@@ -1466,7 +1487,7 @@
                 return alert('The first row must hold the headings, with at least Programme, Year of study, Semester number and Unit code. Download the template to see them.');
             }
             // The current batch and cluster group: those chosen on the page (a column in the file, if any, wins)
-            const pageBatch = $('pmBatch').value, pageCluster = $('pmCluster').value || 'Core', pageCourse = $('pmCourse').value;
+            const pageBatch = $('pmBatch').value, pageCluster = $('pmCluster').value || 'Course units', pageCourse = $('pmCourse').value;
             const cell = (r, key) => at[key] >= 0 ? r[at[key]] || '' : '';
             const seen = new Set();
             const lines = rows.slice(1).map((r, i) => {
@@ -1476,7 +1497,7 @@
                 const unit = unitByCode(code);
                 const year = Number(cell(r, 'year')), semester = Number(cell(r, 'semester'));
                 const clusterText = cell(r, 'cluster');
-                const cluster = clusterText ? CLUSTER_GROUPS.find(g => same(g, clusterText)) : pageCluster;
+                const cluster = clusterText ? clusterName(clusterText) : pageCluster;
                 const group = batch ? groups.find(g => same(g, batch)) : '';
                 const line = { row: i + 2, courseText, course, batch: group ?? batch, code, title: cell(r, 'title') || (unit || {}).title || '',
                     hours: cell(r, 'hours'), year, semester, cluster: cluster || clusterText, unit, problems: [] };
@@ -1487,7 +1508,7 @@
                 else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
                 if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
                 if (![1, 2, 3].includes(semester)) problem('Semester number must be 1, 2 or 3');
-                if (!cluster) problem('Cluster group must be Core or Elective');
+                if (!cluster) problem('Cluster group must be Course units or Common units');
                 const key = `${course}|${line.batch}|${code}`.toLowerCase();
                 if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
                 seen.add(key);

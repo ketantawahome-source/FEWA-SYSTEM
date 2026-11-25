@@ -31,7 +31,7 @@
     const ENTER_OK = '.sp-search, #gateForm, .excel-form, [data-form="payments"]';
 
     // Buttons that save without a form, and whose page does not ask first
-    const ASK_BEFORE = /^\s*(addOffer|saveRegistration|addUnitToCourse|saveUnitHours|saveSchedule|saveRegister|saveExamRecord|saveInlineRow|uploadBulkPhotos|enquiryUploadDocument)\(/;
+    const ASK_BEFORE = /^\s*(addOffer|saveRegistration|saveUnitHours|saveSchedule|saveRegister|saveExamRecord|saveInlineRow|uploadBulkPhotos|enquiryUploadDocument)\(/;
 
     // Words that make a button a "doing" button (kept from the keyboard)
     const ACTION_WORDS = /\b(save|saving|delete|remove|edit|update|upload|post|register|restore|reset|activate|deactivate|reactivate|replace|import|create|apply|approve|submit|add|allocate|record|take off|mark)\b/i;

@@ -28,12 +28,12 @@ CREATE TABLE IF NOT EXISTS academics.programme_units (
     unit_code      text,                  -- academics.units.code
     year_of_study  integer,
     semester       integer,
-    unit_type      text,                  -- Core or Elective
+    unit_type      text,                  -- Cluster group: Course units or Common units (old: Core / Elective)
     extra          jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 -- Manage Units > Programme units maps units per batch (empty: every batch, as Settings > Programme Units adds them)
 ALTER TABLE academics.programme_units ADD COLUMN IF NOT EXISTS batch text;  -- the student group (Student Groups)
-COMMENT ON COLUMN academics.programme_units.unit_type IS 'Cluster group: Core or Elective';
+COMMENT ON COLUMN academics.programme_units.unit_type IS 'Cluster group: Course units or Common units (old: Core, Elective)';
 CREATE INDEX IF NOT EXISTS programme_units_course ON academics.programme_units (course);
 
 
