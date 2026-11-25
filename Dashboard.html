@@ -19,14 +19,28 @@
         .dash-grid-4.dash-grid-5.no-attendance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
         @media (max-width: 1250px) { .dash-grid-4.dash-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
         @media (max-width: 900px) { .dash-grid-4.dash-grid-5, .dash-grid-4.dash-grid-5.no-attendance { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
-        /* Today's attendance: coloured by how many are present (green, amber, red; grey before any register) */
+        /* The figure cards: each its own colour (top bar, icon, number) */
+        .dash-stat { position: relative; border-top-width: 4px !important; transition: transform .15s, box-shadow .15s; }
+        .dash-stat:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(36, 16, 58, .10); }
+        .dash-ic { position: absolute; top: 14px; right: 14px; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
+        .dash-ic svg { width: 22px; height: 22px; }
+        .dash-stat .dash-stat-label { padding-right: 50px; }
+        .tone-blue { border-top-color: #2f6fd1 !important; } .tone-blue .dash-ic { background: #e7effc; color: #2f6fd1; } .tone-blue .dash-stat-value { color: #1d4f9e; }
+        .tone-green { border-top-color: #1f9d61 !important; } .tone-green .dash-ic { background: #e3f6ec; color: #1f9d61; } .tone-green .dash-stat-value { color: #157548; }
+        .tone-coral { border-top-color: #e2554a !important; } .tone-coral .dash-ic { background: #fdeae8; color: #e2554a; } .tone-coral .dash-stat-value { color: #b8372d; }
+        .tone-gold { border-top-color: #d9a21b !important; } .tone-gold .dash-ic { background: #fcf3dc; color: #b88300; } .tone-gold .dash-stat-value { color: #94690a; }
+        .tone-green .dash-toggle { color: #157548; }
+        /* Today's attendance: the college purple before any register, then green, amber or red by how many are present */
         .att-card { position: relative; display: flex; flex-direction: column; padding: 0 !important; overflow: hidden; color: #fff;
-            border-top: 0 !important; background: #8b8597; }
+            border: 0 !important; background: linear-gradient(135deg, #3b1a5e 0%, #6a3a93 100%); box-shadow: 0 6px 16px rgba(59, 26, 94, .25); }
         .att-card[hidden] { display: none; }
-        .att-card.att-good { background: #2e8b57; } .att-card.att-risk { background: #d08a00; } .att-card.att-poor { background: #dd4b39; }
+        .att-card.att-good { background: linear-gradient(135deg, #12804a 0%, #2fb36b 100%); box-shadow: 0 6px 16px rgba(18, 128, 74, .25); }
+        .att-card.att-risk { background: linear-gradient(135deg, #c27400 0%, #f0a81c 100%); box-shadow: 0 6px 16px rgba(194, 116, 0, .25); }
+        .att-card.att-poor { background: linear-gradient(135deg, #c0392b 0%, #ec6a55 100%); box-shadow: 0 6px 16px rgba(192, 57, 43, .25); }
         .att-body { flex: 1; padding: 16px 76px 12px 18px; }
         .att-value { font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
-        .att-label { font-size: 14px; opacity: .9; }
+        .att-label { font-size: 14px; opacity: .92; }
+        .att-card:not(.att-good):not(.att-risk):not(.att-poor) .att-value { color: #f3d27a; }
         .att-note { font-size: 13px; margin-top: 8px; opacity: .95; }
         .att-pie { position: absolute; top: 16px; right: 14px; width: 50px; height: 50px; opacity: .9; }
         .att-foot { display: block; text-align: center; padding: 7px 10px; font-size: 13px; font-weight: 700; color: #fff !important;
@@ -213,23 +227,27 @@
                     </svg>
                     <a class="att-foot" href="RollCall.html?tab=today">Current Day Attendance<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M10 8l4 4-4 4"/></svg></a>
                 </div>
-                <div class="dash-card dash-stat">
+                <div class="dash-card dash-stat tone-blue">
+                    <span class="dash-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg></span>
                     <div class="dash-stat-label">Active students</div>
                     <div id="statActive" class="dash-stat-value">—</div>
                     <div class="dash-stat-note">Currently enrolled</div>
                 </div>
-                <div class="dash-card dash-stat">
+                <div class="dash-card dash-stat tone-green">
+                    <span class="dash-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M19 8v6M16 11h6"/></svg></span>
                     <div class="dash-stat-label">New admissions</div>
                     <div id="statNew" class="dash-stat-value">—</div>
                     <div class="dash-stat-note">This semester</div>
                     <a href="NewStudents.html" class="dash-toggle">View new students</a>
                 </div>
-                <div class="dash-card dash-stat">
+                <div class="dash-card dash-stat tone-coral">
+                    <span class="dash-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></span>
                     <div class="dash-stat-label">Students who left</div>
                     <div id="statLeft" class="dash-stat-value">—</div>
                     <div class="dash-stat-note">This semester</div>
                 </div>
-                <div class="dash-card dash-stat">
+                <div class="dash-card dash-stat tone-gold">
+                    <span class="dash-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6 10v5M18 10v5"/></svg></span>
                     <div class="dash-stat-label">Students with a fee balance</div>
                     <div class="dash-stat-value">—</div>
                     <div class="dash-stat-note">No fee records yet</div>

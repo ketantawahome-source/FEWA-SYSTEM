@@ -132,11 +132,21 @@
         .td-show select, .td-show input { font-size: 14px; padding: 6px 8px; border: 1px solid #ccd1d9; border-radius: 2px; min-height: 34px; box-sizing: border-box; }
         .td-show select { min-width: 110px; }
         .td-show input[type="search"] { width: 230px; }
-        .td-table th { cursor: pointer; user-select: none; white-space: nowrap; }
-        .td-table th.sort-asc::after { content: ' \25B2'; font-size: 10px; } .td-table th.sort-desc::after { content: ' \25BC'; font-size: 10px; }
-        .td-table .td-search-row th { cursor: default; padding-top: 4px; padding-bottom: 8px; }
-        .td-table .td-search-row input { width: 100%; min-width: 80px; box-sizing: border-box; font-size: 12px; padding: 4px 7px; border: 1px solid #d6dbe3; border-radius: 3px; }
-        .td-table tbody tr:nth-child(odd) td { background: #f9f9fa; }
+        .td-table { border: 1px solid #e3e6ea; border-collapse: collapse; font-size: 15px; color: #333; }
+        .td-table thead th { background: #fff !important; color: #333 !important; font-size: 15px; font-weight: 700; text-transform: none; letter-spacing: 0;
+            border: 1px solid #e3e6ea; border-bottom: 0; padding: 12px 34px 10px 9px; position: relative; cursor: pointer; user-select: none; white-space: nowrap; }
+        .td-table thead th.num { text-align: right; }
+        .td-table thead th::after, .td-table thead th::before { content: none !important; display: none !important; }
+        .td-sort { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 16px; opacity: .3;
+            background: no-repeat center/14px 16px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M4 1v13M1 11l3 3 3-3M10 15V2M7 5l3-3 3 3' fill='none' stroke='%23333' stroke-width='1.6'/%3E%3C/svg%3E"); }
+        .td-table th.sort-asc .td-sort, .td-table th.sort-desc .td-sort { opacity: .85; }
+        .td-table .td-search-row th { cursor: default; padding: 6px 6px 8px; border-top: 0; border-bottom: 1px solid #e3e6ea; }
+        .td-table td { padding: 12px 9px; border-left: 1px solid #eef0f3; }
+        .td-table tbody tr:nth-child(odd) td { background: #f6f6f7; }
+        .td-table tbody tr:nth-child(even) td { background: #fff; }
+        .td-table .td-search-row input { width: 100%; max-width: 145px; min-width: 70px; box-sizing: border-box; font-size: 11px; padding: 4px 7px;
+            border: 1px solid #ccd1d9; border-radius: 3px; }
+        .td-table .td-search-row th:first-child input { max-width: 395px; }
         .td-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 12px !important; font-size: 14px; color: #555; }
         .td-pager button { min-width: 32px; height: 30px; margin-left: 3px; border: 1px solid #d6dbe3; background: #fff; border-radius: 3px; cursor: pointer; }
         .td-pager button.on { background: #3c8dbc; border-color: #3c8dbc; color: #fff; }
@@ -474,7 +484,6 @@
                         <label class="td-show">Show <select id="tdSize" onchange="tdPage = 1; renderToday()"><option>10</option><option selected>20</option><option>50</option><option>100</option><option value="0">All</option></select> entries</label>
                     </div>
                     <div class="td-right">
-                        <label class="td-show">Date <input type="date" id="tdDay" onchange="tdPage = 1; renderToday()"></label>
                         <label class="td-show">Search: <input type="search" id="tdSearch" oninput="tdPage = 1; renderToday()"></label>
                     </div>
                 </div>
@@ -1001,11 +1010,23 @@
            (present or late) and absent in that day's registers; a student in several registers counts once, by the
            mark that matters most (absent, then late, excused, present). */
         const TD_COLUMNS = [
-            { key: 'school', label: 'School' }, { key: 'course', label: 'Course' }, { key: 'batch', label: 'Class (Batch)' },
+            { key: 'school', label: 'School' }, { key: 'cls', label: 'Class' }, { key: 'position', label: 'Position', num: true },
             { key: 'population', label: 'Class population', num: true }, { key: 'present', label: 'Present', num: true },
             { key: 'absent', label: 'Absent', num: true }, { key: 'pct', label: '% present', num: true }
         ];
         let tdData = [], tdShown = [], tdPage = 1, tdSort = { key: 'school', dir: 1 };
+
+        /* The class of a batch, as the reference: "YEAR 1 MAY 2026" (the year of study the batch is in today, and the
+           month it started); Position is that year of study. */
+        const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        function classOfBatch(batch, day) {
+            const m = /^([A-Za-z]{3})[A-Za-z]*\s+(\d{4})/.exec(String(batch || '').trim());
+            if (!m || !MONTHS.includes(m[1].toUpperCase())) return { cls: String(batch || 'NO BATCH').toUpperCase(), position: 1 };
+            const start = Number(m[2]) * 12 + MONTHS.indexOf(m[1].toUpperCase());
+            const now = Number(day.slice(0, 4)) * 12 + Number(day.slice(5, 7)) - 1;
+            const year = Math.max(1, Math.floor((now - start) / 12) + 1);
+            return { cls: `YEAR ${year} ${m[1].toUpperCase()} ${m[2]}`, position: year };
+        }
 
         function todayClasses(day) {
             const WEIGHT = { Absent: 4, Late: 3, Excused: 2, Present: 1 };
@@ -1018,8 +1039,8 @@
             for (const s of activeStudents()) {
                 if (!s.admissionCourse) continue;
                 const key = `${s.admissionCourse}\u0000${s.group || ''}`;
-                const c = classes.get(key) || { school: (courseItems.find(x => same(x.name, s.admissionCourse)) || {}).school || '',
-                    course: s.admissionCourse, batch: s.group || '', population: 0, present: 0, absent: 0 };
+                const c = classes.get(key) || { school: String(s.admissionCourse).toUpperCase(), ...classOfBatch(s.group, day),
+                    population: 0, present: 0, absent: 0 };
                 c.population++;
                 const st = marks.get(s.id);
                 if (st === 'Present' || st === 'Late') c.present++;
@@ -1030,9 +1051,7 @@
         }
 
         function startToday() {
-            $('tdDay').value = today();
-            $('tdDay').max = today();
-            $('tdHead').innerHTML = TD_COLUMNS.map(c => `<th data-key="${c.key}"${c.num ? ' class="num"' : ''} onclick="sortToday('${c.key}')">${c.label}</th>`).join('');
+            $('tdHead').innerHTML = TD_COLUMNS.map(c => `<th data-key="${c.key}"${c.num ? ' class="num"' : ''} onclick="sortToday('${c.key}')"><span>${c.label}</span><i class="td-sort" aria-hidden="true"></i></th>`).join('');
             $('tdSearchRow').innerHTML = TD_COLUMNS.map(c => `<th><input type="search" data-key="${c.key}" placeholder="Search..." aria-label="Search ${c.label}" oninput="tdPage = 1; renderToday()"></th>`).join('');
             renderToday();
         }
@@ -1043,14 +1062,14 @@
         }
 
         function renderToday() {
-            tdData = todayClasses($('tdDay').value || today());
+            tdData = todayClasses(today());
             const all = $('tdSearch').value.trim().toLowerCase();
             const per = [...document.querySelectorAll('#tdSearchRow input')].map(i => [i.dataset.key, i.value.trim().toLowerCase()]).filter(([, v]) => v);
             const col = TD_COLUMNS.find(c => c.key === tdSort.key);
             tdShown = tdData.filter(r => (!all || TD_COLUMNS.some(c => String(r[c.key]).toLowerCase().includes(all)))
                 && per.every(([k, v]) => String(r[k]).toLowerCase().includes(v)))
                 .sort((a, b) => (col.num ? a[col.key] - b[col.key] : String(a[col.key]).localeCompare(String(b[col.key]), undefined, { numeric: true })) * tdSort.dir
-                    || a.school.localeCompare(b.school) || a.course.localeCompare(b.course) || a.batch.localeCompare(b.batch));
+                    || a.school.localeCompare(b.school) || a.cls.localeCompare(b.cls));
             document.querySelectorAll('#tdHead th').forEach(th => {
                 th.classList.toggle('sort-asc', th.dataset.key === tdSort.key && tdSort.dir === 1);
                 th.classList.toggle('sort-desc', th.dataset.key === tdSort.key && tdSort.dir === -1);
@@ -1060,9 +1079,8 @@
             tdPage = Math.min(tdPage, pages);
             const first = (tdPage - 1) * size;
             $('tdRows').innerHTML = tdShown.length ? tdShown.slice(first, first + size).map(r => `<tr>
-                <td>${escapeHtml(r.school || '—')}</td><td>${escapeHtml(r.course)}</td><td>${escapeHtml(r.batch || '—')}</td>
-                <td class="num">${r.population}</td><td class="num">${r.present}</td><td class="num">${r.absent}</td>
-                <td class="num">${r.present + r.absent ? `<span class="rc-pct ${pctClass(r.pct)}">${r.pct}</span>` : '0'}</td></tr>`).join('')
+                <td>${escapeHtml(r.school)}</td><td>${escapeHtml(r.cls)}</td><td class="num">${r.position}</td>
+                <td class="num">${r.population}</td><td class="num">${r.present}</td><td class="num">${r.absent}</td><td class="num">${r.pct}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="${TD_COLUMNS.length}">${tdData.length ? 'No class matches the search.' : 'There is no active student in any class.'}</td></tr>`;
             $('tdCount').textContent = tdShown.length ? `Showing ${first + 1} to ${Math.min(first + size, tdShown.length)} of ${tdShown.length} classes` : '';
             const button = (label, page, on, off) => `<button type="button"${on ? ' class="on"' : ''}${off ? ' disabled' : ''} onclick="tdPage = ${page}; renderToday()">${label}</button>`;
@@ -1072,10 +1090,10 @@
 
         function downloadToday() {
             if (!tdShown.length) return alert('There is nothing to download: no class is listed.');
-            const day = $('tdDay').value || today();
+            const day = today();
             FewaExcel.writeWorkbook(`current-day-attendance-${day}.xlsx`, [{ name: 'Attendance ' + day, freeze: true,
-                widths: [30, 34, 22, 16, 10, 10, 11],
-                rows: [TD_COLUMNS.map(c => ({ v: c.label, s: 9 })), ...tdShown.map(r => [r.school, r.course, r.batch,
+                widths: [50, 20, 10, 16, 10, 10, 11],
+                rows: [TD_COLUMNS.map(c => ({ v: c.label, s: 9 })), ...tdShown.map(r => [r.school, r.cls, String(r.position),
                     String(r.population), String(r.present), String(r.absent), String(r.pct)])] }])
                 .catch(err => alert(err.message));
         }
