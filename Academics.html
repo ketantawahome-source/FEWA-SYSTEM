@@ -100,6 +100,8 @@
             background: linear-gradient(135deg, #f6eefc, #fdf7e8); border: 1px solid #e3cf9a; color: #3b1d5e; font-size: 14px; }
         .sch-short-note[hidden] { display: none; }
         .sch-short-note b { color: #24103a; }
+        .sched-fields input:disabled { background: #eeeaf3; color: #9a8fae; cursor: not-allowed; }
+        .sch-own-dates { color: #4b2a72; font-style: italic; }
         .sch-short-badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #4b2a72; color: #f3d27a;
             font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
         .sched-buttons, .sched-wide { grid-column: 2 / -1; }
@@ -632,8 +634,9 @@
                     <div class="units-heading">Semester schedule</div>
                     <div class="settings-banner info-banner">A batch is an academic year (Settings > Organisation Setup > Batches, e.g.
                         Sep 2026 - Aug 2027); here you set the semesters inside it (SEMESTER 1, 2, 3... with their dates).
-                        A short course (3 months) has no semesters: choose the course and its short course batch (e.g. Jan 2027 - Mar 2027
-                        (Short course)), and press Auto populate: one period, the whole course (e.g. 3 MONTHS), is made with the batch's dates.
+                        A short course (3 months) has no semesters and no dates here: its students join any day and each one's
+                        3 months run from their own Course Start Date (Student Hub). Choose the course and the batch and press Auto
+                        populate: one period, the whole course (e.g. 3 MONTHS), is made with no dates.
                         Choose the batch to see its semesters (and the course, to see only its periods). Pick the enrolment and period, fill in the dates and Save to add a period or change one; the pencil loads a period into the form.</div>
                     <div class="up-filters reg-fields lec-fields sched-fields">
                         <label for="schCourse">Course</label><select id="schCourse"></select>
@@ -643,8 +646,8 @@
                         <div class="sch-period-cell"><select id="schPeriod"></select>
                             <!-- A short course chosen: the semester box closes and this shows instead -->
                             <div id="schShortNote" class="sch-short-note" hidden></div></div>
-                        <label for="schStart">Start date <span class="req">*</span></label><input type="date" id="schStart">
-                        <label for="schEnd">End date <span class="req">*</span></label><input type="date" id="schEnd">
+                        <label for="schStart">Start date <span class="req req-date">*</span></label><input type="date" id="schStart">
+                        <label for="schEnd">End date <span class="req req-date">*</span></label><input type="date" id="schEnd">
                         <label for="schAccStart">Accounts start date</label><input type="date" id="schAccStart" title="Empty: the same as the start date">
                         <label for="schAccEnd">Accounts end date</label><input type="date" id="schAccEnd" title="Empty: the same as the end date">
                         <label for="schStatus">Accounts period status</label>
@@ -2244,12 +2247,20 @@
             const c = courseNamed(course);
             // A short course: no semesters - the semester box closes and a note shows the whole course as one period
             const short = !!(c && isShortCourse(c));
+            // A short course student starts any day (their own Course Start Date on the student form), so the period
+            // has no dates: the date boxes are greyed out and left empty
+            for (const id of ['schStart', 'schEnd', 'schAccStart', 'schAccEnd']) {
+                $(id).disabled = short;
+                if (short) $(id).value = '';
+            }
+            document.querySelectorAll('.sched-fields .req-date').forEach(el => el.hidden = short);
             $('schPeriod').hidden = short;
             $('schShortNote').hidden = !short;
             $('schPeriodLabel').textContent = short ? 'Duration' : 'Period';
             if (short) {
                 $('schShortNote').innerHTML = `<span class="sch-short-badge">Short course</span>
-                    <span><b>${escapeHtml(shortLength(c))}</b> &middot; the whole course, no semesters</span>`;
+                    <span><b>${escapeHtml(shortLength(c))}</b> &middot; the whole course, no semesters. No dates: each student's
+                    ${escapeHtml(shortLength(c))} run from their own Course Start Date (Student Hub).</span>`;
                 return fill($('schPeriod'), [[periodName(1), `${shortLength(c)} (whole course)`]], null);
             }
             // Without a course: up to the longest course (6 at least)
@@ -2285,8 +2296,10 @@
                         iconButton('delete', 'Remove ' + escapeHtml(periodLabel(s.course, s.period)), `deleteSchedule('${s.id}')`) : ''}</td>
                     <td>${escapeHtml(s.course || '')}</td>
                     <td>${escapeHtml(s.enrolment || '')}</td><td>${escapeHtml(periodLabel(s.course, s.period))}</td>
-                    <td>${dateText(s.startDate)}</td><td>${dateText(s.endDate)}</td>
-                    <td>${dateText(s.accountsStartDate || s.startDate)}</td><td>${dateText(s.accountsEndDate || s.endDate)}</td>
+                    ${!s.startDate && isShortCourse(courseNamed(s.course))
+                        ? `<td colspan="4" class="sch-own-dates">Each student's own ${escapeHtml(shortLength(courseNamed(s.course)))} (from their Course Start Date)</td>`
+                        : `<td>${dateText(s.startDate)}</td><td>${dateText(s.endDate)}</td>
+                    <td>${dateText(s.accountsStartDate || s.startDate)}</td><td>${dateText(s.accountsEndDate || s.endDate)}</td>`}
                     <td class="${s.accountsStatus === 'CLOSED' ? 'sched-status-closed' : 'sched-status-open'}">${escapeHtml(s.accountsStatus || 'OPEN')}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="9">No periods for ${escapeHtml(batch)} yet.</td></tr>`;
         }
@@ -2299,10 +2312,11 @@
             const v = id => $(id).value.trim();
             const batch = v('schBatch'), course = v('schCourse'), period = v('schPeriod');
             const start = v('schStart'), end = v('schEnd'), accStart = v('schAccStart'), accEnd = v('schAccEnd');
-            const missing = [[batch, 'the batch'], [period, 'the period'], [start, 'the start date'], [end, 'the end date']]
+            const shortCourse = isShortCourse(courseNamed(course));
+            const missing = [[batch, 'the batch'], [period, 'the period'], ...(shortCourse ? [] : [[start, 'the start date'], [end, 'the end date']])]
                 .filter(([x]) => !x).map(([, n]) => n);
             if (missing.length) return alert('Please fill in ' + missing.join(', ') + '.');
-            if (end < start) return alert('The end date is before the start date.');
+            if (!shortCourse && end < start) return alert('The end date is before the start date.');
             if ((accEnd || end) < (accStart || start)) return alert('The accounts end date is before the accounts start date.');
             const record = { batch, course, enrolment: v('schEnrolment'), period,
                 programme: courseAward(course) };
@@ -2388,7 +2402,9 @@
             const batch = $('schBatch').value, course = $('schCourse').value;
             if (!batch) return alert('Choose the batch first: the periods are made for that batch.');
             const chosen = batchNamed(batch);
-            if (chosen && chosen.batchType === BATCH_SHORT) return autoPopulateShortCourse(chosen, course);
+            // A short course (or a short course batch): one whole-course period, no dates, no enrolment needed
+            if ((chosen && chosen.batchType === BATCH_SHORT) || (course && isShortCourse(courseNamed(course))))
+                return autoPopulateShortCourse(chosen || { name: batch }, course);
             const year = Number(($('schStart').value || '').slice(0, 4)) || new Date().getFullYear();
             const intakes = enrolments.filter(e => e.active).map(e => ({ ...e, start: enrolmentStart(e) }))
                 .filter(e => e.start && Number(e.start.slice(0, 4)) === year);
@@ -2403,8 +2419,8 @@
                 // A short course: one period, the whole course (e.g. 3 months from the enrolment's start)
                 if (isShortCourse(c)) {
                     const record = { batch, course: c.name, enrolment: e.name, period: periodName(1), programme: c.award || '' };
-                    if (!schedules.some(s => sameSlot(s, record))) made.push({ ...record, id: newId(), periodNumber: 1, startDate: e.start,
-                        endDate: addMonths(e.start, shortMonths(c), -1), accountsStartDate: '', accountsEndDate: '', accountsStatus: 'OPEN',
+                    if (!schedules.some(s => sameSlot(s, record))) made.push({ ...record, id: newId(), periodNumber: 1, startDate: '',
+                        endDate: '', accountsStartDate: '', accountsEndDate: '', accountsStatus: 'OPEN',
                         updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
                     continue;
                 }
@@ -2429,6 +2445,7 @@
 
         // A short course with a short course batch: the dates are the batch's (empty boxes only)
         function fillShortCourseDates() {
+            return; // (short courses have no dates in the schedule: each student has their own)
             const c = courseNamed($('schCourse').value), b = batchNamed($('schBatch').value);
             if (!c || !isShortCourse(c) || !b || b.batchType !== BATCH_SHORT || editingSchedule) return;
             if (!$('schStart').value && b.dateFrom) $('schStart').value = String(b.dateFrom).slice(0, 10);
@@ -2438,21 +2455,19 @@
         // A short course batch: one period (the whole course, kept as period 1) for each short course, covering the
         // whole batch (its 3 months)
         async function autoPopulateShortCourse(batch, course) {
-            if (!batch.dateFrom || !batch.dateTo) return alert(`${batch.name} has no dates: set them in Settings > Organisation Setup > Batches.`);
             const classes = courseItems.filter(c => course ? c.name === course : isShortCourse(c));
             if (!classes.length) return alert('There are no short courses (6 months or less) in Settings > Program Setup > Courses.');
-            const start = String(batch.dateFrom).slice(0, 10), end = String(batch.dateTo).slice(0, 10);
             const made = [];
             for (const c of classes) {
                 const record = { batch: batch.name, course: c.name, enrolment: '', period: periodName(1), programme: c.award || '' };
                 if (schedules.some(s => sameSlot(s, record))) continue;
-                made.push({ ...record, id: newId(), periodNumber: 1, startDate: start, endDate: end,
+                made.push({ ...record, id: newId(), periodNumber: 1, startDate: '', endDate: '',
                     accountsStartDate: '', accountsEndDate: '', accountsStatus: 'OPEN',
                     updatedAt: new Date().toISOString(), updatedBy: currentUser() || '' });
             }
             if (!made.length) return alert(`Every short course already has its period in ${batch.name}.`);
             if (!await fewaConfirm(`Create the short course period of ${made.map(r => r.course).join(', ')} in ${batch.name}: ` +
-                `the whole course (no semesters), ${dateText(start)} to ${dateText(end)}? The dates can be changed afterwards.`, { yes: 'Yes, create', danger: false })) return;
+                `the whole course (no semesters, no dates: each student's own months from their Course Start Date)?`, { yes: 'Yes, create', danger: false })) return;
             let saved = 0;
             try {
                 for (const record of made) { await save('period_schedules', record); saved++; }
