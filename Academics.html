@@ -2330,6 +2330,13 @@
                 $(id).disabled = short;
                 if (short) $(id).value = '';
             }
+            // A short course student joins any day of the year, so there is no enrolment (intake month) either:
+            // the Enrolment box is greyed out and says so
+            const enrol = $('schEnrolment');
+            enrol.disabled = short;
+            if (short) enrol.value = '';
+            if (enrol.options[0] && enrol.options[0].value === '')
+                enrol.options[0].textContent = short ? 'Any day of the year (no intake)' : '-- select one --';
             document.querySelectorAll('.sched-fields .req-date, .sched-fields .req-batch').forEach(el => el.hidden = short);
             $('schPeriod').hidden = short;
             $('schShortNote').hidden = !short;
@@ -2374,7 +2381,7 @@
                     <td class="unit-actions">${mayEdit() ? iconButton('edit', 'Change ' + escapeHtml(periodLabel(s.course, s.period)), `editSchedule('${s.id}')`) +
                         iconButton('delete', 'Remove ' + escapeHtml(periodLabel(s.course, s.period)), `deleteSchedule('${s.id}')`) : ''}</td>
                     <td>${escapeHtml(s.course || '')}${!s.batch ? ' <small class="sch-all">(all batches)</small>' : ''}</td>
-                    <td>${escapeHtml(s.enrolment || '')}</td><td>${escapeHtml(periodLabel(s.course, s.period))}</td>
+                    <td>${isShortCourse(courseNamed(s.course)) ? '<small class="sch-all">Any day</small>' : escapeHtml(s.enrolment || '')}</td><td>${escapeHtml(periodLabel(s.course, s.period))}</td>
                     ${!s.startDate && isShortCourse(courseNamed(s.course))
                         ? `<td colspan="4" class="sch-own-dates">Each student's own ${escapeHtml(shortLength(courseNamed(s.course)))} (from their Course Start Date)</td>`
                         : `<td>${dateText(s.startDate)}</td><td>${dateText(s.endDate)}</td>
@@ -2398,7 +2405,7 @@
             if (missing.length) return alert('Please fill in ' + missing.join(', ') + '.');
             if (!shortCourse && end < start) return alert('The end date is before the start date.');
             if ((accEnd || end) < (accStart || start)) return alert('The accounts end date is before the accounts start date.');
-            const record = { batch, course, enrolment: v('schEnrolment'), period,
+            const record = { batch, course, enrolment: shortCourse ? '' : v('schEnrolment'), period,
                 programme: courseAward(course) };
             const existing = schedules.find(s => s.id !== editingSchedule && sameSlot(s, record));
             const label = [periodLabel(record.course, record.period), record.course, record.enrolment].filter(Boolean).join(', ');
@@ -2432,7 +2439,7 @@
                 $(sel).value = value || '';
             };
             pick('schBatch', s.batch); pick('schCourse', s.course || ''); fillSchedulePeriods();
-            pick('schEnrolment', s.enrolment || ''); pick('schPeriod', s.period);
+            if (!$('schEnrolment').disabled) pick('schEnrolment', s.enrolment || ''); pick('schPeriod', s.period);
             $('schStart').value = isoDay(s.startDate); $('schEnd').value = isoDay(s.endDate);
             $('schAccStart').value = isoDay(s.accountsStartDate); $('schAccEnd').value = isoDay(s.accountsEndDate);
             $('schStatus').value = s.accountsStatus === 'CLOSED' ? 'CLOSED' : 'OPEN';
