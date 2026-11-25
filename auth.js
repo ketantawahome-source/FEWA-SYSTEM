@@ -2,6 +2,18 @@
    User accounts (the administrator and staff) live in the PostgreSQL database, through db.js (loaded before this
    file); the server keeps the passwords (never as plain text) and checks them. The signed-in user lives in this
    tab's sessionStorage, which is cleared when the browser is closed. */
+// Everything in the scrolling page frame goes into one inner layer that grows with the page, so the top bar, the
+// tab rows and the footer can stay in view however long the page is (a "sticky" bar can only stay inside a box
+// as tall as the page; #main-wrapper itself is only as tall as the window). Runs before every other start-up step.
+document.addEventListener('DOMContentLoaded', () => {
+    const wrapper = document.getElementById('main-wrapper');
+    if (!wrapper || document.getElementById('main-inner')) return;
+    const inner = document.createElement('div');
+    inner.id = 'main-inner';
+    while (wrapper.firstChild) inner.appendChild(wrapper.firstChild);
+    wrapper.appendChild(inner);
+});
+
 const AUTH_ACCOUNTS_KEY = 'fewaAccounts';
 const AUTH_OLD_ACCOUNT_KEY = 'fewaAdminAccount';
 const AUTH_SESSION_KEY = 'fewaSessionUser';
@@ -427,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <span>Last Activity: <span id="footerActivity"></span></span>
         <span id="footerCollege"></span>
         <span>Last System Update: <span id="footerUpdate">...</span></span>`;
-    wrapper.appendChild(footer);
+    (document.getElementById('main-inner') || wrapper).appendChild(footer);
     document.getElementById('footerCollege').textContent =
         (brandName || 'FEWA Beauty & Fashion College').toUpperCase();
 
@@ -1063,3 +1075,13 @@ window.addEventListener('fewa-value-change', event => {
 // The top bar's buttons, search and name are all in place now (added above): show them together, so nothing in
 // the bar jumps while a page opens (styles.css "The top bar never moves")
 document.addEventListener('DOMContentLoaded', () => document.documentElement.classList.add('topbar-ready'));
+
+// The tab rows stick just under the top bar while the page scrolls (styles.css "Tab rows stay in view"):
+// the top bar's height (it is taller on a phone) is kept in --fewa-topbar-h
+document.addEventListener('DOMContentLoaded', () => {
+    const bar = document.getElementById('topbar');
+    if (!bar) return;
+    const keep = () => document.documentElement.style.setProperty('--fewa-topbar-h', bar.offsetHeight + 'px');
+    keep();
+    if (window.ResizeObserver) new ResizeObserver(keep).observe(bar);
+});

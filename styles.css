@@ -3526,7 +3526,8 @@ html.enquiry-open body {
 /* Print from the window: only the panel being looked at */
 @media print {
     html.printing-enquiry #sidebar,
-    html.printing-enquiry #main-wrapper > :not(#content-area),
+    html.printing-enquiry #main-wrapper > :not(#content-area):not(#main-inner),
+    html.printing-enquiry #main-inner > :not(#content-area),
     html.printing-enquiry .tab-content {
         display: none !important;
     }
@@ -6544,3 +6545,28 @@ html:not(.topbar-ready) #topbar > * { visibility: hidden; animation: topbar-show
 .fewa-ask-box.is-danger .fewa-ask-yes:hover { box-shadow: 0 6px 16px rgba(181, 43, 39, 0.35); }
 @keyframes fewa-ask-in { from { opacity: 0; } }
 @keyframes fewa-ask-pop { from { transform: scale(0.94); opacity: 0; } }
+
+/* =====================================================================================================
+   Tab rows stay in view (user's wish): while a page is scrolled up or down, its row of tabs (Settings, Student
+   Hub, Manage Units, Exam Management, Staff, Manage Finance, New Students, Student Portal) sticks just under the
+   top bar, on a white strip so the page does not show through. --fewa-topbar-h is set by auth.js.
+   ===================================================================================================== */
+#content-area .settings-tabs,
+#content-area .page-tabs,
+#content-area .staff-tabs,
+#content-area .fin-tabs,
+.portal-tabs {
+    position: sticky;
+    top: var(--fewa-topbar-h, 57px);
+    z-index: 50;
+    background: #fff;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    box-shadow: 0 8px 10px -10px rgba(36, 16, 58, 0.25);
+}
+
+/* The inner layer of the page frame (auth.js): as tall as the page, at least as tall as the window, so the top
+   bar and tab rows stay at the top and the footer at the bottom while scrolling */
+#main-wrapper { display: block; }
+#main-inner { display: flex; flex-direction: column; min-height: 100%; }
+#main-inner > #content-area { flex: 1 0 auto; }
