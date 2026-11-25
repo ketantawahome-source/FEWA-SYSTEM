@@ -15,7 +15,7 @@
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="excel-tools.js?v=20261125b"></script>
-    <script src="exams.js?v=20261126a"></script>
+    <script src="exams.js?v=20261126b"></script>
     <script>
         requireLogin();
         // Role Operations: Manage Units (Access Manage Units, Edit Units, Register Student Units), Semester Schedule
@@ -617,8 +617,8 @@
                 <!-- ===== Units register ===== -->
                 <div id="pane-units" class="units-pane" hidden>
                     <div class="units-heading">Units register</div>
-                    <div class="settings-banner info-banner">Units register: enter the unit code, title and credit hours, then Save
-                        unit. The pencil loads a unit for a change and the bin removes one that is not used by a course, an
+                    <div class="settings-banner info-banner">Units register: enter the unit code, title and credit hours and choose the course the unit belongs to (it is then
+                        listed for that course in every Unit box: Unit hours, Units on offer, Lecturer units...), then Save unit. The pencil loads a unit for a change and the bin removes one that is not used by a course, an
                         offer or a registration. Find narrows the list by code or title.</div>
                     <form id="unitForm" class="up-filters reg-fields lec-fields" onsubmit="saveUnit(event)">
                         <input type="hidden" name="id">
@@ -628,6 +628,8 @@
                         <input type="text" id="unitTitle" name="title" required maxlength="200" placeholder="The title as it prints on transcripts">
                         <label for="unitHours">Credit hours <span class="req">*</span></label>
                         <input type="number" id="unitHours" name="creditHours" required min="0" max="100" step="0.5" value="3">
+                        <label for="unitCourse">Course</label><select id="unitCourse" name="course"></select>
+                        <label for="unitStage">Year / semester</label><select id="unitStage" name="stage"></select>
                         <span></span>
                         <div class="units-actions">
                             <button type="submit" class="btn-submit" data-edit>Save unit</button>
@@ -853,6 +855,14 @@
 
         const unitByCode = code => units.find(u => same(u.code, code));
         const unitLabel = u => `${u.code} - ${u.title}`;
+        // The boxes are linked strictly (user): a Unit box lists only the units set up for the chosen course in Course units
+        const courseUnitList = (course, keep = () => true) => {
+            const codes = programmeUnits.filter(p => p.course === course && keep(p)).map(p => String(p.unitCode).toUpperCase());
+            return course ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : [];
+        };
+        const unitPlaceholder = (course, list) => !course ? '-- choose the course first --'
+            : list.length ? '-- select one --' : '-- no units on this course: add them in Units register --';
+        const isCourseUnit = (course, code) => programmeUnits.some(p => p.course === course && same(p.unitCode, code));
         const studentName = s => [s.firstName, s.middleName, s.lastName].filter(Boolean).join(' ');
         const batchOf = r => r.batch || (students.find(s => s.id === r.studentId) || {}).group || '';
         const registeredCount = offer => registrations.filter(r => same(r.term, offer.term) && same(r.unitCode, offer.unitCode)
@@ -895,6 +905,7 @@
             $('pmUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
             fillMappingCourses();
             fillHoursCourses();
+            fillUnitCourses();
             fillScheduleChoices();
             $('studentChoices').innerHTML = students.filter(s => s.activeStudent !== 'no')
                 .map(s => `<option value="${escapeHtml(s.admNo + ' - ' + studentName(s))}"></option>`).join('');
@@ -1002,10 +1013,40 @@
         }
 
         /* ---------- Units register ---------- */
+        /* Units register and Unit hours are linked (user): the Course chosen here narrows the list to that course's units,
+           and a unit saved with a Course is also put on that course (Course units, for all batches / years) at the
+           Year / semester chosen, so it is listed straight away in the Unit hours Unit box of that course. */
+        function stageChoices(courseName) {
+            const course = courseNamed(courseName);
+            if (!course) return [];
+            if (isShortCourse(course)) return [['1|1', `${shortLength(course)} (whole course)`]];
+            const years = /YEAR/i.test(course.durationType || 'YEARS') && Number(course.duration) > 0 ? Math.min(Number(course.duration), 8)
+                : course.durationType && !/YEAR/i.test(course.durationType) ? 1 : 4;
+            const choices = [];
+            for (let y = 1; y <= years; y++) for (let s = 1; s <= 3; s++) choices.push([`${y}|${s}`, stageOf(y, s)]);
+            return choices;
+        }
+        function fillUnitCourses() {
+            fill($('unitCourse'), courseItems.map(c => [c.name, c.name]), '-- not on a course (all units) --');
+            fillUnitStages();
+        }
+        function fillUnitStages() {
+            const course = $('unitCourse').value, choices = stageChoices(course), box = $('unitStage');
+            fill(box, choices, choices.length === 1 ? null : course ? '-- select one --' : '-- choose the course first --');
+            box.disabled = !course || choices.length === 1;
+        }
+        function unitCourseChanged() {
+            fillUnitStages();
+            renderUnits();
+        }
+
         function renderUnits() {
             const words = $('unitFind').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            const shown = units.filter(u => words.every(w => `${u.code} ${u.title}`.toLowerCase().includes(w)));
-            $('unitCount').textContent = `${units.length.toLocaleString()} unit${units.length === 1 ? '' : 's'}` +
+            const course = $('unitCourse').value;
+            const ofCourse = u => !course || programmeUnits.some(p => p.course === course && same(p.unitCode, u.code));
+            const shown = units.filter(u => ofCourse(u) && words.every(w => `${u.code} ${u.title}`.toLowerCase().includes(w)));
+            const total = course ? units.filter(ofCourse).length : units.length;
+            $('unitCount').textContent = `${total.toLocaleString()} unit${total === 1 ? '' : 's'}` + (course ? ` on ${course}` : '') +
                 (words.length ? `, ${shown.length.toLocaleString()} found` : '');
             $('unitRows').innerHTML = shown.length ? shown.map(u => {
                 const courseCount = new Set(programmeUnits.filter(p => same(p.unitCode, u.code)).map(p => p.course)).size;
@@ -1029,6 +1070,8 @@
             const creditHours = Number(form.elements.creditHours.value);
             if (!code || !title || !(creditHours >= 0)) return alert('Enter the unit code, title and credit hours.');
             if (units.some(u => u.id !== id && same(u.code, code))) return alert(`There is already a unit with the code ${code}.`);
+            const course = $('unitCourse').value, stage = $('unitStage').value;
+            if (course && !stage) return alert(`Choose the year / semester ${code} is taken in on ${course}.`);
             const before = units.find(u => u.id === id);
             if (before && !same(before.code, code) && unitInUse(before.code)) {
                 return alert(`${before.code} is already used by courses, offers or registrations, so its code cannot change. ` +
@@ -1036,7 +1079,13 @@
             }
             try {
                 await save('units', { ...(before || {}), id: id || newId(), code, title, creditHours, createdAt: before?.createdAt || new Date().toISOString() });
-                showToast(`Unit ${code} ${before ? 'updated' : 'saved'}.`);
+                // With a Course: the unit is put on that course too (once), so Unit hours lists it
+                const onCourse = course && !programmeUnits.some(p => p.course === course && same(p.unitCode, code) || (before && p.course === course && same(p.unitCode, before.code)));
+                if (onCourse) {
+                    const [yearOfStudy, semester] = stage.split('|').map(Number);
+                    await save('programme_units', { id: newId(), course, unitCode: code, yearOfStudy, semester, batch: '', unitType: 'Course units' });
+                }
+                showToast(`Unit ${code} ${before ? 'updated' : 'saved'}` + (onCourse ? ` and put on ${course}.` : '.'));
                 clearUnitForm();
                 await loadData();
                 if (shortSetup && same(shortSetup.code, code) && unitByCode(code)) {
@@ -1060,9 +1109,13 @@
         }
 
         function clearUnitForm() {
-            const form = $('unitForm');
+            const form = $('unitForm'), course = $('unitCourse').value, stage = $('unitStage').value;
             form.reset();
             form.elements.id.value = '';
+            // The course stays chosen (the next unit is often of the same course)
+            $('unitCourse').value = course;
+            fillUnitStages();
+            if ([...$('unitStage').options].some(o => o.value === stage)) $('unitStage').value = stage;
         }
 
         async function deleteUnit(id) {
@@ -1086,12 +1139,9 @@
         const offerFor = (o, course, batch, term) => o.term === term && (!o.course || o.course === course) && (!o.batch || o.batch === batch);
 
         function fillOfferUnits() {
-            const course = $('offerCourse').value;
-            const codes = programmeUnits.filter(p => p.course === course && (!p.batch || !$('offerBatch').value || p.batch === $('offerBatch').value))
-                .map(p => String(p.unitCode).toUpperCase());
-            const hasUnits = programmeUnits.some(p => p.course === course);
-            const list = course && hasUnits ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
-            fill($('offerUnit'), list.map(u => [u.code, unitLabel(u)]), '');
+            const course = $('offerCourse').value, batch = $('offerBatch').value;
+            const list = courseUnitList(course, p => !p.batch || !batch || p.batch === batch);
+            fill($('offerUnit'), list.map(u => [u.code, unitLabel(u)]), unitPlaceholder(course, list));
             renderOffers();
         }
 
@@ -1266,6 +1316,7 @@
                 if (categoryText && category === undefined) problem('Group category not in Study Sessions');
                 if (!code) problem('No unit code');
                 else if (!unit) problem('Unit not in the Units register');
+                else if (course && !isCourseUnit(course, unit.code)) problem('Not a unit of this course: add it to the course in Units register (Course box) first');
                 if (lecturerCode && !lecturer) problem('Staff number not found (see Staff codes)');
                 const key = `${course}|${batch}|${term}|${category}|${code}`.toLowerCase();
                 if (!line.problems.length && seen.has(key)) problem('Repeated in the file');
@@ -1334,11 +1385,8 @@
         function fillLecturerUnits() {
             const course = $('lecProgramme').value, stage = $('lecStage').value;
             const [y, s] = stage ? stage.split('|').map(Number) : [];
-            const codes = programmeUnits.filter(p => p.course === course && (!stage || (Number(p.yearOfStudy) === y && Number(p.semester) === s)))
-                .map(p => String(p.unitCode).toUpperCase());
-            const hasUnits = programmeUnits.some(p => p.course === course);
-            const list = course && hasUnits ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units;
-            fill($('lecUnit'), list.map(u => [u.code, unitLabel(u)]), list.length ? '-- select one --' : '-- no units yet --');
+            const list = courseUnitList(course, p => !stage || (Number(p.yearOfStudy) === y && Number(p.semester) === s));
+            fill($('lecUnit'), list.map(u => [u.code, unitLabel(u)]), unitPlaceholder(course, list));
         }
 
         const allocationLecturer = (term, batch, course, code) => allocations.find(a => a.term === term && a.batch === batch
@@ -1546,7 +1594,9 @@
             if (x.unit) return backToCourseUnits(course, x.unit);
             shortSetup = { course, code: x.code };
             showTab('units');
+            $('unitCourse').value = '';
             clearUnitForm();
+            renderUnits();
             const form = $('unitForm');
             form.elements.code.value = x.code;
             form.elements.title.value = x.name;
@@ -1801,11 +1851,9 @@
 
         function fillHoursUnits() {
             const course = $('uhCourse').value;
-            const codes = programmeUnits.filter(p => p.course === course).map(p => String(p.unitCode).toUpperCase());
             // Only the units set up for the chosen course in Course units (user): none before a course is chosen
-            const list = course ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : [];
-            fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]),
-                !course ? '-- choose the course first --' : list.length ? '-- select one --' : '-- no units set up for this course (Course units tab) --');
+            const list = courseUnitList(course);
+            fill($('uhUnit'), list.map(u => [u.code, unitLabel(u)]), unitPlaceholder(course, list));
             // The programme's award as the certificate, until one is typed
             $('uhCertificate').placeholder = 'For example ' + (courseAward(course) || 'Diploma');
             renderUnitHours();
@@ -1844,7 +1892,7 @@
             const theory = $('uhTheory').value.trim(), practical = $('uhPractical').value.trim();
             const missing = [[course, 'course'], [code, 'unit']].filter(([v]) => !v).map(([, n]) => n);
             if (course && !code && $('uhUnit').options.length <= 1)
-                return alert(`${course} has no units yet. Set them up in the Course units tab first, then give them their hours here.`);
+                return alert(`${course} has no units yet. In the Units register tab, choose ${course} in the Course box and save its units (or add them in Course units); they are then listed here.`);
             if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
             if (!validHours(theory) || !validHours(practical)) return alert('Enter the theory and practical hours (0 for none).');
             const unit = unitByCode(code) || { code };
@@ -2294,6 +2342,7 @@
                 else if (batch && !same(student.group, batch)) problem(`The student's batch is ${student.group || 'not set'}`);
                 if (!term) problem('Period not like SEMESTER 1');
                 if (!unit) problem('Unit code not in the Units register');
+                else if (student && !isCourseUnit(student.admissionCourse, unit.code)) problem(`Not a unit of the student's course (${student.admissionCourse || 'no course'}): add it to the course in Units register first`);
                 if (!reason) problem('Exam reason must be blank, ' + EXAM_REASONS.slice(1).join(', '));
                 if (lecturerCode && !lecturer) problem('Staff code not found (see Staff codes)');
                 const key = [student?.id, term, unit?.code].join('|').toLowerCase();
@@ -2716,6 +2765,7 @@
         $('lecStage').addEventListener('change', fillLecturerUnits);
         for (const id of ['lecBatch', 'lecTerm', 'lecLecturer']) $(id).addEventListener('change', renderLecturers);
         $('uhCourse').addEventListener('change', fillHoursUnits);
+        $('unitCourse').addEventListener('change', unitCourseChanged);
         $('uhFile').addEventListener('change', chosenHoursFile);
         $('uhDrop').addEventListener('dragover', event => { event.preventDefault(); $('uhDrop').classList.add('dragging'); });
         $('uhDrop').addEventListener('dragleave', () => $('uhDrop').classList.remove('dragging'));

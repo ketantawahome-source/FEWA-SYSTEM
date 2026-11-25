@@ -39,10 +39,9 @@ function examBatchChoices() {
 // Exam types to choose from: those on the Exam types tab and the exam paper types
 const examTypeChoices = () => [...new Set([...examRows('exam_types').map(r => r.description), ...examNames('exam_paper_types')]
     .filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-// Units to suggest: the course's units (Course units), else every unit in the Units register
+// Units to suggest: only the course's units (Course units tab), strictly (user)
 function unitChoices(courseName) {
-    const codes = programmeUnits.filter(p => p.course === courseName).map(p => String(p.unitCode).toUpperCase());
-    return (codes.length ? units.filter(u => codes.includes(String(u.code).toUpperCase())) : units).map(unitLabel);
+    return courseUnitList(courseName).map(unitLabel);
 }
 
 // Points with one decimal, as on grading sheets (8.0)
@@ -193,6 +192,7 @@ const EXAM_TABS = [
                 const unitText = String(get('unit')).trim();
                 const unit = unitText ? units.find(u => same(u.code, unitText) || same(u.title, unitText) || same(unitLabel(u), unitText)) : null;
                 if (unitText && !unit) return 'Unit not in the Units register';
+                if (unit && !isCourseUnit(course.name, unit.code)) return 'Not a unit of this course: add it to the course in Units register (Course box) first';
                 return { course: course.name, className, batch, period, examGroup, examType: examType.replace(/\s+/g, ' '),
                     weight: w === '' ? '' : Number(w), onMainExam: /^(y|yes|true|1)$/i.test(String(get('includeonmainexam')).trim()) ? 'Y' : 'N',
                     unit: unit ? unitLabel(unit) : '' };

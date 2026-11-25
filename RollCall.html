@@ -512,7 +512,7 @@
                 <div class="rc-filters rc-filters-wide">
                     <label for="tkFrom">From</label><input type="date" id="tkFrom" onchange="renderTaken()">
                     <label for="tkTo">To</label><input type="date" id="tkTo" onchange="renderTaken()">
-                    <label for="tkCourse">Course</label><select id="tkCourse" onchange="renderTaken()"></select>
+                    <label for="tkCourse">Course</label><select id="tkCourse" onchange="linkUnitFilter('tkCourse', 'tkUnit'); renderTaken()"></select>
                     <label for="tkBatch">Batch</label><select id="tkBatch" onchange="renderTaken()"></select>
                     <label for="tkUnit">Unit</label><select id="tkUnit" onchange="renderTaken()"></select>
                     <label for="tkSearch">Find</label><input type="search" id="tkSearch" placeholder="Unit, lecturer or course" oninput="renderTaken()">
@@ -546,7 +546,7 @@
             <div id="rcStatus" class="form-section rc-section" hidden>
                 <div class="rc-banner">Each student's attendance in the registers taken. Present and Late count as attended; Excused is left out. Below 75% is at risk, below 50% poor.</div>
                 <div class="rc-filters rc-filters-wide">
-                    <label for="stCourse">Course</label><select id="stCourse" onchange="renderStatus()"></select>
+                    <label for="stCourse">Course</label><select id="stCourse" onchange="linkUnitFilter('stCourse', 'stUnit'); renderStatus()"></select>
                     <label for="stBatch">Batch</label><select id="stBatch" onchange="renderStatus()"></select>
                     <label for="stPeriod">Period</label><select id="stPeriod" onchange="renderStatus()"></select>
                     <label for="stUnit">Unit</label><select id="stUnit" onchange="renderStatus()"></select>
@@ -1170,6 +1170,18 @@
             $('staffNavItem').style.display = isAdmin() ? '' : 'none';
         }
 
+        // The Unit filter follows the Course filter (user): only the units of the chosen course (its offers and registers)
+        function usedUnitsOf(course) {
+            const ofCourse = x => !course || same(x.course, course);
+            return [...new Set([...offers.filter(ofCourse).map(o => o.unitCode), ...registers.filter(ofCourse).map(r => r.unitCode)].filter(Boolean))]
+                .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).map(c => [c, unitLabel(c)]);
+        }
+        function linkUnitFilter(courseId, unitId) {
+            const box = $(unitId), keep = box.value, list = usedUnitsOf($(courseId).value);
+            fill(box, list, 'All units');
+            box.value = list.some(([c]) => c === keep) ? keep : '';
+        }
+
         async function start() {
             showCurrentUser();
             const menu = { mark: 'menuRcMark', taken: 'menuRcTaken', nottaken: 'menuRcNotTaken', status: 'menuRcStatus', today: 'menuRcStatus' }[TAB];
@@ -1186,8 +1198,7 @@
                 ' - FEWA Beauty & Fashion College';
             await loadData();
             const courseChoices = courses.map(c => [c, c]), batchChoices = batches.map(b => [b, b]);
-            const usedUnits = [...new Set([...offers.map(o => o.unitCode), ...registers.map(r => r.unitCode)].filter(Boolean))]
-                .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).map(c => [c, unitLabel(c)]);
+            const usedUnits = usedUnitsOf('');
             if (TAB === 'mark') {
                 $('rcMark').hidden = false;
                 $('mkDate').max = today();
