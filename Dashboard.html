@@ -15,7 +15,7 @@
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
     <script>requireLogin();</script>
-    <link rel="stylesheet" href="styles.css?v=20261125b">
+    <link rel="stylesheet" href="styles.css?v=20261125c">
     <style>
         /* Headline numbers: five across with today's attendance */
         .dash-grid-4.dash-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
@@ -28,26 +28,46 @@
         .dash-ic { position: absolute; top: 14px; right: 14px; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
         .dash-ic svg { width: 22px; height: 22px; }
         .dash-stat .dash-stat-label { padding-right: 50px; }
-        .tone-blue { border-top-color: #2f6fd1 !important; } .tone-blue .dash-ic { background: #e7effc; color: #2f6fd1; } .tone-blue .dash-stat-value { color: #1d4f9e; }
+        .tone-blue { border-top-color: #6a3d9a !important; } .tone-blue .dash-ic { background: #f1e9f8; color: #6a3d9a; } .tone-blue .dash-stat-value { color: #4a2378; }
         .tone-green { border-top-color: #1f9d61 !important; } .tone-green .dash-ic { background: #e3f6ec; color: #1f9d61; } .tone-green .dash-stat-value { color: #157548; }
         .tone-coral { border-top-color: #e2554a !important; } .tone-coral .dash-ic { background: #fdeae8; color: #e2554a; } .tone-coral .dash-stat-value { color: #b8372d; }
         .tone-gold { border-top-color: #d9a21b !important; } .tone-gold .dash-ic { background: #fcf3dc; color: #b88300; } .tone-gold .dash-stat-value { color: #94690a; }
         .tone-green .dash-toggle { color: #157548; }
         /* Today's attendance, as the reference: a flat red box, the % present, the counts, a pie and a darker strip */
+        /* Today's attendance: the college's deep purple, a ring that fills green for present and coral for absent,
+           the two shares, the counts with coloured dots, and a strip to the Current day attendance page */
         .att-card { position: relative; display: flex; flex-direction: column; padding: 0 !important; overflow: hidden; color: #fff;
-            border: 0 !important; border-radius: 3px !important; background: #dd4b39; box-shadow: 0 1px 1px rgba(0, 0, 0, .1); }
+            border: 0 !important; border-radius: 12px !important; background: linear-gradient(140deg, #2c1250 0%, #4a2378 55%, #6b3aa0 100%);
+            box-shadow: 0 10px 24px rgba(44, 18, 80, .28); transition: transform .15s, box-shadow .15s; }
+        .att-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(44, 18, 80, .36); }
+        .att-card::after { content: ''; position: absolute; right: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(223, 177, 91, .28), rgba(223, 177, 91, 0) 70%); pointer-events: none; }
         .att-card[hidden] { display: none; }
-        .att-body { flex: 1; padding: 12px 12px 14px; }
-        .att-value { font-size: 26px; font-weight: 700; line-height: 1.25; white-space: nowrap; margin: 0; padding-right: 80px; position: relative; z-index: 1; }
-        .att-absent { font-size: 18px; font-weight: 700; line-height: 1.3; margin: 0 0 8px; padding-right: 80px; position: relative; z-index: 1; white-space: nowrap; }
-        .att-note { font-size: 16px; position: relative; z-index: 1; }
-        .att-pie { position: absolute; top: 10px; right: 10px; width: 72px; height: 72px; fill: rgba(0, 0, 0, .15); transition: transform .3s; }
-        .att-card:hover .att-pie { transform: scale(1.08); }
-        .att-foot { display: block; text-align: center; padding: 5px 10px; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, .85) !important;
-            background: rgba(0, 0, 0, .1); text-decoration: none; }
-        .att-foot:hover { color: #fff !important; background: rgba(0, 0, 0, .15); }
-        .att-foot svg { width: 14px; height: 14px; vertical-align: -2px; margin-left: 4px; }
-        @media (max-width: 500px) { .att-pie { width: 40px; height: 40px; top: 8px; right: 8px; } .att-value { font-size: 20px; padding-right: 42px; } .att-absent { font-size: 15px; padding-right: 0; } .att-note { font-size: 14px; } .att-foot { font-size: 13px; } }
+        .att-body { flex: 1; padding: 14px 16px 12px; position: relative; z-index: 1; }
+        .att-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .att-label { font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #e9cf95; }
+        .att-value { font-size: 26px; font-weight: 800; line-height: 1.15; white-space: nowrap; margin-top: 4px; }
+        .att-absent { font-size: 15px; font-weight: 700; color: #ffb3a7; white-space: nowrap; margin-top: 2px; }
+        .att-ring { position: relative; width: 62px; height: 62px; flex: none; }
+        .att-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .att-ring circle { fill: none; stroke-width: 7; }
+        .att-ring .att-ring-bg { stroke: rgba(255, 255, 255, .14); }
+        .att-ring .att-ring-absent { stroke: #ff7a66; stroke-linecap: round; transition: stroke-dasharray .8s ease; }
+        .att-ring .att-ring-present { stroke: #3ddc97; stroke-linecap: round; transition: stroke-dasharray .8s ease; }
+        .att-ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; font-weight: 800; }
+        .att-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .att-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 700;
+            background: rgba(255, 255, 255, .12); white-space: nowrap; }
+        .att-chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .att-chip.p i { background: #3ddc97; } .att-chip.a i { background: #ff7a66; }
+        .att-foot { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px;
+            font-size: 13px; font-weight: 700; color: #f3d27a !important; background: rgba(0, 0, 0, .22); text-decoration: none; white-space: nowrap; }
+        .att-foot:hover { background: rgba(0, 0, 0, .32); color: #fff !important; }
+        .att-foot svg { width: 16px; height: 16px; flex: none; transition: transform .15s; }
+        .att-foot:hover svg { transform: translateX(3px); }
+        @media (max-width: 1350px) { .att-value { font-size: 22px; } .att-ring { width: 52px; height: 52px; } }
+        @media (max-width: 500px) { .att-value { font-size: 20px; } .att-absent { font-size: 13px; } .att-ring { width: 44px; height: 44px; }
+            .att-ring span { font-size: 11px; } .att-body { padding: 12px 12px 10px; } .att-chip { font-size: 12px; padding: 2px 8px; } .att-foot { font-size: 12px; } }
     </style>
 </head>
 
@@ -216,14 +236,27 @@
                 <!-- Today's attendance from the Roll Call registers (hidden for a role that cannot read them) -->
                 <div class="dash-card att-card" id="attCard" hidden>
                     <div class="att-body">
-                        <div class="att-value" id="attPercent">0% Present</div>
-                        <div class="att-absent" id="attAbsent">0% Absent</div>
-                        <div class="att-note" id="attCounts">0 Present | 0 Absent</div>
+                        <div class="att-head">
+                            <div>
+                                <div class="att-label">Today's attendance</div>
+                                <div class="att-value" id="attPercent">0% Present</div>
+                                <div class="att-absent" id="attAbsent">0% Absent</div>
+                            </div>
+                            <div class="att-ring" aria-hidden="true">
+                                <svg viewBox="0 0 64 64">
+                                    <circle class="att-ring-bg" cx="32" cy="32" r="26"/>
+                                    <circle class="att-ring-absent" id="attRingAbsent" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100"/>
+                                    <circle class="att-ring-present" id="attRingPresent" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100"/>
+                                </svg>
+                                <span id="attRingText">0%</span>
+                            </div>
+                        </div>
+                        <div class="att-counts">
+                            <span class="att-chip p"><i></i><span id="attCountP">0</span> Present</span>
+                            <span class="att-chip a"><i></i><span id="attCountA">0</span> Absent</span>
+                        </div>
                     </div>
-                    <svg class="att-pie" viewBox="0 0 64 64" aria-hidden="true">
-                        <path d="M29 9a26 26 0 1 0 26 26H29z"/><path d="M34 4a26 26 0 0 1 26 26H34z"/>
-                    </svg>
-                    <a class="att-foot" href="RollCall.html?tab=today">Current Day Attendance<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M8 12h7M12 8l4 4-4 4" fill="none" stroke="#c0402f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+                    <a class="att-foot" href="RollCall.html?tab=today">Current Day Attendance<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M8 12h7M12 8l4 4-4 4" fill="none" stroke="#2c1250" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
                 </div>
                 <div class="dash-card dash-stat tone-blue">
                     <span class="dash-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg></span>
@@ -500,8 +533,14 @@
             const pc = counted ? Math.round(present * 100 / counted) : null;
             // As the reference: the % present and the counts (0% and 0 before any register is taken today)
             document.getElementById('attPercent').textContent = `${pc || 0}% Present`;
-            document.getElementById('attAbsent').textContent = `${pc === null ? 0 : 100 - pc}% Absent`;
-            document.getElementById('attCounts').textContent = `${present} Present | ${absent} Absent`;
+            const ab = pc === null ? 0 : 100 - pc;
+            document.getElementById('attAbsent').textContent = `${ab}% Absent`;
+            document.getElementById('attCountP').textContent = present;
+            document.getElementById('attCountA').textContent = absent;
+            // The ring: green for the present share, then coral for the absent share
+            document.getElementById('attRingText').textContent = `${pc || 0}%`;
+            document.getElementById('attRingPresent').setAttribute('stroke-dasharray', `${pc || 0} ${100 - (pc || 0)}`);
+            document.getElementById('attRingAbsent').setAttribute('stroke-dasharray', `${(pc || 0) + ab} ${100 - (pc || 0) - ab}`);
         }
 
         async function loadDashboard() {
