@@ -31,7 +31,7 @@
     const ENTER_OK = '.sp-search, #gateForm, .excel-form, [data-form="payments"]';
 
     // Buttons that save without a form, and whose page does not ask first
-    const ASK_BEFORE = /^\s*(addOffer|saveRegistration|saveUnitHours|saveRegister|saveExamRecord|saveInlineRow|uploadBulkPhotos|enquiryUploadDocument)\(/;
+    const ASK_BEFORE = /^\s*(saveRegistration|saveUnitHours|saveRegister|saveExamRecord|saveInlineRow|uploadBulkPhotos|enquiryUploadDocument)\(/;
 
     // Words that make a button a "doing" button (kept from the keyboard)
     const ACTION_WORDS = /\b(save|saving|delete|remove|edit|update|upload|post|register|restore|reset|activate|deactivate|reactivate|replace|import|create|apply|approve|submit|add|allocate|record|take off|mark)\b/i;
@@ -79,6 +79,25 @@
         });
     }
     window.fewaConfirm = fewaConfirm;
+
+    /* A notice box for staff pages, as in the Student Portal: a title (e.g. REQUIRED), a message in red (green for 'ok')
+       and Close. messageHtml may hold <b>; anything typed by people must be escaped by the caller. */
+    function fewaNotice(title, messageHtml, kind = 'warn') {
+        document.querySelectorAll('.fewa-notice').forEach(n => n.remove());
+        const back = document.createElement('div');
+        back.className = 'fewa-notice';
+        back.innerHTML = `<div class="fewa-notice-box ${kind}" role="alertdialog" aria-modal="true">
+            <div class="fewa-notice-head"><span></span><button type="button" class="fewa-notice-x" aria-label="Close">&times;</button></div>
+            <div class="fewa-notice-body">${messageHtml}</div>
+            <div class="fewa-notice-foot"><button type="button" class="fewa-notice-close">Close</button></div></div>`;
+        back.querySelector('.fewa-notice-head span').textContent = title;
+        const close = () => back.remove();
+        back.querySelector('.fewa-notice-x').addEventListener('click', close);
+        back.querySelector('.fewa-notice-close').addEventListener('click', close);
+        back.addEventListener('click', e => { if (e.target === back) close(); });
+        document.body.appendChild(back);
+    }
+    window.fewaNotice = fewaNotice;
 
     const isActionButton = el => {
         if (!el) return false;

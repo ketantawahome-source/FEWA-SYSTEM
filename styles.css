@@ -6610,3 +6610,15 @@ html:not(.topbar-ready) #topbar > * { visibility: hidden; animation: topbar-show
 .tab-guard-buttons { margin: 14px 0 8px; }
 .tab-guard-buttons button { background: #4b2a72; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
 .tab-guard-tip { font-size: 12.5px; color: #6b5a80; }
+
+/* Notice box on staff pages (safe-actions.js fewaNotice), like the Student Portal's REQUIRED box */
+.fewa-notice { position: fixed; inset: 0; z-index: 3500; background: rgba(20, 8, 34, .55); display: flex; align-items: flex-start;
+    justify-content: center; padding: 60px 16px 16px; }
+.fewa-notice-box { background: #fff; border-radius: 10px; width: 100%; max-width: 640px; box-shadow: 0 18px 48px rgba(0,0,0,.3); overflow: hidden; }
+.fewa-notice-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e6e1ee;
+    font-size: 19px; font-weight: 800; color: #24103a; }
+.fewa-notice-x { background: none; border: none; font-size: 28px; line-height: 1; cursor: pointer; color: #555; }
+.fewa-notice-body { padding: 26px 28px; font-size: 16px; line-height: 1.6; color: #b3261e; }
+.fewa-notice-box.ok .fewa-notice-body { color: #1f6b43; }
+.fewa-notice-foot { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid #e6e1ee; }
+.fewa-notice-close { background: #6c6577; color: #fff; border: none; border-radius: 6px; padding: 9px 20px; font-size: 15px; cursor: pointer; }

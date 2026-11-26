@@ -28,7 +28,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261126c">
+    <link rel="stylesheet" href="styles.css?v=20261126d">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
@@ -1210,12 +1210,21 @@
         // The offer whose pencil was clicked: Add unit on offer then saves the change to it
         let editingOffer = null;
 
+        function offerNoUnitsNotice() {
+            const course = $('offerCourse').value, batch = $('offerBatch').value;
+            if (!course || courseUnitList(course, p => !p.batch || !batch || p.batch === batch).length) return false;
+            fewaNotice('REQUIRED', `No units are set up for the course <b>${escapeHtml(course)}</b>${batch ? ' (' + escapeHtml(batch) + ')' : ''} yet. ` +
+                'Set them up first in the <b>Units register</b> (choose the course in its Course box) or in <b>Course units</b>, then put them on offer here.');
+            return true;
+        }
+
         async function addOffer() {
             if (!allowed('academics', 'edit')) return;
             const course = $('offerCourse').value, batch = $('offerBatch').value, term = $('offerTerm').value;
             const unitCode = $('offerUnit').value, groupCategory = $('offerCategory').value;
             const missing = [[course, 'course'], [batch, 'batch'], [term, 'period'], [unitCode, 'unit']].filter(([v]) => !v).map(([, n]) => n);
-            if (missing.length) return alert('Choose the ' + missing.join(', ') + '.');
+            if (!unitCode && offerNoUnitsNotice()) return;
+            if (missing.length) return fewaNotice('REQUIRED', 'Choose the ' + escapeHtml(missing.join(', ')) + ' first.');
             const old = offers.find(o => o.id === editingOffer);
             const twin = offerExists(term, old ? old.course : course, unitCode, old ? old.batch : batch, groupCategory);
             if (twin && twin.id !== editingOffer) {
@@ -1224,6 +1233,9 @@
             const lecturer = lecturers.find(l => l.username === $('offerLecturer').value);
             const record = { ...(old || { id: newId(), term, course, batch }), unitCode: (unitByCode(unitCode) || {}).code || unitCode, groupCategory,
                 lecturer: lecturer ? lecturer.username : '', lecturerName: lecturer ? lecturer.name : '' };
+            // Asked here, after the checks above (not by safe-actions.js before them)
+            if (!await fewaConfirm(old ? `Save the change to ${record.unitCode} on offer?` : `Put ${record.unitCode} on offer to ${batch} of ${course} in ${term}?`,
+                { yes: old ? 'Yes, save' : 'Yes, put on offer', danger: false })) return;
             try {
                 await save('unit_offers', record);
                 showToast(old ? `${record.unitCode} on offer changed.` : `${unitCode} is on offer to ${batch} of ${course} in ${term}.`);
@@ -2879,6 +2891,8 @@
         }
 
         for (const id of ['offerCourse', 'offerBatch']) $(id).addEventListener('change', fillOfferUnits);
+        // Units on offer: a course with no units set up says so at once (the same notice as the Student Portal)
+        $('offerCourse').addEventListener('change', () => { if ($('offerCourse').value) offerNoUnitsNotice(); });
         $('offerTerm').addEventListener('change', renderOffers);
         $('offerFile').addEventListener('change', chosenOfferFile);
         $('offerDrop').addEventListener('dragover', event => { event.preventDefault(); $('offerDrop').classList.add('dragging'); });
