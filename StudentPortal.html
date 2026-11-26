@@ -15,7 +15,7 @@
     <script src="school-data.js"></script>
     <script src="notify.js"></script>
     <script>requireStudentLogin();</script>
-    <link rel="stylesheet" href="styles.css?v=20261126b">
+    <link rel="stylesheet" href="styles.css?v=20261126c">
     <style>
         /* Unit Registration (online) */
         .reg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -40,6 +40,8 @@
         .reg-btn.main { background: #c0392b; }
         .reg-btn:disabled { opacity: .45; cursor: not-allowed; }
         .reg-total td { font-weight: 700; }
+        .reg-box { border: 2px solid #7a5aa6; border-radius: 12px; padding: 16px; margin-top: 18px; }
+        .reg-list-title { margin-top: 0; }
         .reg-view { background: #c0392b !important; color: #fff !important; border: none !important; white-space: nowrap; }
         .reg-units-row td { background: #f7f3fb; }
         .reg-units-list { margin: 4px 0; padding-left: 18px; line-height: 1.8; }
@@ -186,7 +188,7 @@
         // The page names shown beside the Home button
         const PAGE_NAMES = {
             profile: 'Personal Profile', overview: 'Overview', admission: 'Admission Details', documents: 'My Documents',
-            status: 'Status History', family: 'Family & Contacts', fees: 'Fee Statement', password: 'Change Password', units: 'My Units', registration: 'Unit Registration'
+            status: 'Status History', family: 'Family & Contacts', fees: 'Fee Statement', password: 'Change Password', units: 'My Units', registration: 'Course Registration'
         };
 
         /* Moving to another page shows "LOADING please wait..." briefly, then the page.
@@ -338,35 +340,37 @@
             const available = (st.units || []).filter(u => !regCategory() || u.category === regCategory());
             const registered = (st.units || []).filter(u => u.registered);
             area.innerHTML = `
+                ${registrationListHtml(st)}
+                <div class="reg-box">
                 <div class="reg-head">
-                    <div class="portal-title">Unit Registration</div>
-                    <div class="reg-period">Registration period: <b>${st.open ? escapeHtml(st.termLabel) : 'closed'}</b></div>
+                    <div class="portal-title">Course Registration</div>
+                    <div class="reg-period">Registration Semester: <b>${st.open ? escapeHtml(st.termLabel) : 'closed'}</b></div>
                 </div>
-                ${st.open ? `<p class="reg-help">Click <b>Get Units to Register</b>, tick your units and click <b>Add Selected Units to the Basket</b>.
-                    Check them, then click <b>Complete Registration</b>. <b>View Proforma Invoice</b> shows the fees of this period.</p>`
+                ${st.open ? `<p class="reg-help">Click <b>Get Units to Register</b> to see the units of your course. Tick your units and click
+                    <b>Add Selected Units to the Basket</b>, check them, then click <b>Complete Registration</b>. <b>View Proforma Invoice</b> shows the fees of this semester.</p>`
                     : `<p class="reg-closed">${escapeHtml(st.reason || 'Registration is closed.')}</p>`}
                 <div class="reg-bar">
                     <div><div class="reg-label">Current Course</div><div class="reg-course">${escapeHtml(st.course || student.admissionCourse || '')}</div></div>
                     <div><label class="reg-label" for="regCategory">Unit Category</label>
-                        <select id="regCategory" onchange="regShown && renderRegistration()" ${st.open ? '' : 'disabled'}>
+                        <select id="regCategory" onchange="regShown && renderRegistration()">
                             <option value="">All units</option><option>Course units</option><option>Common units</option>
                         </select></div>
-                    <div><button type="button" class="btn-submit reg-get" onclick="regGetUnits()" ${st.open ? '' : 'disabled'}>Get Units to Register</button></div>
+                    <div><button type="button" class="btn-submit reg-get" onclick="regGetUnits()">Get Units to Register</button></div>
                 </div>
-                ${regShown && st.open ? `
-                    <div class="reg-subtitle">Units on offer${regCategory() ? ' - ' + escapeHtml(regCategory()) : ''}</div>
+                ${regShown ? `
+                    <div class="reg-subtitle">Units of ${escapeHtml(st.course || 'your course')}${regCategory() ? ' - ' + escapeHtml(regCategory()) : ''}</div>
                     <div class="table-wrap"><table class="data-table reg-table">
                         <thead><tr><th class="reg-tick"></th><th>Unit</th><th>Unit Name</th><th>Credit Hours</th><th>Stage</th><th>Semester</th><th>Category</th></tr></thead>
                         <tbody>${available.length ? available.map(u => `<tr>
                             <td class="reg-tick">${u.registered ? '<span class="reg-done" title="Registered">&#10003;</span>'
                                 : regBasket.includes(u.code) ? '<span class="reg-in" title="In the basket">&#128722;</span>'
-                                : `<input type="checkbox" class="reg-choose" value="${escapeHtml(u.code)}" aria-label="Choose ${escapeHtml(u.code)}">`}</td>
+                                : st.open ? `<input type="checkbox" class="reg-choose" value="${escapeHtml(u.code)}" aria-label="Choose ${escapeHtml(u.code)}">` : ''}</td>
                             <td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td>${escapeHtml(u.creditHours)}</td>
                             <td>${escapeHtml(stage(u))}</td><td>${escapeHtml(sem(u))}</td>
                             <td>${escapeHtml(u.category)}${u.registered ? ' <small class="reg-done">(registered)</small>' : ''}</td></tr>`).join('')
-                            : `<tr class="empty-row"><td colspan="7">No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} on offer to you in this period yet. The college office puts units on offer.</td></tr>`}</tbody>
+                            : `<tr class="empty-row"><td colspan="7">No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} are set up for your course yet. The college office sets up the course units.</td></tr>`}</tbody>
                     </table></div>
-                    <div class="reg-actions-row"><button type="button" class="btn-secondary" onclick="regAddToBasket()">Add Selected Units to the Basket</button></div>` : ''}
+                    ${st.open ? '<div class="reg-actions-row"><button type="button" class="btn-secondary" onclick="regAddToBasket()">Add Selected Units to the Basket</button></div>' : ''}` : ''}
                 <div class="reg-subtitle">Basket Unit List</div>
                 <div class="table-wrap"><table class="data-table reg-table">
                     <thead><tr><th>Course</th><th>Unit</th><th>Unit Name</th><th>Stage</th><th>Semester</th><th>Action</th></tr></thead>
@@ -390,7 +394,7 @@
                             <tr class="reg-total"><td>Total</td><td class="num">${money(regProforma.total)}</td></tr></tbody></table></div>
                         <p class="reg-help">This is not a bill yet: the accounts office charges the fees to your statement (Fee Statement).</p>`
                         : '<p class="empty-state">No fee items are set for your course in this period yet. Ask the accounts office.</p>'}` : ''}
-                ${registrationListHtml(st)}`;
+                </div>`;
             const box = document.getElementById('regCategory');
             if (box) box.value = regCategoryKeep;
         }
@@ -418,7 +422,7 @@
                     ${open ? `<tr class="reg-units-row"><td colspan="6"><ul class="reg-units-list">${regs.map(r =>
                         `<li><b>${escapeHtml(r.unitCode)}</b> ${escapeHtml(unitTitle(r.unitCode))}${r.registeredBy === 'Student (online)' ? ' <small>(registered online)</small>' : ''}</li>`).join('')}</ul></td></tr>` : ''}`;
             }).join('');
-            return `<div class="reg-subtitle">Registration List</div>
+            return `<div class="reg-subtitle reg-list-title">Registration List</div>
                 <div class="table-wrap"><table class="data-table reg-table">
                     <thead><tr><th>Action</th><th>Semester</th><th class="num">Units Taken</th><th>Settlement Type</th><th>Registration Date</th><th class="num">Total Billed</th></tr></thead>
                     <tbody>${rows || '<tr class="empty-row"><td colspan="6">No registrations yet.</td></tr>'}</tbody>
@@ -643,7 +647,7 @@
             // Until a temporary password is replaced, only Change Password is offered
             const nav = passwordOnly ? [['Settings', [['password', 'Change Password']]]] : [
                 ['Dashboard', [['profile', 'Personal Profile'], ['overview', 'Overview']]],
-                ['Academics', [['admission', 'Admission Details'], ['registration', 'Unit Registration'], ['units', `My Units (${myUnits.length})`], ['documents', `Documents (${documentFiles.length})`], ['status', 'Status History']]],
+                ['Academics', [['admission', 'Admission Details'], ['registration', 'Course Registration'], ['units', `My Units (${myUnits.length})`], ['documents', `Documents (${documentFiles.length})`], ['status', 'Status History']]],
                 ['Contacts', [['family', 'Family & Contacts']]],
                 ['Financials', [['fees', 'Fee Statement']]],
                 ['Settings', [['password', 'Change Password']]]

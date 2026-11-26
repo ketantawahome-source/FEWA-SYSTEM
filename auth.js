@@ -292,7 +292,16 @@ function maskEmail(email) {
    (reactivated; an administrator must send a reset link), 'no-password'; for students 'wrong-case',
    'wrong-password', 'inactive', 'reset-required', 'no-password'. */
 async function serverLogin(username, password) {
-    return api('POST', '/session/login', { username, password });
+    const result = await api('POST', '/session/login', { username, password });
+    announceLoginChange();
+    return result;
+}
+// Another tab of this browser logged in or out: the open pages check who they are still working as (tab guard below)
+function announceLoginChange() {
+    try {
+        localStorage.setItem('fewaLoginChanged', String(Date.now()));
+        new BroadcastChannel('fewa-login').postMessage(Date.now());
+    } catch { }
 }
 
 // The page keeps a note of who logged in (the server's session is what counts)
@@ -323,6 +332,7 @@ function endServerSession() {
     } catch { }
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     sessionStorage.removeItem(STUDENT_SESSION_KEY);
+    announceLoginChange();
 }
 
 function logout() {
@@ -1015,6 +1025,9 @@ function whenDataChanges(refresh) {
     const run = () => {
         clearTimeout(timer);
         timer = setTimeout(() => {
+            // A tab in the background (e.g. a duplicate tab) is not redrawn behind the user's back: when they come
+            // back to it, a bar offers Refresh, so a form filled in there is never wiped
+            if (document.hidden) return showRefreshBar(refresh);
             if (typing()) return pending = true;
             pending = false;
             refresh();
@@ -1085,3 +1098,69 @@ document.addEventListener('DOMContentLoaded', () => {
     keep();
     if (window.ResizeObserver) new ResizeObserver(keep).observe(bar);
 });
+
+
+/* ---------- Duplicate tabs do not interfere with one another (user, 2026-11-26) ----------
+   - Background tabs: when another tab saves, a tab in the background is not redrawn; on coming back it shows a bar
+     "Changes were saved in another tab" with Refresh (whenDataChanges above), so nothing typed there is lost.
+   - Logins: all tabs of a browser share one staff login (and one student login). If another tab logs in as someone
+     else, or logs out, this tab notices (when it is shown again, or at once through the login announcement) and is
+     paused with a message, so it never saves under another person's name by mistake. */
+let refreshBar = null;
+function showRefreshBar(refresh) {
+    if (refreshBar) return;
+    refreshBar = document.createElement('div');
+    refreshBar.className = 'tab-refresh-bar';
+    refreshBar.setAttribute('role', 'status');
+    refreshBar.innerHTML = '<span>Changes were saved in another tab or window.</span>' +
+        '<button type="button" class="tab-refresh-now">Refresh</button><button type="button" class="tab-refresh-later" aria-label="Not now">&times;</button>';
+    refreshBar.querySelector('.tab-refresh-now').addEventListener('click', () => { refreshBar.remove(); refreshBar = null; refresh(); });
+    refreshBar.querySelector('.tab-refresh-later').addEventListener('click', () => { refreshBar.remove(); refreshBar = null; });
+    const put = () => document.body.appendChild(refreshBar);
+    if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+}
+
+(function tabGuard() {
+    if (typeof fewaServer === 'undefined' || !fewaServer.online) return;
+    const page = location.pathname.split('/').pop().toLowerCase();
+    if (['', 'index.html', 'login.html', 'apply.html', 'globalsettings.html'].includes(page)) return;
+    const who = s => s && s.kind === 'staff' ? 'staff:' + s.accountId : s && s.kind === 'student' ? 'student:' + s.studentId : '';
+    const mine = who(fewaSession);
+    if (!mine) return;
+    const myName = fewaSession.kind === 'staff' ? (fewaSession.username || 'you') : 'your student account';
+    const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    let paused = false, checking = false;
+    async function check() {
+        if (paused || checking) return;
+        checking = true;
+        try {
+            const response = await fetch(FEWA_API + '/session', { credentials: 'same-origin', cache: 'no-store',
+                headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': FEWA_PORTAL } });
+            if (!response.ok) return;
+            const now = await response.json();
+            if (who(now) !== mine) pause(now);
+        } catch { } finally { checking = false; }
+    }
+    function pause(now) {
+        paused = true;
+        const box = document.createElement('div');
+        box.className = 'tab-guard';
+        const loggedOut = !who(now);
+        const other = now.kind === 'staff' ? (now.username || 'another staff member') : 'another student';
+        box.innerHTML = `<div class="tab-guard-box" role="alertdialog" aria-modal="true">
+            <div class="tab-guard-title">${loggedOut ? 'You were logged out in another tab' : 'Someone else logged in, in another tab'}</div>
+            <p>This tab was working as <b>${escapeHtml(myName)}</b>. ${loggedOut ? 'You logged out in another tab or window of this browser.'
+                : `Since then <b>${escapeHtml(other)}</b> logged in, in another tab of this browser (a browser keeps one login for all its tabs).`}</p>
+            <p>This tab is paused, so nothing is saved under the wrong name.</p>
+            <div class="tab-guard-buttons">${loggedOut ? '<button type="button" data-go="login">Go to login</button>'
+                : `<button type="button" data-go="reload">Continue as ${escapeHtml(other)}</button>`}</div>
+            <p class="tab-guard-tip">Tip: to work as two people at once, use a private (InPrivate / Incognito) window or another browser for the second person.</p>
+        </div>`;
+        box.querySelector('[data-go]').addEventListener('click', e => e.target.dataset.go === 'login' ? location.replace('login.html') : location.reload());
+        document.body.appendChild(box);
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    window.addEventListener('focus', check);
+    window.addEventListener('storage', event => { if (event.key === 'fewaLoginChanged') check(); });
+    try { new BroadcastChannel('fewa-login').addEventListener('message', check); } catch { }
+})();

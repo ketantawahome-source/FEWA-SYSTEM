@@ -1,8 +1,10 @@
 /* ---------- Online unit registration by the student (Student Portal > Academics > Unit Registration) ----------
    (user's wish, 2026-11-26) A logged-in student registers their own units for the period that is open now:
-     GET  /api/my-registration   the open period, the student's course and the units on offer to them (with their
-                                 category: Course units / Common units, year / semester, and whether already registered)
-     POST /api/my-registration   { units: ['MSS', ...] }  registers those units (only units on offer to the student)
+     GET  /api/my-registration   the open period, the student's course and its units (Manage Units > Course units, and
+                                 any unit on offer to them), with category, year / semester and whether already registered;
+                                 the course's units are listed even while registration is closed
+     POST /api/my-registration   { units: ['MSS', ...] }  registers those units (only units of the student's course; one not
+                                 yet on offer in the period is put on offer for their course and batch / year)
    The period open now comes from the Semester Schedule: the period of the student's course (and batch, or every batch)
    whose start and end dates include today (Kenya time). A short course has no semesters: the whole course, open from
    the student's Course Start Date until the course ends. The registrations are the same records staff make in Manage
@@ -33,13 +35,14 @@ export async function registrationState(studentId) {
     const short = isShortCourse(course || {});
     const today = kenyaDay();
     const base = { course: student.admissionCourse || '', short, studySession: student.studySession || '' };
-    if (student.activeStudent === 'no') return { ...base, open: false, reason: 'Your student account is not active. Please contact the college office.' };
-    if (!student.admissionCourse) return { ...base, open: false, reason: 'You are not on a course yet. Please contact the college office.' };
+    if (student.activeStudent === 'no') return { ...base, open: false, reason: 'Your student account is not active. Please contact the college office.', units: [] };
+    if (!student.admissionCourse) return { ...base, open: false, reason: 'You are not on a course yet. Please contact the college office.', units: [] };
+    const closed = async reason => ({ ...base, open: false, reason, term: '', termLabel: '', units: await courseUnits(student, '', '', []) });
 
     let term = '', termLabel = '', batch = student.group || '';
     if (short) {
         // The whole course is one period, open while the course runs
-        if (student.courseEndDate && day(student.courseEndDate) < today) return { ...base, open: false, reason: 'Your course has ended.' };
+        if (student.courseEndDate && day(student.courseEndDate) < today) return closed('Your course has ended.');
         term = 'SEMESTER 1';
         termLabel = `${lengthText(course)} (whole course)`;
         batch = yearOf(student);
@@ -47,7 +50,7 @@ export async function registrationState(studentId) {
         const schedules = (await getAllRecords('period_schedules')).filter(p => p.course === student.admissionCourse
             && (!p.batch || p.batch === student.group) && p.startDate && p.endDate && day(p.startDate) <= today && today <= day(p.endDate));
         if (!schedules.length) {
-            return { ...base, open: false, reason: 'Registration is closed: no semester of your course is running today (Semester Schedule). Please contact the college office.' };
+            return closed('Registration is closed: no semester of your course is running today (Semester Schedule). You can see your course units below; please contact the college office.');
         }
         // A batch's own period before one for every batch
         const now = schedules.find(p => p.batch === student.group) || schedules[0];
@@ -55,28 +58,30 @@ export async function registrationState(studentId) {
         termLabel = `${now.period} (${day(now.startDate).split('-').reverse().join('/')} to ${day(now.endDate).split('-').reverse().join('/')})`;
     }
 
-    // The units on offer to the student in that period: their course (or every course), batch / year (or every one)
-    // and study session (or every one)
-    const [offers, units, mapped, registrations] = await Promise.all([getAllRecords('unit_offers'), getAllRecords('units'),
-        getAllRecords('programme_units'), getAllRecords('unit_registrations')]);
-    const mine = registrations.filter(r => r.studentId === student.id);
+    const offers = await getAllRecords('unit_offers');
     const offered = offers.filter(o => same(o.term, term) && (!o.course || o.course === student.admissionCourse)
         && (!o.batch || same(o.batch, batch)) && (!o.groupCategory || same(o.groupCategory, student.studySession)));
-    const seen = new Set();
-    const list = [];
-    for (const o of offered) {
-        const code = String(o.unitCode || '').toUpperCase();
-        if (!code || seen.has(code)) continue;
-        seen.add(code);
+    const list = await courseUnits(student, term, batch, offered);
+    return { ...base, open: true, term, termLabel, batch, units: list };
+}
+
+// The units of the student's course (Manage Units > Course units, for their batch / year or every one), plus any unit
+// on offer to them in the period; each with its category, year / semester, lecturer and whether already registered
+async function courseUnits(student, term, batch, offered) {
+    const [units, mapped, registrations] = await Promise.all([getAllRecords('units'), getAllRecords('programme_units'), getAllRecords('unit_registrations')]);
+    const mine = registrations.filter(r => r.studentId === student.id);
+    const ofCourse = mapped.filter(p => p.course === student.admissionCourse && (!p.batch || !batch || same(p.batch, batch)));
+    const codes = [...new Set([...ofCourse.map(p => String(p.unitCode || '').toUpperCase()), ...offered.map(o => String(o.unitCode || '').toUpperCase())].filter(Boolean))];
+    const list = codes.map(code => {
         const unit = units.find(u => same(u.code, code)) || {};
-        const map = mapped.find(p => p.course === student.admissionCourse && same(p.unitCode, code)) || {};
-        list.push({ code: unit.code || o.unitCode, title: unit.title || '', creditHours: unit.creditHours ?? '',
-            category: clusterName(map.unitType), yearOfStudy: map.yearOfStudy || '', semester: map.semester || '',
-            lecturerName: o.lecturerName || '', registered: mine.some(r => same(r.term, term) && same(r.unitCode, code)) });
-    }
-    list.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
-    return { ...base, open: true, term, termLabel, batch, units: list,
-        registered: mine.filter(r => same(r.term, term)).map(r => r.unitCode) };
+        const map = ofCourse.find(p => same(p.unitCode, code)) || {};
+        const offer = offered.find(o => same(o.unitCode, code)) || {};
+        return { code: unit.code || code, title: unit.title || '', creditHours: unit.creditHours ?? '', category: clusterName(map.unitType),
+            yearOfStudy: map.yearOfStudy || '', semester: map.semester || '', lecturerName: offer.lecturerName || '', onOffer: !!offer.unitCode,
+            registered: term ? mine.some(r => same(r.term, term) && same(r.unitCode, code)) : mine.some(r => same(r.unitCode, code)) };
+    });
+    return list.sort((a, b) => (Number(a.yearOfStudy) || 0) - (Number(b.yearOfStudy) || 0) || (Number(a.semester) || 0) - (Number(b.semester) || 0)
+        || String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
 }
 
 // Registers the chosen units (each only once, and only units on offer to the student now)
@@ -87,21 +92,29 @@ export async function registerOnline(studentId, body) {
     if (!wanted.length) throw problem('Choose at least one unit.');
     if (wanted.length > 30) throw problem('Too many units at once.');
     const notOffered = wanted.filter(code => !state.units.some(u => same(u.code, code)));
-    if (notOffered.length) throw problem(`Not on offer to you now: ${notOffered.join(', ')}.`);
+    if (notOffered.length) throw problem(`Not a unit of your course: ${notOffered.join(', ')}.`);
     const student = await getRecord('students', studentId);
     const offers = await getAllRecords('unit_offers');
     const added = [];
+    let offersAdded = false;
     for (const code of wanted) {
         const unit = state.units.find(u => same(u.code, code));
         if (unit.registered) continue;
-        const offer = offers.find(o => same(o.term, state.term) && same(o.unitCode, code) && (!o.course || o.course === state.course)
-            && (!o.batch || same(o.batch, state.batch))) || {};
+        let offer = offers.find(o => same(o.term, state.term) && same(o.unitCode, code) && (!o.course || o.course === state.course)
+            && (!o.batch || same(o.batch, state.batch)));
+        if (!offer) {
+            const offerId = Date.now().toString(36) + randomBytes(4).toString('hex');
+            offer = { id: offerId, term: state.term, unitCode: unit.code, course: state.course, batch: state.batch, lecturer: '', lecturerName: '' };
+            await putRecord('unit_offers', offerId, offer);
+            offers.push(offer);
+            offersAdded = true;
+        }
         const id = Date.now().toString(36) + randomBytes(4).toString('hex');
         await putRecord('unit_registrations', id, { id, studentId: student.id, admNo: student.admNo, term: state.term, unitCode: unit.code,
             registeredAt: new Date().toISOString(), registeredBy: 'Student (online)', examReason: 'First attempt',
             lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: state.course, batch: state.batch });
         added.push(unit.code);
     }
-    if (added.length) mirrorChanged(['unit_registrations']);
+    if (added.length) mirrorChanged(offersAdded ? ['unit_offers', 'unit_registrations'] : ['unit_registrations']);
     return { result: 'ok', added, state: await registrationState(studentId) };
 }

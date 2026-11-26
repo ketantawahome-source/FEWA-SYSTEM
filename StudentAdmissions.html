@@ -27,7 +27,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261126b">
+    <link rel="stylesheet" href="styles.css?v=20261126c">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -4017,7 +4017,7 @@
                         </div>
                     </div>`,
                 admission: box('Admission Details', section('Admission Details') + section('Personal Information')),
-                registration: box('Unit Registration', enquiryRegistrationList(s, regs, unitTitles, regShort ? durationText(regCourse.duration, regCourse.durationType) : '',
+                registration: box('Course Registration', enquiryRegistrationList(s, regs, unitTitles, regShort ? durationText(regCourse.duration, regCourse.durationType) : '',
                     regStatement ? regStatement.charges || [] : null),
                     `<button type="button" onclick="enquiryRegisterUnits()">Register Units</button>`),
                 fees: box('Fee Statement', '<p class="empty-state">No fee records yet. Fee payments are not recorded in the system yet.</p>',
@@ -4042,7 +4042,7 @@
             // The sidebar, grouped under headings: [heading, [[panel, name, icon], ...]]
             const nav = [
                 ['Dashboard', [['profile', 'Personal Profile', 'profile'], ['overview', 'Overview', 'home']]],
-                ['Academics', [['admission', 'Admission Details', 'admission'], ['registration', `Unit Registration (${regs.length})`, 'registration'],
+                ['Academics', [['admission', 'Admission Details', 'admission'], ['registration', `Course Registration (${regs.length})`, 'registration'],
                     ['documents', `Documents (${docs.length})`, 'documents'],
                     ['status', 'Status History', 'status']]],
                 ['Contacts', [['family', 'Family & Contacts', 'family']]],

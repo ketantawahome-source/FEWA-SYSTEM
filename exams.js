@@ -287,14 +287,14 @@ function showExamsPage() {
     $('pane-exams').hidden = false;
     document.querySelector('#topbar .search-box input').placeholder = 'Search the list below...';
     let saved = '';
-    try { saved = localStorage.getItem(EXAM_TAB_KEY) || ''; } catch { }
+    try { saved = sessionStorage.getItem(EXAM_TAB_KEY) || localStorage.getItem(EXAM_TAB_KEY) || ''; } catch { }
     showExamTab(EXAM_TABS.some(t => t.key === saved) ? saved : 'types');
 }
 
 function showExamTab(key) {
     examActive = key;
     examEditing = null;
-    try { localStorage.setItem(EXAM_TAB_KEY, key); } catch { }
+    try { sessionStorage.setItem(EXAM_TAB_KEY, key); localStorage.setItem(EXAM_TAB_KEY, key); } catch { }
     $('examTabs').innerHTML = EXAM_TABS.map(t => `<button type="button" role="tab" class="settings-tab${t.key === key ? ' active' : ''}"
         aria-selected="${t.key === key}" onclick="showExamTab('${t.key}')">${escapeHtml(t.title)}</button>`).join('');
     buildExamForm();

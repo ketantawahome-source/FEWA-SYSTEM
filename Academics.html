@@ -28,7 +28,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261126b">
+    <link rel="stylesheet" href="styles.css?v=20261126c">
     <style>
         .units-tabs { margin-bottom: 14px; }
         .units-pane[hidden] { display: none; }
@@ -778,7 +778,7 @@
 
         function showTab(key) {
             activeTab = TABS.some(([k]) => k === key) ? key : 'units';
-            try { localStorage.setItem(TAB_KEY, activeTab); } catch { }
+            try { sessionStorage.setItem(TAB_KEY, activeTab); localStorage.setItem(TAB_KEY, activeTab); } catch { }
             drawTabs();
             for (const [k] of TABS) $('pane-' + k).hidden = k !== activeTab;
             render();
@@ -2937,7 +2937,8 @@
         else if (PAGE === 'exams') showExamsPage();
         else {
             $('menuUnits').classList.add('active');
-            try { activeTab = localStorage.getItem(TAB_KEY) || 'units'; } catch { }
+            // This browser tab's own last tab (a duplicate tab keeps its own); a new tab starts from the last one used
+            try { activeTab = sessionStorage.getItem(TAB_KEY) || localStorage.getItem(TAB_KEY) || 'units'; } catch { }
             // Opened from a link (e.g. Student Enquiry > Unit Registration): ?tab=register&student=<AdmNo>
             const linkTab = new URLSearchParams(location.search).get('tab');
             if (linkTab && TABS.some(([k]) => k === linkTab)) activeTab = linkTab;
