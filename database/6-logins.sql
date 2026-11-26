@@ -40,3 +40,16 @@ CREATE TABLE IF NOT EXISTS logins.password_reset_codes (
 -- Row level security with no policies: only the owner can read or change the rows
 ALTER TABLE logins.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logins.password_reset_codes ENABLE ROW LEVEL SECURITY;
+
+
+-- ---------- Password reset requests, safe to look at (user 2026-11-26) ----------
+-- Who asked for a password reset and when: the email, the time asked, the expiry, wrong tries and whether it can still
+-- be used. Never the code (or its hash). The read-only viewer (office copy) may read this view, not the tables above.
+CREATE OR REPLACE VIEW logins.reset_requests AS
+SELECT email,
+       CASE WHEN data->>'salt' ~ '^\d{10,}$' THEN to_timestamp((data->>'salt')::bigint / 1000.0) END AS requested_at,
+       CASE WHEN data->>'expires' ~ '^\d{10,}$' THEN to_timestamp((data->>'expires')::bigint / 1000.0) END AS expires_at,
+       CASE WHEN data->>'attempts' ~ '^\d+$' THEN (data->>'attempts')::int END AS wrong_tries,
+       CASE WHEN data->>'expires' ~ '^\d{10,}$' THEN to_timestamp((data->>'expires')::bigint / 1000.0) > now() END AS still_valid
+FROM logins.password_reset_codes;
+COMMENT ON VIEW logins.reset_requests IS 'Password reset requests: email, time asked, expiry, wrong tries, still valid. No codes.';
