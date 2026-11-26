@@ -54,11 +54,24 @@ SELECT id, created_at, created_by, note,
        pg_size_pretty(size_bytes) AS size
 FROM backups.snapshots;
 COMMENT ON VIEW backups.backup_list IS 'The backups: date, who made it, note, counts and size. No backup data.';
+-- Inside the backups, safe to look at (user 2026-11-26): which tables each backup holds and its rows as they were,
+-- without password hashes / salts and without the stored files' contents (names, types and sizes stay).
+CREATE OR REPLACE VIEW backups.backup_tables AS
+SELECT s.id AS backup_id, s.created_at, t.key AS table_name, jsonb_array_length(t.value) AS rows
+FROM backups.snapshots s, jsonb_each(s.data) t
+WHERE jsonb_typeof(t.value) = 'array';
+COMMENT ON VIEW backups.backup_tables IS 'Each backup: its tables and how many rows each holds.';
+CREATE OR REPLACE VIEW backups.backup_rows AS
+SELECT s.id AS backup_id, s.created_at, t.key AS table_name,
+       r.value - 'hash' - 'salt' - 'login_hash' - 'login_salt' - 'content' AS row
+FROM backups.snapshots s, jsonb_each(s.data) t, jsonb_array_elements(t.value) r
+WHERE jsonb_typeof(t.value) = 'array' AND jsonb_typeof(r.value) = 'object';
+COMMENT ON VIEW backups.backup_rows IS 'Each backup row as it was (no password hashes, no file contents).';
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fewa_viewer') THEN
         EXECUTE format('GRANT CONNECT ON DATABASE %I TO fewa_viewer', current_database());
         GRANT USAGE ON SCHEMA backups TO fewa_viewer;
         REVOKE ALL ON ALL TABLES IN SCHEMA backups FROM fewa_viewer;
-        GRANT SELECT ON backups.backup_list TO fewa_viewer;
+        GRANT SELECT ON backups.backup_list, backups.backup_tables, backups.backup_rows TO fewa_viewer;
     END IF;
 END $$;
