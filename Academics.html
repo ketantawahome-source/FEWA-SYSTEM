@@ -2938,9 +2938,18 @@
         else {
             $('menuUnits').classList.add('active');
             try { activeTab = localStorage.getItem(TAB_KEY) || 'units'; } catch { }
+            // Opened from a link (e.g. Student Enquiry > Unit Registration): ?tab=register&student=<AdmNo>
+            const linkTab = new URLSearchParams(location.search).get('tab');
+            if (linkTab && TABS.some(([k]) => k === linkTab)) activeTab = linkTab;
             showTab(activeTab);
         }
-        loadData();
+        loadData().then(() => {
+            const admNo = new URLSearchParams(location.search).get('student');
+            const s = admNo && students.find(x => same(x.admNo, admNo));
+            if (!s || activeTab !== 'register') return;
+            $('regStudent').value = `${s.admNo} - ${studentName(s)}`;
+            pickStudent();
+        });
         whenDataChanges(() => { showCurrentUser(); loadData(); });
     </script>
 </body>

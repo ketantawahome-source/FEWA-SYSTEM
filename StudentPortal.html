@@ -40,6 +40,9 @@
         .reg-btn.main { background: #c0392b; }
         .reg-btn:disabled { opacity: .45; cursor: not-allowed; }
         .reg-total td { font-weight: 700; }
+        .reg-view { background: #c0392b !important; color: #fff !important; border: none !important; white-space: nowrap; }
+        .reg-units-row td { background: #f7f3fb; }
+        .reg-units-list { margin: 4px 0; padding-left: 18px; line-height: 1.8; }
         @media (max-width: 700px) {
             .reg-bar, .reg-buttons { grid-template-columns: 1fr; }
             .reg-get { width: 100%; }
@@ -386,11 +389,45 @@
                         <tbody>${regProforma.items.map(i => `<tr><td>${escapeHtml(i.item)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}
                             <tr class="reg-total"><td>Total</td><td class="num">${money(regProforma.total)}</td></tr></tbody></table></div>
                         <p class="reg-help">This is not a bill yet: the accounts office charges the fees to your statement (Fee Statement).</p>`
-                        : '<p class="empty-state">No fee items are set for your course in this period yet. Ask the accounts office.</p>'}` : ''}`;
+                        : '<p class="empty-state">No fee items are set for your course in this period yet. Ask the accounts office.</p>'}` : ''}
+                ${registrationListHtml(st)}`;
             const box = document.getElementById('regCategory');
             if (box) box.value = regCategoryKeep;
         }
         let regCategoryKeep = '';
+        /* Registration List: one row per period the student registered for - units taken, settlement type (the
+           student's Student Type), the first registration date and the total billed for that period (charges on the
+           fee statement for that period). View Units opens the period's units below its row. */
+        let regListOpen = '';
+        function registrationListHtml(st) {
+            const terms = [...new Set(myUnits.map(r => r.term).filter(Boolean))]
+                .sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
+            const label = term => st.short ? `${courseLength(myCourse)} (whole course)` : term;
+            const charges = (feeStatement && feeStatement.charges) || [];
+            const billed = term => charges.filter(c => !c.voided && String(c.term || '').toUpperCase() === String(term).toUpperCase())
+                .reduce((t, c) => t + Number(c.amount || 0), 0);
+            const unitTitle = code => (unitList.find(u => String(u.code).toUpperCase() === String(code).toUpperCase()) || {}).title || '';
+            const rows = terms.map(term => {
+                const regs = myUnits.filter(r => r.term === term);
+                const first = regs.map(r => r.registeredAt).filter(Boolean).sort()[0];
+                const open = regListOpen === term;
+                return `<tr>
+                    <td><button type="button" class="btn-small reg-view" onclick="toggleRegList('${escapeHtml(term)}')">${open ? 'Hide Units' : 'View Units'}</button></td>
+                    <td>${escapeHtml(label(term))}</td><td class="num">${regs.length}</td><td>${escapeHtml(student.studentType || '—')}</td>
+                    <td>${escapeHtml(first ? shortDate(first) : '—')}</td><td class="num">${money(billed(term))}</td></tr>
+                    ${open ? `<tr class="reg-units-row"><td colspan="6"><ul class="reg-units-list">${regs.map(r =>
+                        `<li><b>${escapeHtml(r.unitCode)}</b> ${escapeHtml(unitTitle(r.unitCode))}${r.registeredBy === 'Student (online)' ? ' <small>(registered online)</small>' : ''}</li>`).join('')}</ul></td></tr>` : ''}`;
+            }).join('');
+            return `<div class="reg-subtitle">Registration List</div>
+                <div class="table-wrap"><table class="data-table reg-table">
+                    <thead><tr><th>Action</th><th>Semester</th><th class="num">Units Taken</th><th>Settlement Type</th><th>Registration Date</th><th class="num">Total Billed</th></tr></thead>
+                    <tbody>${rows || '<tr class="empty-row"><td colspan="6">No registrations yet.</td></tr>'}</tbody>
+                </table></div>`;
+        }
+        function toggleRegList(term) {
+            regListOpen = regListOpen === term ? '' : term;
+            renderRegistration();
+        }
         document.addEventListener('change', e => { if (e.target && e.target.id === 'regCategory') regCategoryKeep = e.target.value; }, true);
         function regGetUnits() {
             regShown = true;

@@ -3870,8 +3870,36 @@
             status: '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
             money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
             calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
-            admission: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/>'
+            admission: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/>',
+            registration: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/><path d="M15 16l1.5 1.5L19 15"/>'
         };
+        /* Student Enquiry > Unit Registration: one row per period - units taken, settlement type (Student Type), the
+           first registration date and the total billed for the period (null when finance is not open to this role).
+           View Units shows the period's units; (online) = registered by the student in the Student Portal. */
+        function enquiryRegistrationList(s, regs, titles, shortLength, charges) {
+            const terms = [...new Set(regs.map(r => r.term).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a), undefined, { numeric: true }));
+            const kes = n => 'KES ' + Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+            const billed = term => charges === null ? '—' : kes(charges.filter(c => !c.voided && String(c.term || '').toUpperCase() === String(term).toUpperCase())
+                .reduce((t, c) => t + Number(c.amount || 0), 0));
+            return `<div class="table-wrap"><table class="data-table">
+                <thead><tr><th class="no-print">Action</th><th>Semester</th><th class="num">Units Taken</th><th>Settlement Type</th><th>Registration Date</th><th class="num">Total Billed</th></tr></thead>
+                <tbody>${terms.length ? terms.map(term => {
+                    const list = regs.filter(r => r.term === term);
+                    const first = list.map(r => r.registeredAt).filter(Boolean).sort()[0];
+                    return `<tr><td class="no-print"><button type="button" class="btn-small" onclick="const row = this.closest('tr').nextElementSibling; row.hidden = !row.hidden; this.textContent = row.hidden ? 'View Units' : 'Hide Units'">View Units</button></td>
+                        <td>${escapeHtml(shortLength ? shortLength + ' (whole course)' : term)}</td><td class="num">${list.length}</td>
+                        <td>${escapeHtml(s.studentType || '—')}</td><td>${first ? escapeHtml(formatDate(String(first).slice(0, 10))) : '—'}</td><td class="num">${billed(term)}</td></tr>
+                        <tr hidden><td colspan="6"><ul style="margin:4px 0;padding-left:18px;line-height:1.8">${list.map(r =>
+                            `<li><b>${escapeHtml(r.unitCode)}</b> ${escapeHtml(titles.get(String(r.unitCode).toUpperCase()) || '')}` +
+                            `${r.registeredBy === 'Student (online)' ? ' <small>(online)</small>' : ''}${r.examReason && r.examReason !== 'First attempt' ? ' <small>- ' + escapeHtml(r.examReason) + '</small>' : ''}</li>`).join('')}</ul></td></tr>`;
+                }).join('') : '<tr class="empty-row"><td colspan="6">No unit registrations yet. Register Units opens Manage Units with this student.</td></tr>'}</tbody>
+            </table></div>`;
+        }
+        // Manage Units > Student unit registration, with this student filled in
+        function enquiryRegisterUnits() {
+            if (!enquiryStudent) return;
+            location.href = 'Academics.html?tab=register&student=' + encodeURIComponent(enquiryStudent.admNo);
+        }
         const enquiryIcon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ENQUIRY_ICONS[name]}</svg>`;
 
@@ -3889,6 +3917,12 @@
                 .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
             const deferrals = (await getAll('deferrals')).filter(d => d.studentId === s.id)
                 .sort((a, b) => b.startDate.localeCompare(a.startDate));
+            // Unit Registration: the student's unit registrations by period (also those the student made online)
+            const regs = (await getAll('unit_registrations').catch(() => [])).filter(r => r.studentId === s.id);
+            const unitTitles = new Map((await getAll('units').catch(() => [])).map(u => [String(u.code).toUpperCase(), u.title]));
+            const regCourse = (await getSettingItems('courses')).find(c => courseLabel(c) === s.admissionCourse);
+            const regShort = isShortCourseItem(regCourse);
+            const regStatement = await api('GET', '/finance/student/' + encodeURIComponent(s.id)).catch(() => null);
             const active = s.activeStudent !== 'no';
             const initials = [s.firstName, s.lastName].filter(Boolean).map(n => n[0]).join('').toUpperCase();
             const section = title => renderDetailSection(DETAIL_SECTIONS.find(d => d[0] === title), s);
@@ -3983,6 +4017,9 @@
                         </div>
                     </div>`,
                 admission: box('Admission Details', section('Admission Details') + section('Personal Information')),
+                registration: box('Unit Registration', enquiryRegistrationList(s, regs, unitTitles, regShort ? durationText(regCourse.duration, regCourse.durationType) : '',
+                    regStatement ? regStatement.charges || [] : null),
+                    `<button type="button" onclick="enquiryRegisterUnits()">Register Units</button>`),
                 fees: box('Fee Statement', '<p class="empty-state">No fee records yet. Fee payments are not recorded in the system yet.</p>',
                     `<button type="button" onclick="enquiryFinance()">Open Manage Finance</button>`),
                 family: box('Family & Contacts', (['Father', 'Mother', 'Guardian'].map(section).join('')
@@ -4005,7 +4042,8 @@
             // The sidebar, grouped under headings: [heading, [[panel, name, icon], ...]]
             const nav = [
                 ['Dashboard', [['profile', 'Personal Profile', 'profile'], ['overview', 'Overview', 'home']]],
-                ['Academics', [['admission', 'Admission Details', 'admission'], ['documents', `Documents (${docs.length})`, 'documents'],
+                ['Academics', [['admission', 'Admission Details', 'admission'], ['registration', `Unit Registration (${regs.length})`, 'registration'],
+                    ['documents', `Documents (${docs.length})`, 'documents'],
                     ['status', 'Status History', 'status']]],
                 ['Contacts', [['family', 'Family & Contacts', 'family']]],
                 ['Financials', [['fees', 'Fee Statement', 'money']]]
