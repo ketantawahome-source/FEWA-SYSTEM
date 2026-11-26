@@ -305,3 +305,9 @@ CREATE TABLE IF NOT EXISTS academics.attendance_registers (
 CREATE INDEX IF NOT EXISTS attendance_registers_date ON academics.attendance_registers (register_date);
 ALTER TABLE academics.attendance_registers ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE academics.attendance_registers IS 'Roll Call Management: class registers (attendance marks of each student).';
+
+-- Units register: the course a unit belongs to (its Course box, user 2026-11-26); empty = a common unit shared by
+-- several courses. Course units offers a course only its own units. Saved in "extra" before this column existed: moved here.
+ALTER TABLE academics.units ADD COLUMN IF NOT EXISTS course text;
+UPDATE academics.units SET course = NULLIF(extra->>'course', ''), extra = extra - 'course' WHERE extra ? 'course';
+COMMENT ON COLUMN academics.units.course IS 'The course the unit belongs to (Units register > Course); empty = a common unit';
