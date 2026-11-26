@@ -660,7 +660,7 @@
                     </div>
                     <div class="units-count" id="unitCount"></div>
                     <div class="table-wrap"><table class="data-table">
-                        <thead><tr><th class="unit-actions"></th><th>Unit code</th><th>Unit title</th><th class="num">Credit hours</th><th class="num">Courses</th></tr></thead>
+                        <thead><tr><th class="unit-actions"></th><th>Unit code</th><th>Unit title</th><th>Belongs to</th><th class="num">Credit hours</th><th class="num">Courses</th></tr></thead>
                         <tbody id="unitRows"></tbody></table></div>
                 </div>
 
@@ -920,7 +920,7 @@
             fill($('lecCategory'), categories.map(c => [c, c]), '-- all group categories --');
             fill($('pmBatch'), groups.map(g => [g, g]), '-- select one --');
             fill($('pmCluster'), CLUSTER_GROUPS.map(g => [g, g]), '-- select one --');
-            $('pmUnitChoices').innerHTML = units.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
+            fillMappingUnits();
             fillMappingCourses();
             fillHoursCourses();
             fillUnitCourses();
@@ -1070,9 +1070,9 @@
                 const courseCount = new Set(programmeUnits.filter(p => same(p.unitCode, u.code)).map(p => p.course)).size;
                 return `<tr><td class="unit-actions">${mayEdit() ? iconButton('edit', 'Edit ' + escapeHtml(u.code), `editUnit('${u.id}')`) +
                         iconButton('delete', 'Delete ' + escapeHtml(u.code), `deleteUnit('${u.id}')`) : ''}</td>
-                    <td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
+                    <td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td>${unitOwners(u).length ? escapeHtml(unitOwners(u).join(', ')) : '<span class="sched-note">Common unit</span>'}</td><td class="num">${escapeHtml(u.creditHours ?? '')}</td>
                     <td class="num">${courseCount}</td></tr>`;
-            }).join('') : `<tr class="empty-row"><td colspan="5">${units.length ? 'No unit matches.' : 'No units yet. Add the first one above.'}</td></tr>`;
+            }).join('') : `<tr class="empty-row"><td colspan="6">${units.length ? 'No unit matches.' : 'No units yet. Add the first one above.'}</td></tr>`;
         }
 
         const unitInUse = code => programmeUnits.some(p => same(p.unitCode, code)) || offers.some(o => same(o.unitCode, code))
@@ -1096,7 +1096,9 @@
                     'You can still change its title and credit hours.');
             }
             try {
-                await save('units', { ...(before || {}), id: id || newId(), code, title, creditHours, createdAt: before?.createdAt || new Date().toISOString() });
+                // The unit belongs to the course chosen (kept when saved again without one); none = a common unit
+                await save('units', { ...(before || {}), id: id || newId(), code, title, creditHours, course: course || (before && before.course) || '',
+                    createdAt: before?.createdAt || new Date().toISOString() });
                 // With a Course: the unit is put on that course too (once), so Unit hours lists it
                 const onCourse = course && !programmeUnits.some(p => p.course === course && same(p.unitCode, code) || (before && p.course === course && same(p.unitCode, before.code)));
                 if (onCourse) {
@@ -1107,9 +1109,12 @@
                 clearUnitForm();
                 await loadData();
                 if (shortSetup && same(shortSetup.code, code) && unitByCode(code)) {
-                    const { course } = shortSetup;
+                    const back = shortSetup.course;
                     shortSetup = null;
-                    backToCourseUnits(course, unitByCode(code));
+                    showTab('programme');
+                    if ($('pmCourse').value !== back) { $('pmCourse').value = back; $('pmCourse').dispatchEvent(new Event('change', { bubbles: true })); }
+                    renderProgrammeMapping();
+                    showToast(`${code} - ${title} saved and added to ${back}.`);
                 }
             } catch (err) { alert('The unit could not be saved: ' + err.message); }
         }
@@ -1122,6 +1127,9 @@
             form.elements.code.value = u.code;
             form.elements.title.value = u.title;
             form.elements.creditHours.value = u.creditHours;
+            // The course it belongs to (or none: a common unit)
+            $('unitCourse').value = u.course && [...$('unitCourse').options].some(o => o.value === u.course) ? u.course : '';
+            fillUnitStages();
             form.elements.code.focus();
             form.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -1548,6 +1556,27 @@
             renderProgrammeMapping();
         }
 
+        /* Course units: the Unit box offers only the units that belong to the chosen course (Units register > Course),
+           so a unit of one course cannot be put on another by mistake (user). Cluster group Common units offers the
+           units saved without a course (shared by several courses). A short course's ticked short courses are its own. */
+        // The course(s) a unit belongs to: the one saved with it, else (units saved before) the courses it is already on
+        const unitOwners = u => u.course ? [u.course] : [...new Set(programmeUnits.filter(p => same(p.unitCode, u.code)).map(p => p.course))];
+        function unitMayGoOn(u, course, cluster) {
+            if (!u || !course) return false;
+            const owners = unitOwners(u);
+            if (owners.length) return owners.includes(course);
+            if (clusterName(cluster) === 'Common units') return true;
+            return shortCourseUnits(course).some(x => x.unit && same(x.unit.code, u.code));
+        }
+        function fillMappingUnits() {
+            const course = $('pmCourse').value, cluster = $('pmCluster').value;
+            const list = units.filter(u => unitMayGoOn(u, course, cluster));
+            $('pmUnitChoices').innerHTML = list.map(u => `<option value="${escapeHtml(unitLabel(u))}"></option>`).join('');
+            $('pmUnit').placeholder = !course ? 'Choose the course first'
+                : list.length ? 'Start typing the unit code or title'
+                : clusterName(cluster) === 'Common units' ? 'No common units yet (Units register, no course)' : 'No units of this course yet: add them in Units register';
+        }
+
         const mappedUnits = (course, batch) => programmeUnits.filter(p => p.course === course && (!p.batch || p.batch === batch));
 
         function renderProgrammeMapping() {
@@ -1624,7 +1653,8 @@
             if (x.unit) return backToCourseUnits(course, x.unit);
             shortSetup = { course, code: x.code };
             showTab('units');
-            $('unitCourse').value = '';
+            // Saved with its course: it belongs to it and is put on it (the whole course) by Save unit
+            $('unitCourse').value = course;
             clearUnitForm();
             renderUnits();
             const form = $('unitForm');
@@ -1679,6 +1709,11 @@
                 $('unitTitle').value = typed;
                 $('unitCode').focus();
                 return;
+            }
+            if (!unitMayGoOn(unit, course, $('pmCluster').value)) {
+                return alert(unitOwners(unit).length ? `${unit.code} - ${unit.title} belongs to ${unitOwners(unit).join(', ')}, not ${course}. Choose its own course, or change its course in the Units register.`
+                    : `${unit.code} - ${unit.title} is not a unit of ${course}. In the Units register, choose ${course} in the Course box and save it, ` +
+                      'or set Cluster group to Common units if several courses share it.');
             }
             const already = mappedUnits(course, batch).find(p => same(p.unitCode, unit.code) && p.id !== editingMapping);
             if (already) return alert(`${unit.code} is already a unit of ${course} for ${already.batch || 'all batches'} (${stageFor(course, already.yearOfStudy, already.semester)}).`);
@@ -1811,6 +1846,7 @@
                 if (batch && !group) problem(short ? 'Short course: the Academic Year must be like 2026' : 'Batch not in Settings > Batches');
                 if (!code) problem('No unit code');
                 else if (!unit && !cell(r, 'title')) problem('New unit: type its title');
+                else if (unit && course && !unitMayGoOn(unit, course, cluster)) problem(unitOwners(unit).length ? `Belongs to ${unitOwners(unit).join(', ')}` : 'Not a unit of this course (Units register > Course), or set Cluster group to Common units');
                 if (!(Number.isInteger(year) && year >= 1 && year <= 8)) problem('Year of study must be 1 to 8');
                 if (![1, 2, 3].includes(semester)) problem('Semester number must be 1, 2 or 3');
                 if (!cluster) problem('Cluster group must be Course units or Common units');
@@ -1852,7 +1888,7 @@
                 const created = new Map();
                 for (const l of good) {
                     if (!l.unit && !created.has(l.code)) {
-                        const u = { id: newId(), code: l.code, title: l.title, creditHours: l.hours === '' ? null : Number(l.hours) || null,
+                        const u = { id: newId(), code: l.code, title: l.title, course: clusterName(l.cluster) === 'Common units' ? '' : l.course, creditHours: l.hours === '' ? null : Number(l.hours) || null,
                             createdAt: new Date().toISOString() };
                         await save('units', u);
                         created.set(l.code, u);
@@ -2870,7 +2906,8 @@
             $('uhDrop').classList.remove('dragging');
             if (event.dataTransfer.files.length) { $('uhFile').files = event.dataTransfer.files; chosenHoursFile(); }
         });
-        $('pmCourse').addEventListener('change', fillMappingSemesters);
+        $('pmCourse').addEventListener('change', () => { fillMappingSemesters(); fillMappingUnits(); });
+        $('pmCluster').addEventListener('change', fillMappingUnits);
         $('pmBatch').addEventListener('change', renderProgrammeMapping);
         $('pmFile').addEventListener('change', chosenMappingFile);
         $('pmDrop').addEventListener('dragover', event => { event.preventDefault(); $('pmDrop').classList.add('dragging'); });
