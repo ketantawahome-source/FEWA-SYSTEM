@@ -40,6 +40,16 @@
         .reg-btn.main { background: #c0392b; }
         .reg-btn:disabled { opacity: .45; cursor: not-allowed; }
         .reg-total td { font-weight: 700; }
+        .sp-notice { position: fixed; inset: 0; z-index: 3500; background: rgba(20, 8, 34, .55); display: flex; align-items: flex-start;
+            justify-content: center; padding: 60px 16px 16px; }
+        .sp-notice-box { background: #fff; border-radius: 10px; width: 100%; max-width: 640px; box-shadow: 0 18px 48px rgba(0,0,0,.3); overflow: hidden; }
+        .sp-notice-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e6e1ee;
+            font-size: 19px; font-weight: 800; color: #24103a; }
+        .sp-notice-x { background: none; border: none; font-size: 28px; line-height: 1; cursor: pointer; color: #555; }
+        .sp-notice-body { padding: 26px 28px; font-size: 16px; line-height: 1.6; color: #b3261e; }
+        .sp-notice-box.ok .sp-notice-body { color: #1f6b43; }
+        .sp-notice-foot { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid #e6e1ee; }
+        .sp-notice-close { background: #6c6577; color: #fff; border: none; border-radius: 6px; padding: 9px 20px; font-size: 15px; cursor: pointer; }
         .reg-box { border: 2px solid #7a5aa6; border-radius: 12px; padding: 16px; margin-top: 18px; }
         .reg-list-title { margin-top: 0; }
         .reg-view { background: #c0392b !important; color: #fff !important; border: none !important; white-space: nowrap; }
@@ -220,6 +230,7 @@
             document.getElementById('spCrumbPage').innerText = PAGE_NAMES[key] || '';
             document.querySelector('.enquiry-main').scrollTop = 0;
             if (key === 'password') document.getElementById('spNew').focus();
+            if (key === 'registration' && regState && !regState.open) registrationClosedNotice();
         }
 
         /* The user menu at the top right: photo, name and ▾; opens Profile / Logout */
@@ -344,7 +355,7 @@
                 <div class="reg-box">
                 <div class="reg-head">
                     <div class="portal-title">Course Registration</div>
-                    <div class="reg-period">Registration Semester: <b>${st.open ? escapeHtml(st.termLabel) : 'closed'}</b></div>
+                    <div class="reg-period">Registration Semester: <b>${st.open ? escapeHtml(st.termLabel) : 'closed'}</b>${st.open && st.closesOn ? `<br><small>Registration closes on ${longDate(st.closesOn)}</small>` : ''}</div>
                 </div>
                 ${st.open ? `<p class="reg-help">Click <b>Get Units to Register</b> to see the units of your course. Tick your units and click
                     <b>Add Selected Units to the Basket</b>, check them, then click <b>Complete Registration</b>. <b>View Proforma Invoice</b> shows the fees of this semester.</p>`
@@ -399,6 +410,39 @@
             if (box) box.value = regCategoryKeep;
         }
         let regCategoryKeep = '';
+        /* A notice box (like "REQUIRED - Note that Registration Deadline elapsed on 4 Oct, 2026"), closed with Close or X */
+        const longDate = iso => { const [y, m, d] = String(iso || '').slice(0, 10).split('-').map(Number);
+            return y ? `${d} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1]}, ${y}` : ''; };
+        function portalNotice(title, message, kind = 'warn') {
+            document.querySelectorAll('.sp-notice').forEach(n => n.remove());
+            const box = document.createElement('div');
+            box.className = 'sp-notice';
+            box.innerHTML = `<div class="sp-notice-box ${kind}" role="alertdialog" aria-modal="true" aria-labelledby="spNoticeTitle">
+                <div class="sp-notice-head"><span id="spNoticeTitle">${escapeHtml(title)}</span>
+                    <button type="button" class="sp-notice-x" aria-label="Close">&times;</button></div>
+                <div class="sp-notice-body">${message}</div>
+                <div class="sp-notice-foot"><button type="button" class="sp-notice-close">Close</button></div></div>`;
+            const close = () => box.remove();
+            box.querySelector('.sp-notice-x').addEventListener('click', close);
+            box.querySelector('.sp-notice-close').addEventListener('click', close);
+            box.addEventListener('click', e => { if (e.target === box) close(); });
+            document.body.appendChild(box);
+            box.querySelector('.sp-notice-close').focus();
+        }
+        // Why registration is closed, with its date ('' when it is open)
+        function registrationClosedText() {
+            const st = regState || {};
+            if (st.open) return '';
+            return st.courseEnded ? `Note that your course ended on <b>${longDate(st.courseEnded)}</b>. Registration is closed.`
+                : st.deadlineElapsed ? `Note that Registration Deadline elapsed on <b>${longDate(st.deadlineElapsed)}</b>${st.deadlinePeriod ? ' (' + escapeHtml(st.deadlinePeriod) + ')' : ''}.`
+                    + (st.opensOn ? `<br>Registration for ${escapeHtml(st.opensPeriod || 'the next semester')} opens on <b>${longDate(st.opensOn)}</b>.` : '')
+                : st.opensOn ? `Registration is not open yet. It opens on <b>${longDate(st.opensOn)}</b>${st.opensPeriod ? ' (' + escapeHtml(st.opensPeriod) + ')' : ''}.`
+                : escapeHtml(st.reason || 'Registration is closed. Please contact the college office.');
+        }
+        function registrationClosedNotice() {
+            const text = registrationClosedText();
+            if (text) portalNotice('REQUIRED', text);
+        }
         /* Registration List: one row per period the student registered for - units taken, settlement type (the
            student's Student Type), the first registration date and the total billed for that period (charges on the
            fee statement for that period). View Units opens the period's units below its row. */
@@ -434,6 +478,13 @@
         }
         document.addEventListener('change', e => { if (e.target && e.target.id === 'regCategory') regCategoryKeep = e.target.value; }, true);
         function regGetUnits() {
+            // The feedback shows up top in the notice box: registration closed, and / or no units for the course yet
+            const st = regState || {};
+            const units = (st.units || []).filter(u => !regCategory() || u.category === regCategory());
+            const notes = [registrationClosedText(),
+                units.length ? '' : `No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} are set up for your course <b>${escapeHtml(st.course || student.admissionCourse || '')}</b> yet. The college office sets up the course units.`]
+                .filter(Boolean);
+            if (notes.length) portalNotice('REQUIRED', notes.join('<br><br>'));
             regShown = true;
             renderRegistration();
             const first = document.querySelector('.reg-table');
@@ -441,7 +492,7 @@
         }
         function regAddToBasket() {
             const chosen = [...document.querySelectorAll('.reg-choose:checked')].map(b => b.value);
-            if (!chosen.length) return alert('Tick the units you want first.');
+            if (!chosen.length) return portalNotice('REQUIRED', 'Tick the units you want to register first, then click <b>Add Selected Units to the Basket</b>.');
             regBasket = [...new Set([...regBasket, ...chosen])];
             renderRegistration();
             showToast(`${chosen.length} unit${chosen.length === 1 ? '' : 's'} added to the basket.`);
@@ -460,11 +511,13 @@
                 regState = result.state;
                 regBasket = [];
                 myUnits = (await readAll('unit_registrations').catch(() => myUnits)).filter(r => r.studentId === student.id);
-                showToast(`Registered: ${result.added.join(', ') || 'nothing new'}.`);
+                portalNotice('REGISTRATION COMPLETE', result.added.length
+                    ? `You are registered for <b>${result.added.length}</b> unit${result.added.length === 1 ? '' : 's'}: ${escapeHtml(result.added.join(', '))}.<br>They show in <b>My Units</b>; <b>Print Course Statement</b> prints them.`
+                    : 'Those units were already registered.', 'ok');
                 render();
                 renderRegistration();
                 openPortalPage('registration');
-            } catch (err) { alert('The registration could not be completed: ' + err.message); }
+            } catch (err) { portalNotice('REQUIRED', 'The registration could not be completed: ' + escapeHtml(err.message)); }
         }
         async function regViewProforma() {
             try {
@@ -472,7 +525,7 @@
                 renderRegistration();
                 const t = document.querySelector('.reg-total');
                 if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } catch (err) { alert('The proforma invoice could not be shown: ' + err.message); }
+            } catch (err) { portalNotice('REQUIRED', 'The proforma invoice could not be shown: ' + escapeHtml(err.message)); }
         }
         // The units registered (this period, else all), in a print window: nothing is saved as a file
         function regPrintStatement() {

@@ -37,20 +37,26 @@ export async function registrationState(studentId) {
     const base = { course: student.admissionCourse || '', short, studySession: student.studySession || '' };
     if (student.activeStudent === 'no') return { ...base, open: false, reason: 'Your student account is not active. Please contact the college office.', units: [] };
     if (!student.admissionCourse) return { ...base, open: false, reason: 'You are not on a course yet. Please contact the college office.', units: [] };
-    const closed = async reason => ({ ...base, open: false, reason, term: '', termLabel: '', units: await courseUnits(student, '', '', []) });
+    // Closed: the reason, and the dates behind it (the deadline that elapsed, or when registration opens) for the portal's notice
+    const closed = async (reason, dates = {}) => ({ ...base, open: false, reason, ...dates, term: '', termLabel: '', units: await courseUnits(student, '', '', []) });
 
     let term = '', termLabel = '', batch = student.group || '';
     if (short) {
         // The whole course is one period, open while the course runs
-        if (student.courseEndDate && day(student.courseEndDate) < today) return closed('Your course has ended.');
+        if (student.courseEndDate && day(student.courseEndDate) < today) return closed('Your course has ended.', { courseEnded: day(student.courseEndDate) });
         term = 'SEMESTER 1';
         termLabel = `${lengthText(course)} (whole course)`;
         batch = yearOf(student);
     } else {
-        const schedules = (await getAllRecords('period_schedules')).filter(p => p.course === student.admissionCourse
-            && (!p.batch || p.batch === student.group) && p.startDate && p.endDate && day(p.startDate) <= today && today <= day(p.endDate));
+        const ofMine = (await getAllRecords('period_schedules')).filter(p => p.course === student.admissionCourse
+            && (!p.batch || p.batch === student.group) && p.startDate && p.endDate);
+        const schedules = ofMine.filter(p => day(p.startDate) <= today && today <= day(p.endDate));
         if (!schedules.length) {
-            return closed('Registration is closed: no semester of your course is running today (Semester Schedule). You can see your course units below; please contact the college office.');
+            // The last semester that ended (its deadline elapsed) and the next one to start
+            const ended = ofMine.filter(p => day(p.endDate) < today).sort((a, b) => day(b.endDate).localeCompare(day(a.endDate)))[0];
+            const next = ofMine.filter(p => day(p.startDate) > today).sort((a, b) => day(a.startDate).localeCompare(day(b.startDate)))[0];
+            return closed('Registration is closed: no semester of your course is running today (Semester Schedule). You can see your course units below; please contact the college office.',
+                { deadlineElapsed: ended ? day(ended.endDate) : '', deadlinePeriod: ended ? ended.period : '', opensOn: next ? day(next.startDate) : '', opensPeriod: next ? next.period : '' });
         }
         // A batch's own period before one for every batch
         const now = schedules.find(p => p.batch === student.group) || schedules[0];
@@ -62,7 +68,10 @@ export async function registrationState(studentId) {
     const offered = offers.filter(o => same(o.term, term) && (!o.course || o.course === student.admissionCourse)
         && (!o.batch || same(o.batch, batch)) && (!o.groupCategory || same(o.groupCategory, student.studySession)));
     const list = await courseUnits(student, term, batch, offered);
-    return { ...base, open: true, term, termLabel, batch, units: list };
+    // The day registration for this period closes (the semester's end, or the short course's end)
+    const closesOn = short ? day(student.courseEndDate || '') : day((await getAllRecords('period_schedules')).find(p => p.course === student.admissionCourse
+        && p.period === term && (!p.batch || p.batch === student.group) && day(p.startDate) <= today && today <= day(p.endDate))?.endDate || '');
+    return { ...base, open: true, term, termLabel, batch, units: list, closesOn };
 }
 
 // The units of the student's course (Manage Units > Course units, for their batch / year or every one), plus any unit

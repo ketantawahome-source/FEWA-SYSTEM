@@ -81,7 +81,9 @@ export async function endFinishedShortCourses() {
         const course = shortByLabel.get(row.admission_course);
         const start = day(row.start) || (row.created_at ? new Date(row.created_at).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }) : '');
         if (course && day(row.start)) return { end: courseEnd(start, course), why: `${course.duration} ${course.durationType} from ${start}` };
-        if (batchEnd.has(row.group)) return { end: batchEnd.get(row.group), why: `batch ${row.group}` };
+        // A short course batch's end counts only for a student on a short course (a Diploma / Certificate student put in such
+        // a batch by mistake is never ended by it)
+        if (course && batchEnd.has(row.group)) return { end: batchEnd.get(row.group), why: `batch ${row.group}` };
         if (course && start) return { end: courseEnd(start, course), why: `${course.duration} ${course.durationType} from ${start}` };
         return null;
     };
