@@ -44,3 +44,21 @@ CREATE TABLE IF NOT EXISTS backups.snapshot_files (
     PRIMARY KEY (snapshot_id, file_id)
 );
 CREATE INDEX IF NOT EXISTS snapshot_files_file ON backups.snapshot_files (file_id);
+
+-- The list of backups, safe to look at (user 2026-11-26): when, who, the note, size and counts - none of the data inside.
+-- The read-only user fewa_viewer (VS Code / pgAdmin on the office computer), when it exists, may read this view only.
+CREATE OR REPLACE VIEW backups.backup_list AS
+SELECT id, created_at, created_by, note,
+       (summary->>'students')::int AS students, (summary->>'staff')::int AS staff,
+       (summary->>'documents')::int AS documents, (summary->>'files')::int AS files,
+       pg_size_pretty(size_bytes) AS size
+FROM backups.snapshots;
+COMMENT ON VIEW backups.backup_list IS 'The backups: date, who made it, note, counts and size. No backup data.';
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fewa_viewer') THEN
+        EXECUTE format('GRANT CONNECT ON DATABASE %I TO fewa_viewer', current_database());
+        GRANT USAGE ON SCHEMA backups TO fewa_viewer;
+        REVOKE ALL ON ALL TABLES IN SCHEMA backups FROM fewa_viewer;
+        GRANT SELECT ON backups.backup_list TO fewa_viewer;
+    END IF;
+END $$;
