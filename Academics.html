@@ -2317,7 +2317,12 @@
                 return;
             }
             const regOf = s => registrations.find(r => r.studentId === s.id && r.term === period && same(r.unitCode, unit.code));
-            upClass = students.filter(s => s.activeStudent !== 'no' && s.admissionCourse === course && same(s.group, batch))
+            // A short course: the student's Academic Year (saved year, else the year of their Course Start Date, else of the day
+            // they were added - students added before short courses had years may still say DEFAULT GROUP)
+            const short = isShortCourse(courseNamed(course));
+            const yearOf = s => /^\d{4}$/.test(String(s.group || '').trim()) ? String(s.group).trim()
+                : String(s.courseStartDate || s.createdAt || '').slice(0, 4);
+            upClass = students.filter(s => s.activeStudent !== 'no' && s.admissionCourse === course && (short ? yearOf(s) === batch : same(s.group, batch)))
                 .map(s => ({ s, r: regOf(s) }))
                 .sort((a, b) => String(a.s.admNo).localeCompare(String(b.s.admNo), undefined, { numeric: true }));
             const done = upClass.filter(x => x.r).length;
@@ -2332,7 +2337,9 @@
                 <td>${r ? escapeHtml(r.examReason || 'First attempt') : '-'}</td><td>${r ? escapeHtml(r.lecturerName || '-') : '-'}</td>
                 <td>${r ? (r.registeredAt ? escapeHtml(new Date(r.registeredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : 'Registered')
                     : '<span class="sched-note">Not registered</span>'}</td></tr>`).join('')
-                : `<tr class="empty-row"><td colspan="8">No active student of ${escapeHtml(course)} in ${escapeHtml(batch)}.</td></tr>`;
+                : `<tr class="empty-row"><td colspan="8">No active student is on ${escapeHtml(course)} in ${escapeHtml(batch)}. ` +
+                    `${students.some(s => s.activeStudent !== 'no' && s.admissionCourse === course) ? 'Try another ' + (short ? 'academic year' : 'batch') + '.'
+                        : 'Nobody is on this course yet (Students Management, Admission Course).'}</td></tr>`;
             $('upTickSave').disabled = !mayRegister() || upClass.every(x => x.r);
         }
 
