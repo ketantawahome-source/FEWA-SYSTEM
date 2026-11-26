@@ -290,6 +290,16 @@ export async function handleFinanceRequest(req, res, session, [a, b, c]) {
         if (session.kind !== 'student') throw forbidden();
         return send(res, 200, await statement(db, session.studentId, true));
     }
+    // A student's proforma invoice: the fee items of their course for a period (Student Portal > Unit Registration)
+    if (a === 'my-proforma' && method === 'GET') {
+        if (session.kind !== 'student') throw forbidden();
+        const term = String(query.get('term') || '').trim();
+        const { rows: [st] } = await db.query(`SELECT admission_course AS course FROM ${T('students')} WHERE id = $1`, [session.studentId]);
+        if (!st) throw forbidden();
+        const { rows } = await db.query(`SELECT item, amount::float8 AS amount FROM ${T('fee_structure')}
+            WHERE course = $1 AND upper(term) = upper($2) ORDER BY item`, [st.course || '', term]);
+        return send(res, 200, { course: st.course || '', term, items: rows, total: round2(rows.reduce((t, r) => t + Number(r.amount || 0), 0)) });
+    }
     if (session.kind !== 'staff') throw forbidden();
 
     if (method === 'GET') {

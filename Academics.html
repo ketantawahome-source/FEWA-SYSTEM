@@ -2336,6 +2336,7 @@
                 <td>${escapeHtml(s.admNo || '')}</td><td>${escapeHtml(studentName(s))}</td><td>${escapeHtml(s.group || '')}</td><td>${escapeHtml(s.admissionCourse || '')}</td>
                 <td>${r ? escapeHtml(r.examReason || 'First attempt') : '-'}</td><td>${r ? escapeHtml(r.lecturerName || '-') : '-'}</td>
                 <td>${r ? (r.registeredAt ? escapeHtml(new Date(r.registeredAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : 'Registered')
+                    + (r.registeredBy === 'Student (online)' ? ' <small class="sch-all" title="Registered by the student in the Student Portal">(online)</small>' : '')
                     : '<span class="sched-note">Not registered</span>'}</td></tr>`).join('')
                 : `<tr class="empty-row"><td colspan="8">No active student is on ${escapeHtml(course)} in ${escapeHtml(batch)}. ` +
                     `${students.some(s => s.activeStudent !== 'no' && s.admissionCourse === course) ? 'Try another ' + (short ? 'academic year' : 'batch') + '.'

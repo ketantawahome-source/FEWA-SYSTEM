@@ -12,6 +12,7 @@ import { deleteUnusedFiles, storeNewFiles } from '../files/stored-files.mjs';
 import { DEFAULT_CONTROLS, globalControls, handleGlobal } from '../global-settings/global-settings.mjs';
 import { RIGHTS_TO_READ, accountsForSession, completeResetOnServer, forbidden, hidePasswords, keepPasswords, keepStudentLogin, requestPasswordReset, resetRequestAllowed, rightsToWrite, sendNewAdminEmail, sendStaffPasswordLink, sendStudentLoginEmail, staffCan, staffMayOpenFile, studentFileIds, verifyResetCodeOnServer } from '../messaging/email.mjs';
 import { setStudentPasswordOnServer } from '../messaging/whatsapp.mjs';
+import { registerOnline, registrationState } from '../academics/online-registration.mjs';
 import { attendanceBackDays, attendanceDayProblem } from '../rollcall/attendance-rules.mjs';
 import { STORES, deleteRecord, getAllRecords, getRecord, putRecord, replaceRecords, selectRecords } from '../stores/stores.mjs';
 import { STORE_TABLES, mirrorChanged, mirrorState, valueTables } from '../sync/mirror.mjs';
@@ -78,6 +79,12 @@ export async function handleApi(req, res, parts) {
         const result = await setOwnPassword(session, String((await readBody(req) || {}).password || ''));
         mirrorChanged(['staff']);
         return send(res, 200, result);
+    }
+    // Student Portal > Unit Registration: the student registers their own units for the period open now
+    if (area === 'my-registration') {
+        if (!session || session.kind !== 'student') throw forbidden();
+        if (method === 'GET') return send(res, 200, await registrationState(session.studentId));
+        if (method === 'POST') return send(res, 200, await registerOnline(session.studentId, await readBody(req, SMALL_BODY_BYTES) || {}));
     }
     if (area === 'student-password' && method === 'POST') {
         if (!staff && session.kind !== 'student') throw forbidden();
@@ -157,7 +164,8 @@ export async function handleApi(req, res, parts) {
             if (session.kind === 'student') {
                 if (a === 'applications') throw forbidden();
                 const mine = record => a === 'students' ? record.id === session.studentId
-                    : a === 'settings' ? true : record.studentId === session.studentId;
+                    // Settings and the Units register (codes, titles, credit hours) are not private: the portal names a student's units
+                    : a === 'settings' || a === 'units' ? true : record.studentId === session.studentId;
                 if (b) {
                     const record = await getRecord(a, b);
                     return send(res, 200, record && mine(record) ? hidePasswords(a, record) : null);

@@ -16,6 +16,35 @@
     <script src="notify.js"></script>
     <script>requireStudentLogin();</script>
     <link rel="stylesheet" href="styles.css?v=20261126b">
+    <style>
+        /* Unit Registration (online) */
+        .reg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .reg-period { font-size: 14px; color: #4b2a72; }
+        .reg-help { color: #8a3b12; font-size: 13.5px; line-height: 1.6; margin: 10px 0; }
+        .reg-closed { background: #fff4e5; border: 1px solid #f0c27b; color: #7a4a00; padding: 10px 14px; border-radius: 10px; margin: 10px 0; }
+        .reg-bar { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 14px; align-items: end; background: #f1edf6;
+            border-radius: 12px; padding: 16px; margin: 12px 0 16px; }
+        .reg-label { display: block; font-weight: 700; font-size: 13px; color: #3b1d5e; margin-bottom: 6px; }
+        .reg-course { color: #555; }
+        .reg-bar select { width: 100%; }
+        .reg-subtitle { font-weight: 700; font-size: 16px; color: #24103a; margin: 16px 0 8px; }
+        .reg-tick { width: 44px; text-align: center; }
+        .reg-tick input { width: 18px; height: 18px; margin: 0; }
+        .reg-done { color: #1f7a4a; font-weight: 700; }
+        .reg-actions-row { margin: 10px 0 4px; }
+        .reg-registered { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+        .reg-registered span { background: #e8f5ee; color: #1f5f3d; border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+        .reg-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0 6px; }
+        .reg-btn { border: none; border-radius: 8px; padding: 11px 10px; font-weight: 700; cursor: pointer; color: #fff; }
+        .reg-btn.info { background: #4b2a72; }
+        .reg-btn.main { background: #c0392b; }
+        .reg-btn:disabled { opacity: .45; cursor: not-allowed; }
+        .reg-total td { font-weight: 700; }
+        @media (max-width: 700px) {
+            .reg-bar, .reg-buttons { grid-template-columns: 1fr; }
+            .reg-get { width: 100%; }
+        }
+    </style>
 </head>
 
 <body class="student-portal-page">
@@ -129,7 +158,9 @@
             family: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14c2.7 0 4.5 2 5 5"/>',
             fees: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
             password: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-            calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'
+            calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+            units: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7M8 11h7"/>',
+            registration: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/><path d="M15 16l1.5 1.5L19 15"/>'
         };
         const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PORTAL_ICONS[name]}</svg>`;
@@ -152,7 +183,7 @@
         // The page names shown beside the Home button
         const PAGE_NAMES = {
             profile: 'Personal Profile', overview: 'Overview', admission: 'Admission Details', documents: 'My Documents',
-            status: 'Status History', family: 'Family & Contacts', fees: 'Fee Statement', password: 'Change Password'
+            status: 'Status History', family: 'Family & Contacts', fees: 'Fee Statement', password: 'Change Password', units: 'My Units', registration: 'Unit Registration'
         };
 
         /* Moving to another page shows "LOADING please wait..." briefly, then the page.
@@ -261,7 +292,7 @@
             student.mustChangePassword = false;
             showToast('Your password has been saved. Use it next time you log in.');
             // The rest of the portal opens once a temporary password has been replaced
-            if (wasTemporary) render();
+            if (wasTemporary) { render(); renderRegistration(); }
             else {
                 event.target.reset();
                 document.getElementById('spPasswordError').hidden = true;
@@ -286,6 +317,160 @@
 
         let deferrals = [];
 
+        /* ---------- Unit Registration (online) ----------
+           The student registers their own units for the period open now (server/academics/online-registration.mjs):
+           Get Units to Register lists the units on offer to them (by category), the ticked ones go to the Basket, and
+           Complete Registration saves them (after a question) as the college's own unit registrations, which staff
+           see at once in Manage Units. View Proforma Invoice shows the fee items of the period; Print Course
+           Statement prints the units registered. The basket is kept only on the page until registration is completed. */
+        let regState = null, regShown = false, regBasket = [], regProforma = null;
+        const regCategory = () => (document.getElementById('regCategory') || {}).value || '';
+        function renderRegistration() {
+            const area = document.getElementById('regArea');
+            if (!area || !student) return;
+            const st = regState || { open: false, reason: 'Loading...' };
+            const unitOf = code => (st.units || []).find(u => u.code === code) || {};
+            const stage = u => st.short ? 'Whole course' : (u.yearOfStudy ? `Year ${u.yearOfStudy}` : '—');
+            const sem = u => st.short ? '—' : (u.semester ? `Semester ${u.semester}` : '—');
+            const available = (st.units || []).filter(u => !regCategory() || u.category === regCategory());
+            const registered = (st.units || []).filter(u => u.registered);
+            area.innerHTML = `
+                <div class="reg-head">
+                    <div class="portal-title">Unit Registration</div>
+                    <div class="reg-period">Registration period: <b>${st.open ? escapeHtml(st.termLabel) : 'closed'}</b></div>
+                </div>
+                ${st.open ? `<p class="reg-help">Click <b>Get Units to Register</b>, tick your units and click <b>Add Selected Units to the Basket</b>.
+                    Check them, then click <b>Complete Registration</b>. <b>View Proforma Invoice</b> shows the fees of this period.</p>`
+                    : `<p class="reg-closed">${escapeHtml(st.reason || 'Registration is closed.')}</p>`}
+                <div class="reg-bar">
+                    <div><div class="reg-label">Current Course</div><div class="reg-course">${escapeHtml(st.course || student.admissionCourse || '')}</div></div>
+                    <div><label class="reg-label" for="regCategory">Unit Category</label>
+                        <select id="regCategory" onchange="regShown && renderRegistration()" ${st.open ? '' : 'disabled'}>
+                            <option value="">All units</option><option>Course units</option><option>Common units</option>
+                        </select></div>
+                    <div><button type="button" class="btn-submit reg-get" onclick="regGetUnits()" ${st.open ? '' : 'disabled'}>Get Units to Register</button></div>
+                </div>
+                ${regShown && st.open ? `
+                    <div class="reg-subtitle">Units on offer${regCategory() ? ' - ' + escapeHtml(regCategory()) : ''}</div>
+                    <div class="table-wrap"><table class="data-table reg-table">
+                        <thead><tr><th class="reg-tick"></th><th>Unit</th><th>Unit Name</th><th>Credit Hours</th><th>Stage</th><th>Semester</th><th>Category</th></tr></thead>
+                        <tbody>${available.length ? available.map(u => `<tr>
+                            <td class="reg-tick">${u.registered ? '<span class="reg-done" title="Registered">&#10003;</span>'
+                                : regBasket.includes(u.code) ? '<span class="reg-in" title="In the basket">&#128722;</span>'
+                                : `<input type="checkbox" class="reg-choose" value="${escapeHtml(u.code)}" aria-label="Choose ${escapeHtml(u.code)}">`}</td>
+                            <td>${escapeHtml(u.code)}</td><td>${escapeHtml(u.title)}</td><td>${escapeHtml(u.creditHours)}</td>
+                            <td>${escapeHtml(stage(u))}</td><td>${escapeHtml(sem(u))}</td>
+                            <td>${escapeHtml(u.category)}${u.registered ? ' <small class="reg-done">(registered)</small>' : ''}</td></tr>`).join('')
+                            : `<tr class="empty-row"><td colspan="7">No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} on offer to you in this period yet. The college office puts units on offer.</td></tr>`}</tbody>
+                    </table></div>
+                    <div class="reg-actions-row"><button type="button" class="btn-secondary" onclick="regAddToBasket()">Add Selected Units to the Basket</button></div>` : ''}
+                <div class="reg-subtitle">Basket Unit List</div>
+                <div class="table-wrap"><table class="data-table reg-table">
+                    <thead><tr><th>Course</th><th>Unit</th><th>Unit Name</th><th>Stage</th><th>Semester</th><th>Action</th></tr></thead>
+                    <tbody>${regBasket.length ? regBasket.map(code => { const u = unitOf(code); return `<tr>
+                        <td>${escapeHtml(st.course)}</td><td>${escapeHtml(code)}</td><td>${escapeHtml(u.title || '')}</td>
+                        <td>${escapeHtml(stage(u))}</td><td>${escapeHtml(sem(u))}</td>
+                        <td><button type="button" class="btn-small" onclick="regRemove('${escapeHtml(code)}')">Remove</button></td></tr>`; }).join('')
+                        : '<tr class="empty-row"><td colspan="6">The basket is empty.</td></tr>'}</tbody>
+                </table></div>
+                ${registered.length ? `<div class="reg-subtitle">Registered for this period (${registered.length})</div>
+                    <p class="reg-registered">${registered.map(u => `<span>${escapeHtml(u.code)} - ${escapeHtml(u.title)}</span>`).join('')}</p>` : ''}
+                <div class="reg-buttons">
+                    <button type="button" class="reg-btn info" onclick="regViewProforma()" ${st.open ? '' : 'disabled'}>View Proforma Invoice</button>
+                    <button type="button" class="reg-btn main" onclick="regComplete()" ${st.open && regBasket.length ? '' : 'disabled'}>Complete Registration</button>
+                    <button type="button" class="reg-btn info" onclick="regPrintStatement()">Print Course Statement</button>
+                </div>
+                ${regProforma ? `<div class="reg-subtitle">Proforma Invoice - ${escapeHtml(st.termLabel || '')}</div>
+                    ${regProforma.items.length ? `<div class="table-wrap"><table class="data-table reg-table">
+                        <thead><tr><th>Fee Item</th><th class="num">Amount</th></tr></thead>
+                        <tbody>${regProforma.items.map(i => `<tr><td>${escapeHtml(i.item)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}
+                            <tr class="reg-total"><td>Total</td><td class="num">${money(regProforma.total)}</td></tr></tbody></table></div>
+                        <p class="reg-help">This is not a bill yet: the accounts office charges the fees to your statement (Fee Statement).</p>`
+                        : '<p class="empty-state">No fee items are set for your course in this period yet. Ask the accounts office.</p>'}` : ''}`;
+            const box = document.getElementById('regCategory');
+            if (box) box.value = regCategoryKeep;
+        }
+        let regCategoryKeep = '';
+        document.addEventListener('change', e => { if (e.target && e.target.id === 'regCategory') regCategoryKeep = e.target.value; }, true);
+        function regGetUnits() {
+            regShown = true;
+            renderRegistration();
+            const first = document.querySelector('.reg-table');
+            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function regAddToBasket() {
+            const chosen = [...document.querySelectorAll('.reg-choose:checked')].map(b => b.value);
+            if (!chosen.length) return alert('Tick the units you want first.');
+            regBasket = [...new Set([...regBasket, ...chosen])];
+            renderRegistration();
+            showToast(`${chosen.length} unit${chosen.length === 1 ? '' : 's'} added to the basket.`);
+        }
+        function regRemove(code) {
+            regBasket = regBasket.filter(c => c !== code);
+            renderRegistration();
+        }
+        async function regComplete() {
+            if (!regBasket.length) return;
+            const st = regState;
+            if (!await fewaConfirm(`Register these ${regBasket.length} unit${regBasket.length === 1 ? '' : 's'} for ${st.termLabel}?\n\n` +
+                regBasket.join(', '), { yes: 'Yes, register', danger: false })) return;
+            try {
+                const result = await api('POST', '/my-registration', { units: regBasket });
+                regState = result.state;
+                regBasket = [];
+                myUnits = (await readAll('unit_registrations').catch(() => myUnits)).filter(r => r.studentId === student.id);
+                showToast(`Registered: ${result.added.join(', ') || 'nothing new'}.`);
+                render();
+                renderRegistration();
+                openPortalPage('registration');
+            } catch (err) { alert('The registration could not be completed: ' + err.message); }
+        }
+        async function regViewProforma() {
+            try {
+                regProforma = await api('GET', '/finance/my-proforma?term=' + encodeURIComponent(regState.term));
+                renderRegistration();
+                const t = document.querySelector('.reg-total');
+                if (t) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (err) { alert('The proforma invoice could not be shown: ' + err.message); }
+        }
+        // The units registered (this period, else all), in a print window: nothing is saved as a file
+        function regPrintStatement() {
+            const st = regState || {};
+            const rows = (st.open && st.units ? st.units.filter(u => u.registered) : []);
+            const list = rows.length ? rows.map(u => [st.termLabel, u.code, u.title, u.creditHours])
+                : myUnits.map(r => { const u = unitList.find(x => String(x.code).toUpperCase() === String(r.unitCode).toUpperCase()) || {};
+                    return [r.term, r.unitCode, u.title || '', u.creditHours ?? '']; });
+            const w = window.open('', '_blank', 'width=820,height=900');
+            if (!w) return alert('Allow pop-up windows for this site to print.');
+            const e = escapeHtml;
+            w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Course Statement</title>
+                <style>body{font-family:Arial,sans-serif;margin:28px;color:#222}h1{font-size:20px;margin:0}h2{font-size:15px;margin:4px 0 18px;font-weight:normal}
+                table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left}th{background:#eee}
+                .info{font-size:13px;margin-bottom:14px;line-height:1.6}.foot{margin-top:28px;font-size:12px;color:#666}</style></head><body>
+                <h1>${e(document.querySelector('#spCollege') ? document.querySelector('#spCollege').innerText.replace(/\s+/g, ' ') : 'FEWA')}</h1>
+                <h2>Course Statement - registered units</h2>
+                <div class="info"><b>Name:</b> ${e(fullName(student))}<br><b>Reg. No:</b> ${e(student.admNo)}<br><b>Course:</b> ${e(student.admissionCourse || '')}<br>
+                <b>Period:</b> ${e(rows.length ? st.termLabel : 'All periods')}<br><b>Printed:</b> ${e(new Date().toLocaleString('en-GB'))}</div>
+                <table><thead><tr><th>Period</th><th>Unit</th><th>Unit Name</th><th>Credit Hours</th></tr></thead><tbody>
+                ${list.length ? list.map(r => `<tr>${r.map(v => `<td>${e(v)}</td>`).join('')}</tr>`).join('') : '<tr><td colspan="4">No units registered yet.</td></tr>'}
+                </tbody></table><div class="foot">Student Portal</div></body></html>`);
+            w.document.close();
+            w.focus();
+            setTimeout(() => w.print(), 300);
+        }
+        let myUnits = [], unitList = [], myCourse = null;
+        /* A short course (Settings > Courses: Has Short Courses YES, or 6 months or less) has no semesters and no batch:
+           the student's Academic Year, their own Course Start / End dates and the whole course as one period */
+        function isShortCourse(c) {
+            if (!c) return false;
+            if (String(c.hasShortCourses || '').toUpperCase() === 'YES') return true;
+            const n = Number(c.duration) || 0, t = String(c.durationType || '').toUpperCase().replace(/S$/, '');
+            return n > 0 && ((t === 'MONTH' && n <= 6) || t === 'WEEK' || t === 'DAY');
+        }
+        const courseLength = c => { const n = Number(c && c.duration) || 3, t = String((c && c.durationType) || 'MONTHS').toUpperCase().replace(/S$/, '');
+            return `${n} ${n === 1 ? t : t + 'S'}`; };
+        const studentYear = s => /^\d{4}$/.test(String(s.group || '').trim()) ? String(s.group).trim() : String(s.courseStartDate || s.createdAt || '').slice(0, 4);
+
         function render() {
             const s = student;
             const active = s.activeStudent !== 'no';
@@ -293,13 +478,20 @@
             const photo = cls => s.photo ? `<img class="${cls}" data-photo alt="My photo">` : `<div class="${cls} initials">${escapeHtml(initials)}</div>`;
             const passwordOnly = !!s.mustChangePassword;
             const daysSince = s.createdAt ? Math.max(0, Math.floor((Date.now() - new Date(s.createdAt)) / 86400000)) : 0;
+            const short = isShortCourse(myCourse);
+            // A short course: the days left until the course ends (it ends by itself on that day)
+            const daysLeft = short && s.courseEndDate ? Math.max(0, Math.ceil((new Date(s.courseEndDate + 'T23:59:59+03:00') - Date.now()) / 86400000)) : null;
+            const periodText = term => short ? `${courseLength(myCourse)} (whole course)` : (term || '');
+            const unitOf = code => unitList.find(u => String(u.code).toUpperCase() === String(code).toUpperCase()) || {};
             const person = p => [s[p + 'FirstName'], s[p + 'LastName']].filter(Boolean).join(' ');
 
             const left = [['Reg. No', s.admNo], ['Name', fullName(s).toUpperCase()], ['ID No', s.idBirthCert],
                 ['Gender', s.gender], ['Phone', s.phone], ['Course', s.admissionCourse]];
             const right = [['Address', s.postalAddress], ['Email', s.email],
                 ['Date Of Birth', s.dob ? s.dob.split('-').reverse().join('/') : ''],
-                ['Campus', s.campus], ['Academic Status', active ? 'Active' : 'Inactive'], ['Enrollment', s.enrollment]];
+                ['Campus', s.campus], ['Academic Status', active ? 'Active' : 'Inactive'],
+                short ? ['Academic Year', studentYear(s)] : ['Batch', s.group]];
+            if (!short) left.push(['Enrollment', s.enrollment]);
 
             const documentsTable = list => `<div class="table-wrap"><table class="data-table">
                 <thead><tr><th>Document Type</th><th>File Name</th><th>Uploaded</th><th>Actions</th></tr></thead>
@@ -352,17 +544,32 @@
                         ${tile('blue', feeStatement ? (feeStatement.balance < 0 ? money(-feeStatement.balance) + ' CR' : money(feeStatement.balance)) : 'KES -', 'Fee Balance', 'fees', 'fees')}
                         ${tile('green', documentFiles.length, 'Documents Uploaded', 'documents', 'documents')}
                         ${tile(active ? 'orange' : 'red', active ? 'Active' : 'Inactive', 'Academic Status', 'status', 'status')}
-                        ${tile('purple', daysSince, `Day${daysSince === 1 ? '' : 's'} Since Admission`, 'calendar', 'admission')}
+                        ${daysLeft !== null ? tile('purple', daysLeft, `Day${daysLeft === 1 ? '' : 's'} Left of the Course`, 'calendar', 'admission')
+                            : tile('purple', daysSince, `Day${daysSince === 1 ? '' : 's'} Since Admission`, 'calendar', 'admission')}
+                        ${tile('blue', myUnits.length, `Unit${myUnits.length === 1 ? '' : 's'} Registered`, 'units', 'units')}
                     </div>
                     ${box('Recent Documents', documentsTable(documentFiles.slice(0, 5)),
                         `<button type="button" onclick="showPortalTab('documents')">View All Documents</button>`)}`,
                 admission: box(null,
                     detailSection('Admission Details', [['Campus', s.campus], ['Course', s.admissionCourse], ['Study Session', s.studySession],
-                        ['Enrollment', s.enrollment], ['Student Type', s.studentType], ['Batch', s.group], ['Status', active ? 'Active' : 'Inactive']]) +
+                        ...(short ? [['Course Length', `${courseLength(myCourse)} (no semesters)`], ['Academic Year', studentYear(s)],
+                            ['Course Start Date', formatDate(s.courseStartDate)], ['Course Ends', formatDate(s.courseEndDate)]]
+                            : [['Enrollment', s.enrollment], ['Batch', s.group]]),
+                        ['Student Type', s.studentType], ['Status', active ? 'Active' : 'Inactive']]) +
                     detailSection('Personal Information', [['Adm No.', s.admNo], ['Gender', s.gender], ['Date of Birth', s.dob],
                         ['Email', s.email], ['Phone', s.phone], ['ID/Birth Certificate No.', s.idBirthCert], ['Passport No.', s.passportNo],
                         ['Nationality', s.nationality], ['Postal Address', s.postalAddress], ['Specialization', s.specialization]])),
                 documents: box(null, documentsTable(documentFiles)),
+                registration: `<div class="enquiry-box"><div id="regArea" class="reg-area"></div></div>`,
+                units: box(null, `<div class="table-wrap"><table class="data-table">
+                    <thead><tr><th>${short ? 'Duration' : 'Period'}</th><th>Unit Code</th><th>Unit Title</th><th>Credit Hours</th><th>Exam Reason</th><th>Lecturer</th></tr></thead>
+                    <tbody>${myUnits.length ? myUnits.slice().sort((a, b) => String(a.term).localeCompare(String(b.term), undefined, { numeric: true })
+                        || String(a.unitCode).localeCompare(String(b.unitCode), undefined, { numeric: true })).map(r => `<tr>
+                        <td>${escapeHtml(periodText(r.term))}</td><td>${escapeHtml(r.unitCode)}</td><td>${escapeHtml(unitOf(r.unitCode).title || '')}</td>
+                        <td>${escapeHtml(unitOf(r.unitCode).creditHours ?? '')}</td><td>${escapeHtml(r.examReason || 'First attempt')}</td>
+                        <td>${escapeHtml(r.lecturerName || '—')}</td></tr>`).join('')
+                        : '<tr class="empty-row"><td colspan="6">You are not registered on any unit yet. The college office registers your units.</td></tr>'}</tbody>
+                    </table></div>`),
                 status: box(null, `<dl class="detail-grid">
                         <div><dt>Current Status</dt><dd>${active ? 'Active' : 'Inactive'}</dd></div>
                         <div><dt>Admitted On</dt><dd>${escapeHtml(formatDate(s.createdAt)) || '—'}</dd></div>
@@ -399,7 +606,7 @@
             // Until a temporary password is replaced, only Change Password is offered
             const nav = passwordOnly ? [['Settings', [['password', 'Change Password']]]] : [
                 ['Dashboard', [['profile', 'Personal Profile'], ['overview', 'Overview']]],
-                ['Academics', [['admission', 'Admission Details'], ['documents', `Documents (${documentFiles.length})`], ['status', 'Status History']]],
+                ['Academics', [['admission', 'Admission Details'], ['registration', 'Unit Registration'], ['units', `My Units (${myUnits.length})`], ['documents', `Documents (${documentFiles.length})`], ['status', 'Status History']]],
                 ['Contacts', [['family', 'Family & Contacts']]],
                 ['Financials', [['fees', 'Fee Statement']]],
                 ['Settings', [['password', 'Change Password']]]
@@ -474,9 +681,16 @@
                 .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
             deferrals = (await readAll('deferrals')).filter(d => d.studentId === student.id)
                 .sort((a, b) => b.startDate.localeCompare(a.startDate));
+            // My Units: the units the college registered the student on (Manage Units), with their titles
+            myUnits = (await readAll('unit_registrations').catch(() => [])).filter(r => r.studentId === student.id);
+            unitList = await readAll('units').catch(() => []);
+            const courseSetting = settings.find(x => x.key === 'courses');
+            myCourse = ((courseSetting && courseSetting.items) || []).find(c => (c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name) === student.admissionCourse) || null;
                 feeStatement = await api('GET', '/finance/my-statement').catch(() => null);
+                regState = await api('GET', '/my-registration').catch(err => ({ open: false, reason: err.message }));
                 feePayDetails = settings.find(s => s.key === 'paymentDetails') || {};
                 render();
+                renderRegistration();
         }
 
         loadPortal();
