@@ -35,6 +35,16 @@
         .gs-status { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 32px);
             padding: 10px 18px; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 14px; font-weight: 600; }
         .gs-status:empty { display: none; }
+        .gs-title { margin: 4px 0 14px; font-size: 24px; font-weight: 500; color: #333; }
+        .gs-info { margin-bottom: 16px; padding: 18px 18px; border: 1px solid #b6d4e8; border-radius: 6px; background: #ebf4fb;
+            color: #2a6a8f; font-size: 16px; }
+        .gs-save { padding: 10px 20px; border: 1px solid #157a3b; border-radius: 4px; background: #198544; color: #fff;
+            font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .gs-save:disabled { opacity: .55; cursor: default; }
+        .gs-count { margin: 12px 0 10px; color: #333; font-size: 15px; }
+        .gs-find { display: block; width: 100%; max-width: 780px; box-sizing: border-box; margin-bottom: 16px; padding: 12px 16px;
+            border: 1px solid #ccc; border-radius: 3px; font: inherit; font-size: 15px; }
+        .gs-find:focus { outline: none; box-shadow: var(--fewa-focus); }
         .gs-status.ok { color: #2e7d32; border-left: 5px solid #2e7d32; } .gs-status.err { color: #b3261e; border-left: 5px solid #b3261e; }
         .gs-card { background: #fff; border: 1px solid var(--fewa-line); border-radius: var(--fewa-radius); overflow: hidden;
             box-shadow: var(--fewa-shadow); margin-bottom: 22px; }
@@ -101,13 +111,18 @@
     <div id="panel" hidden>
         <div class="gs-topbar">
             <h1>GLOBAL SETTINGS</h1>
-            <input type="search" id="search" class="gs-search" placeholder="Search for a setting..." aria-label="Search for a setting">
             <button class="gs-btn" id="lockButton">Lock</button>
         </div>
 
         <div class="gs-page">
             <div id="closedBanner" class="gs-banner">The system is CLOSED: nobody can log in or use it until SYSTEM_OPEN is YES again.</div>
             <div id="status" class="gs-status" role="status" aria-live="polite"></div>
+
+            <h2 class="gs-title">Global settings</h2>
+            <div class="gs-info">Change a value or a tick and click Save. Only what you changed is saved.</div>
+            <button type="button" class="gs-save" id="saveAll" disabled>Save</button>
+            <div class="gs-count" id="settingCount"></div>
+            <input type="search" id="search" class="gs-find" placeholder="Find a setting by name, value or description" aria-label="Find a setting">
 
             <div class="gs-card">
                 <div class="gs-scroll">
@@ -200,7 +215,9 @@
         function status(text, ok = true) {
             $('status').textContent = text;
             $('status').className = 'gs-status ' + (ok ? 'ok' : 'err');
-            if (text && ok) setTimeout(() => { if ($('status').textContent === text) $('status').textContent = ''; }, 3000);
+            // (each message has its own number, so an older message's timer never removes a newer one with the same words)
+            const mine = status.count = (status.count || 0) + 1;
+            if (text) setTimeout(() => { if (status.count === mine) $('status').textContent = ''; }, ok ? 3000 : 6000);
         }
 
         function gateError(text) {
@@ -229,9 +246,10 @@
         const valueText = (s, value) => s.yesNo ? (value ? 'YES' : 'NO') : s.number ? String(Number(value) || 0) : String(value || '');
 
         /* One row per setting: name | value | school may change it | description.
-           Every change saves by itself (owner, 2026-11-27): a YES / NO choice and the "School may change it" tick at once,
-           a number or a message when leaving its box (or pressing Enter). Switching off something important still asks
-           first; a refused or cancelled change puts the saved value back. */
+           As the owner's example (2026-11-27): change values or ticks (a changed row is highlighted), then Save saves only
+           what was changed, all together. Switching off something important still asks first. */
+        const rowChanged = s => $('value-' + s.control).value !== valueText(s, saved[s.control])
+            || $('school-' + s.control).checked !== !!(saved.schoolMayChange || {})[s.control];
         function drawSettings() {
             $('settingRows').replaceChildren(...SETTINGS.map(s => {
                 const tr = document.createElement('tr');
@@ -273,46 +291,70 @@
                 const desc = document.createElement('td');
                 desc.className = 'gs-desc';
                 desc.textContent = s.description;
-
-                const putBack = () => { input.value = valueText(s, saved[s.control]); };
-                async function saveValue() {
-                    if (input.value === valueText(s, saved[s.control])) return;
-                    const text = input.value;
-                    const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
-                    if (s.number && !(text !== '' && Number.isInteger(value) && value >= 0 && value <= (s.max || 365))) {
-                        status(`${s.name} must be a whole number from 0 to ${s.max || 365}.`, false);
-                        return putBack();
-                    }
-                    if (s.yesNo && !value && saved[s.control] && s.off && !await fewaConfirm(s.off)) return putBack();
-                    await saveChange({ [s.control]: value }, `${s.name} saved: ${valueText(s, value)}.`, putBack);
-                }
-                // A choice saves at once; a number or a message when leaving the box (Enter too)
-                input.addEventListener('change', saveValue);
-                if (!s.yesNo) input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); input.blur(); } });
-                school.addEventListener('change', () => saveChange({ schoolMayChange: { [s.control]: school.checked } },
-                    `${s.name}: ${school.checked ? 'the school may now change it (School Setup)' : 'only you can change it now'}.`,
-                    () => { school.checked = !school.checked; }));
+                input.addEventListener('input', editedNow);
+                input.addEventListener('change', editedNow);
+                school.addEventListener('change', editedNow);
                 tr.append(name, valueCell, schoolCell, desc);
                 return tr;
             }));
+            $('settingCount').textContent = `${SETTINGS.length} settings.`;
+            markChanged();
             filterRows();
         }
 
-        // Saves one change; on success keeps the saved values (no redraw, so the place on the page stays)
-        async function saveChange(changes, message, undo) {
+        // Highlights the changed rows; Save is lit while anything is changed (an old problem message goes on typing)
+        function markChanged() {
+            let any = false;
+            for (const s of SETTINGS) {
+                const changed = rowChanged(s);
+                $('value-' + s.control).closest('tr').classList.toggle('changed', changed);
+                any = any || changed;
+            }
+            $('saveAll').disabled = !any;
+        }
+        // Typing again clears an old problem message
+        const editedNow = () => { markChanged(); if ($('status').classList.contains('err')) status(''); };
+
+        // Save: only what was changed, all together
+        $('saveAll').addEventListener('click', async () => {
+            const changes = {}, schoolMayChange = {}, warnings = [];
+            for (const s of SETTINGS) {
+                if (!rowChanged(s)) continue;
+                const text = $('value-' + s.control).value;
+                if (text !== valueText(s, saved[s.control])) {
+                    const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
+                    if (s.number && !(text !== '' && Number.isInteger(value) && value >= 0 && value <= (s.max || 365))) {
+                        $('value-' + s.control).focus();
+                        return status(`${s.name} must be a whole number from 0 to ${s.max || 365}.`, false);
+                    }
+                    changes[s.control] = value;
+                    if (s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
+                }
+                const tick = $('school-' + s.control).checked;
+                if (tick !== !!(saved.schoolMayChange || {})[s.control]) schoolMayChange[s.control] = tick;
+            }
+            const count = SETTINGS.filter(rowChanged).length;
+            // Always asked first (owner's wish: nothing is saved without "are you sure"), with any switch-off warning
+            const names = SETTINGS.filter(rowChanged).map(s => '- ' + s.name).join('\n');
+            if (!await fewaConfirm(`Save ${count} changed setting${count === 1 ? '' : 's'}?\n${names}` + (warnings.length ? '\n\n' + warnings.join('\n\n') : ''))) return;
+            if (Object.keys(schoolMayChange).length) changes.schoolMayChange = schoolMayChange;
+            $('saveAll').disabled = true;
             try {
                 const result = await call('PUT', 'controls', changes);
                 saved = result.controls;
                 $('closedBanner').style.display = saved.systemOpen ? 'none' : 'block';
-                status(message);
-            } catch (err) { undo(); status(err.message, false); }
-        }
+                drawSettings();
+                status(`Saved ${count} setting${count === 1 ? '' : 's'}.`);
+            } catch (err) { status(err.message, false); markChanged(); }
+        });
 
         function filterRows() {
             const words = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
             let shown = 0;
             for (const tr of $('settingRows').rows) {
-                const match = words.every(w => tr.dataset.search.includes(w));
+                const box = tr.querySelector('.gs-value');
+                const text = tr.dataset.search + ' ' + (box ? box.value.toLowerCase() : '');
+                const match = words.every(w => text.includes(w));
                 tr.hidden = !match;
                 if (match) shown++;
             }
@@ -380,6 +422,7 @@
            but only while the panel is open and no box is being typed in, so typing is never lost. */
         const refreshQuietly = () => {
             if ($('panel').hidden || document.hidden) return;
+            if (SETTINGS.some(s => $('value-' + s.control) && rowChanged(s))) return;
             if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#settingRows')) return;
             load();
         };

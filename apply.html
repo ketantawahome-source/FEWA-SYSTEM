@@ -11,6 +11,8 @@
     <script src="sentry-config.js"></script>
     <script src="sentry.js"></script>
     <script src="countries.js"></script>
+    <!-- Enter never sends the application; the Submit button asks "Send your application?" first (owner's wish) -->
+    <script src="safe-actions.js"></script>
     <style>
         :root {
             --purple: #24103a;
@@ -154,7 +156,62 @@
             .short-course-dates { margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: #f6eefc; border: 1px solid #e3cf9a;
             color: #3b1d5e; font-size: 13px; line-height: 1.45; }
         .short-course-dates[hidden] { display: none; }
-</style>
+        /* The question box of safe-actions.js (copied from styles.css): sending asks first */
+.fewa-ask {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(20, 8, 34, 0.55);
+    animation: fewa-ask-in 0.15s ease-out;
+}
+.fewa-ask-box {
+    width: min(440px, 100%);
+    background: #fff;
+    border-radius: 16px;
+    border-top: 4px solid #dfb15b;
+    box-shadow: 0 24px 60px rgba(20, 8, 34, 0.4);
+    padding: 22px 22px 18px;
+    text-align: center;
+    outline: none;
+    animation: fewa-ask-pop 0.18s ease-out;
+}
+.fewa-ask-box.is-danger { border-top-color: #d9534f; }
+.fewa-ask-icon {
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: #f1eaf8;
+    color: #4b2a72;
+}
+.fewa-ask-box.is-danger .fewa-ask-icon { background: #fdecea; color: #c9302c; }
+.fewa-ask-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.fewa-ask-text { white-space: pre-line; color: #24103a; font-size: 15px; line-height: 1.5; font-weight: 600; }
+.fewa-ask-hint { margin-top: 8px; font-size: 12px; color: #8a7d9c; }
+.fewa-ask-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+.fewa-ask-buttons button {
+    min-width: 130px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+}
+.fewa-ask-no { background: #fff; color: #4b2a72; border: 1px solid #cfc3dd; }
+.fewa-ask-no:hover { background: #f5f0fa; }
+.fewa-ask-yes { background: linear-gradient(135deg, #4b2a72, #31184d); color: #f3d27a; border: 1px solid #31184d; }
+.fewa-ask-yes:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(49, 24, 77, 0.35); }
+.fewa-ask-box.is-danger .fewa-ask-yes { background: linear-gradient(135deg, #d9534f, #b52b27); color: #fff; border-color: #b52b27; }
+.fewa-ask-box.is-danger .fewa-ask-yes:hover { box-shadow: 0 6px 16px rgba(181, 43, 39, 0.35); }
+@keyframes fewa-ask-in { from { opacity: 0; } }
+@keyframes fewa-ask-pop { from { transform: scale(0.94); opacity: 0; } }
+    </style>
 </head>
 
 <body>
@@ -167,7 +224,8 @@
     </header>
 
     <main>
-        <form id="applyForm" novalidate>
+        <form id="applyForm" novalidate data-ask="Send your application to FEWA?
+Please check your details first: they cannot be changed after sending.">
             <span class="note">Application Form &nbsp;<span class="req">*</span> means mandatory information</span>
             <div id="formMessage" class="message" role="alert"></div>
 

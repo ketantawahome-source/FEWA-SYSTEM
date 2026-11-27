@@ -144,7 +144,8 @@
         const submitter = event.submitter;
         const label = (submitter && (submitter.textContent || submitter.value) || '').trim();
         const question = /^(save|update)\b/i.test(label) ? `${label.replace(/\s+/g, ' ')}?` : 'Save these details?';
-        fewaConfirm(/^save/i.test(question) ? question : 'Save: ' + question).then(yes => {
+        // A form may ask its own question (data-ask), e.g. the online application: "Send your application to FEWA?"
+        fewaConfirm(form.dataset.ask || (/^save/i.test(question) ? question : 'Save: ' + question)).then(yes => {
             if (!yes) return;
             form.dataset.fewaAsked = 'yes';
             if (submitter && submitter.isConnected && form.requestSubmit) form.requestSubmit(submitter);
