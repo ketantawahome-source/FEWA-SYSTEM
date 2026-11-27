@@ -35,6 +35,57 @@
         .gs-status { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 32px);
             padding: 10px 18px; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 14px; font-weight: 600; }
         .gs-status:empty { display: none; }
+        /* Top bar, as the staff pages' one: the college on the left, a student search, icons and who is logged in */
+        .gs-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: stretch; min-height: 64px;
+            background: var(--fewa-purple); box-shadow: var(--fewa-shadow); }
+        .gs-brand { display: flex; align-items: center; gap: 10px; padding: 8px 18px; width: 260px; box-sizing: border-box;
+            background: var(--fewa-ink); color: #fff; text-decoration: none; flex: none; }
+        .gs-brand img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--fewa-gold); object-fit: cover; background: #fff; }
+        .gs-brand b { display: block; font-size: 18px; letter-spacing: 3px; color: var(--fewa-gold-light); line-height: 1.1; }
+        .gs-brand small { display: block; font-size: 9.5px; letter-spacing: 1px; color: #f1e6ff; font-weight: 700; }
+        .gs-bar { flex: 1; display: flex; align-items: center; gap: 14px; padding: 10px 20px; min-width: 0; }
+        .gs-student-search { flex: 1 1 auto; min-width: 0; max-width: 820px; padding: 11px 16px; border: 1px solid var(--fewa-gold);
+            border-radius: 22px; background: rgba(255,255,255,.08); color: #fff; font: inherit; font-size: 15px; }
+        .gs-student-search::placeholder { color: #d9cde9; }
+        .gs-student-search:focus { outline: none; box-shadow: var(--fewa-focus); }
+        .gs-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 0; border-radius: 50%;
+            background: transparent; color: #fff; cursor: pointer; flex: none; }
+        .gs-icon:hover { background: rgba(255,255,255,.12); }
+        .gs-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+        .gs-user { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: #fff; font-weight: 700; white-space: nowrap; }
+        .gs-avatar { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%;
+            background: var(--fewa-gold-light); color: var(--fewa-ink); font-weight: 800; }
+        @media (max-width: 760px) {
+            .gs-brand { width: auto; padding: 8px 12px; }
+            .gs-brand span { display: none; }
+            .gs-bar { gap: 8px; padding: 8px 12px; }
+            #gsUserName { display: none; }
+        }
+        /* Side menu (dark, like the staff pages) and the page beside it in a white card */
+        .gs-side { position: fixed; top: 64px; bottom: 0; left: 0; width: 260px; overflow-y: auto; background: var(--fewa-ink);
+            padding: 10px 0 24px; z-index: 4; box-sizing: border-box; }
+        .gs-nav-item { display: flex; align-items: center; gap: 12px; padding: 13px 22px; color: #fff; text-decoration: none;
+            font-weight: 700; font-size: 15.5px; cursor: pointer; list-style: none; border-left: 4px solid transparent; }
+        .gs-nav-item::-webkit-details-marker { display: none; }
+        .gs-nav-item:hover { background: rgba(255,255,255,.06); }
+        .gs-nav-item.active { background: rgba(243,210,122,.12); border-left-color: var(--fewa-gold); color: var(--fewa-gold-light); }
+        .gs-nav-item svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .gs-nav-group[open] > summary { background: rgba(255,255,255,.06); }
+        .gs-nav-group a { display: flex; align-items: center; gap: 10px; padding: 9px 22px 9px 48px; color: #d9cde9; text-decoration: none; font-size: 14.5px; }
+        .gs-nav-group a::before { content: ''; width: 9px; height: 9px; border: 2px solid currentColor; border-radius: 50%; flex: none; }
+        .gs-nav-group a:hover { color: var(--fewa-gold-light); }
+        .gs-menu-btn { display: none; }
+        body.gs-open .gs-page { margin-left: 260px; max-width: none; padding: 22px 24px 40px; }
+        .gs-sheet { background: #fff; border: 1px solid var(--fewa-line); border-radius: 6px; padding: 0 20px 20px; margin-bottom: 22px; }
+        .gs-sheet .gs-title { margin: 0 -20px 18px; padding: 16px 20px; border-bottom: 1px solid #eee; }
+        @media (max-width: 900px) {
+            .gs-menu-btn { display: inline-flex; }
+            .gs-side { transform: translateX(-100%); transition: transform .2s ease; box-shadow: 4px 0 18px rgba(0,0,0,.25); }
+            body.gs-menu-open .gs-side { transform: none; }
+            body.gs-open .gs-page { margin-left: 0; padding: 14px 12px 30px; }
+            .gs-sheet { padding: 0 12px 14px; }
+            .gs-sheet .gs-title { margin: 0 -12px 14px; padding: 12px; }
+        }
         .gs-title { margin: 4px 0 14px; font-size: 24px; font-weight: 500; color: #333; }
         .gs-info { margin-bottom: 16px; padding: 18px 18px; border: 1px solid #b6d4e8; border-radius: 6px; background: #ebf4fb;
             color: #2a6a8f; font-size: 16px; }
@@ -109,15 +160,74 @@
 
     <!-- 2. The settings table -->
     <div id="panel" hidden>
-        <div class="gs-topbar">
-            <h1>GLOBAL SETTINGS</h1>
-            <button class="gs-btn" id="lockButton">Lock</button>
-        </div>
+        <!-- The top bar, as on the staff pages (owner, 2026-11-27). No Lock button: the page locks itself -->
+        <header class="gs-header">
+            <a class="gs-brand" href="Dashboard.html" title="Dashboard">
+                <img src="fewa-logo.jpg" alt="">
+                <span><b>FEWA</b><small>BEAUTY &amp; FASHION COLLEGE</small></span>
+            </a>
+            <div class="gs-bar">
+                <button type="button" class="gs-icon gs-menu-btn" id="gsMenuButton" title="Menu" aria-label="Menu" aria-controls="gsSide">
+                    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+                <input type="search" id="studentSearch" class="gs-student-search" placeholder="Search for a student... (name or AdmNo)"
+                    aria-label="Search for a student">
+                <button type="button" class="gs-icon" id="refreshSettings" title="Refresh the settings" aria-label="Refresh the settings">
+                    <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+                <a class="gs-icon" href="Dashboard.html" title="Dashboard" aria-label="Dashboard">
+                    <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg></a>
+                <span class="gs-user" id="gsUser" title="Logged in to the system"><span class="gs-avatar" id="gsAvatar">?</span><span id="gsUserName"></span></span>
+            </div>
+        </header>
+        <!-- The side menu, as on the staff pages (owner, 2026-11-27): FEWA's own menu; on a phone it opens with the menu button -->
+        <nav class="gs-side" id="gsSide" aria-label="Menu">
+                <a class="gs-nav-item" href="Dashboard.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Dashboard</span></a>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 2 9 2 12 0v-5"/></svg><span>Students Management</span></summary>
+                    <a href="StudentAdmissions.html">Student Hub</a>
+                    <a href="StudentAdmissions.html?open=documents">Student Documents</a>
+                    <a href="StudentAdmissions.html?open=queries">Student Queries</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 10h18M7 15h3"/></svg><span>Manage Finance</span></summary>
+                    <a href="StudentAdmissions.html?open=finance">Payments</a>
+                    <a href="StudentAdmissions.html?open=finance-details">Fee Payment Details</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM20 17v4H6.5"/></svg><span>Academic Management</span></summary>
+                    <a href="Academics.html">Manage Units</a>
+                    <a href="Academics.html?page=schedule">Semester Schedule</a>
+                    <a href="Academics.html?page=exams">Exam Management</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>Roll Call Management</span></summary>
+                    <a href="RollCall.html?tab=status">Attendance Status</a>
+                    <a href="RollCall.html?tab=taken">Registers taken</a>
+                    <a href="RollCall.html?tab=nottaken">Registers not taken</a>
+                    <a href="RollCall.html?tab=mark">Mark Register</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Reports</span></summary>
+                    <a href="StudentAdmissions.html?open=reports-all">All Reports</a>
+                    <a href="StudentAdmissions.html?open=reports-standard">Standard Reports</a>
+                    <a href="StudentAdmissions.html?open=reports-performance">Performance Reports</a>
+                    <a href="StudentAdmissions.html?open=reports-class">Student Reports</a>
+                    <a href="StudentAdmissions.html?open=reports-finance">Finance Reports</a>
+                    <a href="StudentAdmissions.html?open=reports-excel">Excel Reports</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9"/></svg><span>Staff Management</span></summary>
+                    <a href="Staff.html">Staff List</a>
+                </details>
+                <details class="gs-nav-group"><summary class="gs-nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></summary>
+                    <a href="StudentAdmissions.html?open=settings-access">Access Management</a>
+                    <a href="StudentAdmissions.html?open=settings-general">Institution Setup</a>
+                    <a href="StudentAdmissions.html?open=settings-organisation">Organisation Setup</a>
+                    <a href="StudentAdmissions.html?open=settings-setup">Program Setup</a>
+                    <a href="StudentAdmissions.html?open=settings-backups">System Data Backups</a>
+                    <a href="ChangePassword.html">Change Password</a>
+                </details>
+                <a class="gs-nav-item active" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.4l-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg><span>Global Settings</span></a>
+        </nav>
 
         <div class="gs-page">
             <div id="closedBanner" class="gs-banner">The system is CLOSED: nobody can log in or use it until SYSTEM_OPEN is YES again.</div>
             <div id="status" class="gs-status" role="status" aria-live="polite"></div>
 
+            <div class="gs-sheet">
             <h2 class="gs-title">Global settings</h2>
             <div class="gs-info">Change a value or a tick and click Save. Only what you changed is saved.</div>
             <button type="button" class="gs-save" id="saveAll" disabled>Save</button>
@@ -132,6 +242,7 @@
                     </table>
                 </div>
                 <div id="noMatch" class="gs-empty" hidden>No setting matches the search.</div>
+            </div>
             </div>
 
             <div class="gs-card">
@@ -433,10 +544,19 @@
             if (!await fewaConfirm('Log out everyone who is logged in now (staff and students)?')) return;
             try { await call('POST', 'logout-everyone'); status('Everyone has been logged out.'); load(); } catch (err) { status(err.message, false); }
         });
-        $('lockButton').addEventListener('click', async () => {
-            await call('POST', 'logout').catch(() => { });
-            load();
+        // The top bar: student search (opens Student Hub with the results), refresh, and who is logged in to the system
+        $('studentSearch').addEventListener('keydown', event => {
+            if (event.key === 'Enter' && $('studentSearch').value.trim()) location.href = 'StudentAdmissions.html?search=' + encodeURIComponent($('studentSearch').value.trim());
         });
+        $('gsMenuButton').addEventListener('click', () => document.body.classList.toggle('gs-menu-open'));
+        $('gsSide').addEventListener('click', e => { if (e.target.closest('a')) document.body.classList.remove('gs-menu-open'); });
+        $('refreshSettings').addEventListener('click', () => { load(); status('Settings refreshed.'); });
+        fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': 'staff' } })
+            .then(r => r.json()).then(session => {
+                const name = session && session.kind === 'staff' ? (session.username || 'Staff') : 'Not logged in';
+                $('gsUserName').textContent = name;
+                $('gsAvatar').textContent = (name.match(/[A-Za-z]/g) || ['?']).slice(0, 2).join('').toUpperCase();
+            }).catch(() => { $('gsUserName').textContent = ''; });
 
         $('passwordForm').addEventListener('submit', async event => {
             event.preventDefault();
@@ -449,7 +569,21 @@
             } catch (err) { status(err.message, false); }
         });
 
-        load();
+        /* Stricter (owner, 2026-11-27): the password is asked every time this page is opened or reloaded (an earlier
+           Global Settings login in this browser is ended first), and the page locks itself after 10 minutes without
+           any activity (mouse, keys, scrolling). The Lock button still locks at once. */
+        const IDLE_LOCK_MS = 10 * 60 * 1000;
+        let lastActivity = Date.now();
+        for (const type of ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']) {
+            document.addEventListener(type, () => { lastActivity = Date.now(); }, { passive: true, capture: true });
+        }
+        setInterval(async () => {
+            if ($('panel').hidden || Date.now() - lastActivity < IDLE_LOCK_MS) return;
+            await call('POST', 'logout').catch(() => { });
+            load();
+            status('Locked after 10 minutes without activity. Enter the password again.', false);
+        }, 15000);
+        call('POST', 'logout').catch(() => { }).finally(load);
     </script>
 </body>
 
