@@ -18,7 +18,7 @@
     <script src="backup.js?v=20261104f"></script>
     <script src="email-config.js"></script>
     <script src="backup-page.js"></script>
-    <script src="finance.js?v=20261119a"></script>
+    <script src="finance.js?v=20261127a"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
@@ -27,7 +27,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261127a">
+    <link rel="stylesheet" href="styles.css?v=20261127b">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -211,6 +211,12 @@
                     </li>
                     <li class="submenu-item" data-open="settings-setup" onclick="openSettings('setup', this)">
                         <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" data-open="settings-stamps" onclick="openSettings('stamps', this)">
+                        <span class="icon-circle"></span> Stamp and Signatures
+                    </li>
+                    <li class="submenu-item admin-only" data-open="settings-signins" onclick="openSettings('signins', this)">
+                        <span class="icon-circle"></span> Sign-in Activity
                     </li>
                     <li class="submenu-item" data-open="settings-backups" onclick="openSettings('backups', this)">
                         <span class="icon-circle"></span> System Data Backups
@@ -1507,7 +1513,10 @@
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },
-            access: { title: 'Access Management', tabs: ['roles', 'roleOperations', 'signInActivity'] },
+            access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
+            // Modules of their own (owner, 2026-11-27)
+            stamps: { title: 'Stamp and Signatures', tabs: ['stamps'] },
+            signins: { title: 'Sign-in Activity', tabs: ['signInActivity'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
             update: { title: 'System Update', tabs: ['systemUpdate'] }
         };
@@ -1527,8 +1536,10 @@
             systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() },
             // Organisation Setup > Batches: its own compact screen (the rules are in SETTINGS_LISTS.batches)
             batches: { title: 'Batches', render: () => renderBatchesPage() },
-            // Access Management > Sign-in Activity: every login attempt (administrators only)
-            signInActivity: { title: 'Sign-in Activity', render: () => renderSignInActivity() }
+            // Settings > Sign-in Activity: every login attempt (administrators only)
+            signInActivity: { title: 'Sign-in Activity', render: () => renderSignInActivity() },
+            // Settings > Stamp and Signatures: the school stamp, where it prints, and who signs
+            stamps: { title: 'Stamp and Signatures', render: () => renderStampsPage() }
         };
 
         /* ---------- Settings > Access Management > Sign-in Activity (owner, 2026-11-27) ----------
@@ -1578,6 +1589,175 @@
                 </div>`;
         }
         function pickSignInDay(day) { siaDay = day; renderSignInActivity(); }
+
+        /* ---------- Settings > Stamp and Signatures (owner, 2026-11-27) ----------
+           One settings record "stamps" (never given to students or to anyone logged out: router): the stamp picture,
+           where it prints (STAMP_DOCUMENTS ticks), only on final documents (a reversed receipt never carries it),
+           position, size, date over the stamp, and the signatories (signs as, title, member of staff, from, until, a
+           copy of the signature picture from the staff member's record). addStampTo() puts the signature and stamp
+           at the foot of a printed document. */
+        const STAMP_DOCUMENTS = [
+            ['Finance', [['receipt', 'Official receipt'], ['statement', 'Fee statement']]],
+            ['Reports', [['reports', 'Printed reports (Reports)']]],
+            ['Academics', [['results', 'Exam results / transcript', 'later'], ['admission', 'Admission letter', 'later']]]
+        ];
+        const SIGNS_AS = ['Principal / Director', 'Deputy Principal', 'Registrar', 'Head of Department', 'Accountant', 'Other'];
+        const STAMP_MAX_BYTES = 1024 * 1024;
+        let stampRecord = null, stampNewPicture = null;
+        const stampDefaults = () => ({ key: 'stamps', stamp: '', onlyFinal: true, position: 'over', size: 'medium', dateOver: 'none', documents: {}, signatories: [] });
+        async function getStamps() { return { ...stampDefaults(), ...((await getOne('settings', 'stamps')) || {}) }; }
+        const stampDay = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        async function renderStampsPage() {
+            const banner = document.getElementById('settingsBanner');
+            banner.innerText = 'Choose which documents carry the school stamp, and who signs them.';
+            banner.classList.add('info-banner');
+            stampRecord = await getStamps();
+            stampNewPicture = null;
+            const r = stampRecord, may = can('settings', 'edit');
+            const radio = (name, value, label) => `<label class="stamp-opt"><input type="radio" name="${name}" value="${value}"${r[name] === value ? ' checked' : ''}> ${label}</label>`;
+            const today = new Date().toISOString().slice(0, 10);
+            const staffChoices = getAccounts().filter(a => a.status !== 'Inactive').map(a => ({ id: a.id, name: accountName(a), job: a.jobTitle || '' }));
+            const current = s => (!s.from || s.from <= today) && (!s.until || today <= s.until);
+            document.getElementById('settingsContent').innerHTML = `
+                <form id="stampForm" class="stamp-page" onsubmit="saveStamps(event)" data-ask="Save the stamp options and the documents ticked?">
+                    <div class="stamp-grid">
+                        <fieldset class="stamp-card"><legend>School stamp</legend>
+                            ${r.stamp ? '' : '<div class="stamp-warn">No stamp is uploaded yet, so none prints.</div>'}
+                            <label class="stamp-drop">
+                                ${r.stamp ? `<img id="stampPreview" src="${escapeHtml(r.stamp)}" alt="The school stamp">` : '<img id="stampPreview" alt="" hidden>'}
+                                <span><u>Choose the stamp picture</u><br><small id="stampFileName">No file chosen</small></span>
+                                <input type="file" id="stampFile" accept="image/png,image/jpeg" onchange="chooseStampPicture(this)" hidden>
+                            </label>
+                            <small>JPG or PNG, up to 1 MB. A clear scan on a white or transparent background prints best. The new picture replaces the old one on every document.</small>
+                            <small>The stamp picture is private: it is only used inside documents printed by staff.</small>
+                            <label class="stamp-opt stamp-final"><input type="checkbox" name="onlyFinal"${r.onlyFinal ? ' checked' : ''}> Only on final documents</label>
+                            <small>A reversed (voided) receipt never carries the stamp.</small>
+                            <div class="stamp-sub">Position</div>
+                            ${radio('position', 'over', "Over the head's signature")}${radio('position', 'beside', 'Beside it')}${radio('position', 'corner', 'Bottom-right corner')}
+                            <div class="stamp-sub">Size</div>
+                            <div class="stamp-row">${radio('size', 'small', 'Small')}${radio('size', 'medium', 'Medium')}${radio('size', 'large', 'Large')}</div>
+                            <div class="stamp-sub">Date over the stamp</div>
+                            ${radio('dateOver', 'none', 'None')}${radio('dateOver', 'document', 'Document date')}${radio('dateOver', 'print', 'Print date')}
+                        </fieldset>
+                        <fieldset class="stamp-card"><legend>Print the stamp on</legend>
+                            <small>All are off until ticked here. A document marked "later" is not in the system yet; its tick is kept for when it comes.</small>
+                            ${STAMP_DOCUMENTS.map(([group, docs]) => `<fieldset class="stamp-group"><legend>${escapeHtml(group)}</legend>
+                                ${docs.map(([key, label, later]) => `<label class="stamp-opt"><input type="checkbox" name="doc-${key}"${r.documents[key] ? ' checked' : ''}>
+                                    ${escapeHtml(label)}${later ? ' <span class="stamp-later">later</span>' : ''}</label>`).join('')}</fieldset>`).join('')}
+                        </fieldset>
+                    </div>
+                    <fieldset class="stamp-card stamp-signers"><legend>Signatories</legend>
+                        <div class="settings-banner info-banner">Who signs, from when and until when, so a document printed again later shows the person who signed it then.
+                            The signature picture is the one on the staff member's record (Staff Management).</div>
+                        ${r.signatories.length ? `<div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>Signs as</th><th>Title</th><th>Member of staff</th><th>From</th><th>Until</th><th>Signature</th><th></th></tr></thead>
+                            <tbody>${r.signatories.map(s => `<tr${current(s) ? '' : ' class="stamp-old"'}><td>${escapeHtml(s.signsAs)}</td><td>${escapeHtml(s.title)}</td>
+                                <td>${escapeHtml(s.staffName)}</td><td>${escapeHtml(stampDay(s.from))}</td><td>${s.until ? escapeHtml(stampDay(s.until)) : 'still signs'}</td>
+                                <td>${s.signature ? `<img class="stamp-sig-mini" src="${escapeHtml(s.signature)}" alt="Signature">` : '<small>none on record</small>'}</td>
+                                <td>${may ? `<button type="button" class="btn-small" onclick="removeSignatory('${escapeHtml(s.id)}')">Remove</button>` : ''}</td></tr>`).join('')}</tbody>
+                        </table></div>` : '<p>No signatories yet. Add the principal or director so their name and signature print on the documents.</p>'}
+                        <div class="stamp-add">
+                            <div class="stamp-sub">Add a signatory</div>
+                            <div class="stamp-add-grid">
+                                <label><span>Signs as <span class="req">*</span></span><select id="sigAs"><option value="">-- select one --</option>${SIGNS_AS.map(v => `<option>${escapeHtml(v)}</option>`).join('')}</select></label>
+                                <label><span>Title <span class="req">*</span></span><input type="text" id="sigTitle" placeholder="e.g. Principal" maxlength="80"></label>
+                                <label><span>Member of staff <span class="req">*</span></span><select id="sigStaff"><option value="">-- select one --</option>${staffChoices.map(a =>
+                                    `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}${a.job ? ' (' + escapeHtml(a.job) + ')' : ''}</option>`).join('')}</select></label>
+                                <label><span>From <span class="req">*</span></span><input type="date" id="sigFrom" value="${today}"></label>
+                                <label>Until<input type="date" id="sigUntil"><small>Blank while they still sign</small></label>
+                            </div>
+                            ${may ? '<button type="button" class="btn-submit" onclick="addSignatory()">Add signatory</button>' : ''}
+                        </div>
+                    </fieldset>
+                    <div class="stamp-foot"><small>Save keeps the stamp options and the documents ticked above. Signatories save on their own.</small>
+                        ${may ? '<button type="submit" class="btn-submit">Save</button>' : '<small>Changing these needs the Edit Settings right.</small>'}</div>
+                </form>`;
+        }
+        function chooseStampPicture(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (!/^image\/(png|jpeg)$/.test(file.type)) { input.value = ''; return alert('The stamp must be a JPG or PNG picture.'); }
+            if (file.size > STAMP_MAX_BYTES) { input.value = ''; return alert('The stamp picture is larger than 1 MB. Please choose a smaller one.'); }
+            const reader = new FileReader();
+            reader.onload = () => {
+                stampNewPicture = reader.result;
+                const img = document.getElementById('stampPreview');
+                img.src = stampNewPicture; img.hidden = false;
+                document.getElementById('stampFileName').textContent = file.name + ' (click Save to keep it)';
+            };
+            reader.readAsDataURL(file);
+        }
+        async function saveStamps(event) {
+            event.preventDefault();
+            if (!allowed('settings', 'edit')) return;
+            const form = event.target;
+            const record = { ...(await getStamps()) };
+            if (stampNewPicture) record.stamp = stampNewPicture;
+            record.onlyFinal = form.elements['onlyFinal'].checked;
+            for (const name of ['position', 'size', 'dateOver']) record[name] = form.elements[name].value || record[name];
+            record.documents = {};
+            STAMP_DOCUMENTS.forEach(([, docs]) => docs.forEach(([key]) => { record.documents[key] = form.elements['doc-' + key].checked; }));
+            await putOne('settings', record);
+            showToast('Stamp and signatures saved successfully.');
+            renderStampsPage();
+        }
+        async function addSignatory() {
+            if (!allowed('settings', 'edit')) return;
+            const get = id => document.getElementById(id).value.trim();
+            const signsAs = get('sigAs'), title = get('sigTitle'), staffId = get('sigStaff'), from = get('sigFrom'), until = get('sigUntil');
+            const missing = [['Signs as', signsAs], ['Title', title], ['Member of staff', staffId], ['From', from]].filter(([, v]) => !v).map(([n]) => n);
+            if (missing.length) return alert('Please fill in: ' + missing.join(', ') + '.');
+            if (until && until < from) return alert('"Until" cannot be before "From".');
+            const account = getAccounts().find(a => a.id === staffId);
+            if (!await fewaConfirm(`Add ${accountName(account)} as ${signsAs} (${title}) from ${stampDay(from)}${until ? ' until ' + stampDay(until) : ''}?`)) return;
+            // A copy of the signature picture on the staff member's record (Staff Management), if there is one
+            let signature = '';
+            try {
+                const details = (await api('GET', '/staff-details')).find(d => d.id === staffId) || {};
+                if (details.signature && details.signature.__file) {
+                    const blob = await downloadFile(details.signature);
+                    if (blob && blob.size <= STAMP_MAX_BYTES) signature = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+                }
+            } catch { }
+            const record = await getStamps();
+            record.signatories = [...record.signatories, { id: 'sig-' + Date.now().toString(36), signsAs, title, staffId, staffName: accountName(account), from, until, signature }];
+            await putOne('settings', record);
+            showToast(signature ? 'Signatory added with their signature.' : 'Signatory added. No signature picture is on their staff record yet: add one in Staff Management, then add them again.');
+            renderStampsPage();
+        }
+        async function removeSignatory(id) {
+            if (!allowed('settings', 'edit')) return;
+            const record = await getStamps();
+            const s = record.signatories.find(x => x.id === id);
+            if (!s || !await fewaConfirm(`Remove ${s.staffName} (${s.signsAs}) from the signatories?`)) return;
+            record.signatories = record.signatories.filter(x => x.id !== id);
+            await putOne('settings', record);
+            showToast('Signatory removed.');
+            renderStampsPage();
+        }
+        /* The signature and the stamp at the foot of a printed document, when that document is ticked.
+           docDate: the document's own date (YYYY-MM-DD); the signatory is the one signing on that date. final: false for
+           a reversed receipt (no stamp when "Only on final documents"). */
+        async function addStampTo(docKey, container, { docDate = '', final = true } = {}) {
+            if (!container) return;
+            container.querySelectorAll('.fewa-sign-block').forEach(b => b.remove());
+            const r = await getStamps().catch(() => null);
+            if (!r || !r.documents[docKey]) return;
+            const day = docDate || new Date().toISOString().slice(0, 10);
+            const signer = r.signatories.find(s => (!s.from || s.from <= day) && (!s.until || day <= s.until));
+            const stamp = r.stamp && (final || !r.onlyFinal) ? r.stamp : '';
+            if (!signer && !stamp) return;
+            const dateText = r.dateOver === 'document' ? stampDay(day) : r.dateOver === 'print' ? stampDay(new Date().toISOString().slice(0, 10)) : '';
+            const block = document.createElement('div');
+            block.className = `fewa-sign-block stamp-${r.position} stamp-${r.size}`;
+            block.innerHTML = `<div class="sign-area">
+                    ${signer && signer.signature ? `<img class="sign-picture" src="${escapeHtml(signer.signature)}" alt="">` : '<span class="sign-space"></span>'}
+                    ${stamp ? `<span class="stamp-wrap"><img class="stamp-picture" src="${escapeHtml(stamp)}" alt="">${dateText ? `<span class="stamp-date">${escapeHtml(dateText)}</span>` : ''}</span>` : ''}
+                </div>
+                ${signer ? `<div class="sign-name">${escapeHtml(signer.staffName)}</div><div class="sign-title">${escapeHtml(signer.title)}</div>` : ''}`;
+            container.appendChild(block);
+            await new Promise(res => setTimeout(res, 150)); // the pictures are drawn before printing
+        }
 
         /* ---------- Rules set by the owner, at the bottom of Organisation Setup > School Setup (owner, 2026-11-27) ----------
            The Global Settings (/GLOBALSETTINGS) the owner ticked "School may change it" for, shown with a short label and
@@ -4766,6 +4946,8 @@
         async function exportReport() {
             const output = document.getElementById('reportOutput');
             if (!output.innerHTML.trim() && !(await generateReport())) return;
+            // The signature and stamp at the foot, when Settings > Stamp and Signatures ticks printed reports
+            await addStampTo('reports', output);
             // Give the photos a moment to load before opening the print dialog
             setTimeout(() => window.print(), 300);
         }

@@ -422,7 +422,8 @@
     }
 
     /* ---------- Receipt and statement printing ---------- */
-    function overlay(html) {
+    // stamp: { doc: 'receipt' | 'statement', docDate, final } adds the signature and school stamp (Settings > Stamp and Signatures)
+    function overlay(html, stamp) {
         closeOverlay();
         const box = document.createElement('div');
         box.id = 'finOverlay';
@@ -430,6 +431,7 @@
             <button type="button" class="btn-submit" data-act="print">Print</button><button type="button" class="btn-secondary" data-act="close-overlay">Close</button></div>${html}</div>`;
         document.body.appendChild(box);
         document.body.classList.add('fin-printing');
+        if (stamp && typeof addStampTo === 'function') addStampTo(stamp.doc, box.querySelector('.fin-paper'), stamp);
         box.addEventListener('click', event => {
             const act = event.target.closest('[data-act]');
             if (act && act.dataset.act === 'print') window.print();
@@ -463,7 +465,8 @@
                 ${payment.note ? `<tr><th>Note</th><td colspan="3">${esc(payment.note)}</td></tr>` : ''}
                 ${balance === null ? '' : `<tr><th>Fee balance now</th><td colspan="3">${balance > 0 ? kes(balance) + ' due' : balance < 0 ? kes(-balance) + ' paid in advance' : 'Fully paid'}</td></tr>`}
                 <tr><th>Received by</th><td colspan="3">${esc(payment.createdBy)}</td></tr>
-            </table><p class="fin-foot">This receipt is a computer record of the college system. Thank you.</p>`);
+            </table><p class="fin-foot">This receipt is a computer record of the college system. Thank you.</p>`,
+            { doc: 'receipt', docDate: String(payment.paidOn || '').slice(0, 10), final: !payment.voided });
     }
 
     function printStatement() {
@@ -478,7 +481,8 @@
             ${lines.map(l => { running = Math.round((running + l.debit - l.credit) * 100) / 100; return `<tr><td>${esc(date(l.at))}</td><td>${esc(l.text)}</td>
                 <td class="fin-num">${l.debit ? kes(l.debit) : ''}</td><td class="fin-num">${l.credit ? kes(l.credit) : ''}</td><td class="fin-num">${kes(running)}</td></tr>`; }).join('')}
             <tr><th colspan="2">Total</th><th class="fin-num">${kes(st.charged)}</th><th class="fin-num">${kes(st.paid)}</th><th class="fin-num">${kes(st.balance)}</th></tr></tbody></table>
-            <p><b>${st.balance > 0 ? 'Balance due: ' + kes(st.balance) : st.balance < 0 ? 'Paid in advance: ' + kes(-st.balance) : 'Fully paid'}</b></p>`);
+            <p><b>${st.balance > 0 ? 'Balance due: ' + kes(st.balance) : st.balance < 0 ? 'Paid in advance: ' + kes(-st.balance) : 'Fully paid'}</b></p>`,
+            { doc: 'statement', docDate: today() });
     }
 
     /* ---------- Export (CSV opens in Excel) ---------- */

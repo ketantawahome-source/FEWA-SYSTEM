@@ -22,7 +22,7 @@
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261127a">
+    <link rel="stylesheet" href="styles.css?v=20261127b">
     <style>
         /* Find or add a member of staff: the first step, before the staff form opens */
         /* Laid out as the reference screen: Source Sans, a plain white card, the title on a thin rule
@@ -326,6 +326,12 @@
                     </li>
                     <li class="submenu-item" onclick="openSection('settings-setup')">
                         <span class="icon-circle"></span> Program Setup
+                    </li>
+                    <li class="submenu-item" onclick="openSection('settings-stamps')">
+                        <span class="icon-circle"></span> Stamp and Signatures
+                    </li>
+                    <li class="submenu-item admin-only" onclick="openSection('settings-signins')">
+                        <span class="icon-circle"></span> Sign-in Activity
                     </li>
                     <li class="submenu-item" onclick="openSection('settings-backups')">
                         <span class="icon-circle"></span> System Data Backups

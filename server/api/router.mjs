@@ -177,7 +177,8 @@ export async function handleApi(req, res, parts) {
                 if (a === 'applications') throw forbidden();
                 const mine = record => a === 'students' ? record.id === session.studentId
                     // Settings and the Units register (codes, titles, credit hours) are not private: the portal names a student's units
-                    : a === 'settings' || a === 'units' ? true : record.studentId === session.studentId;
+                    // (except the school stamp and signatures: only for documents printed by staff, so they cannot be copied)
+                    : a === 'settings' ? record.key !== 'stamps' : a === 'units' ? true : record.studentId === session.studentId;
                 if (b) {
                     const record = await getRecord(a, b);
                     return send(res, 200, record && mine(record) ? hidePasswords(a, record) : null);
