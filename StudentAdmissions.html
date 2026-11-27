@@ -27,7 +27,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261126d">
+    <link rel="stylesheet" href="styles.css?v=20261127a">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -1507,7 +1507,7 @@
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },
-            access: { title: 'Access Management', tabs: ['roles', 'roleOperations'] },
+            access: { title: 'Access Management', tabs: ['roles', 'roleOperations', 'signInActivity'] },
             backups: { title: 'System Data Backups', tabs: ['backup'] },
             update: { title: 'System Update', tabs: ['systemUpdate'] }
         };
@@ -1526,8 +1526,58 @@
             backup: { title: 'Backups', render: () => renderBackupPage() },
             systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() },
             // Organisation Setup > Batches: its own compact screen (the rules are in SETTINGS_LISTS.batches)
-            batches: { title: 'Batches', render: () => renderBatchesPage() }
+            batches: { title: 'Batches', render: () => renderBatchesPage() },
+            // Access Management > Sign-in Activity: every login attempt (administrators only)
+            signInActivity: { title: 'Sign-in Activity', render: () => renderSignInActivity() }
         };
+
+        /* ---------- Settings > Access Management > Sign-in Activity (owner, 2026-11-27) ----------
+           The last 14 days on the left (sign-ins and failed ones per day, Kenya time); a day's failed sign-ins on the
+           right (or every attempt that day). From logins.sign_in_activity, kept 90 days; administrators only. */
+        let siaDay = '', siaAll = false;
+        const siaDayText = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        const siaLongDay = d => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        async function renderSignInActivity() {
+            const banner = document.getElementById('settingsBanner');
+            banner.innerText = 'Sign-in Activity';
+            banner.classList.remove('info-banner');
+            const content = document.getElementById('settingsContent');
+            if (!isAdmin()) { content.innerHTML = '<div class="empty-state">Only administrators can see the sign-in activity.</div>'; return; }
+            let summary;
+            try { summary = await api('GET', '/sign-in-activity'); }
+            catch (error) { content.innerHTML = `<div class="empty-state">The sign-in activity could not be loaded: ${escapeHtml(error.message)}</div>`; return; }
+            if (!summary.days.some(d => d.day === siaDay)) siaDay = summary.days[0].day;
+            let detail = { rows: [] };
+            try { detail = await api('GET', `/sign-in-activity?day=${siaDay}${siaAll ? '&all=1' : ''}`); } catch { }
+            const when = at => new Date(at).toLocaleString('en-GB', { timeZone: 'Africa/Nairobi', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            content.innerHTML = `
+                <div class="settings-banner info-banner sia-note">Pick a day on the left to see its failed sign-ins. Many failures for one account can mean a forgotten
+                    password; many accounts failing from one address can mean someone trying passwords.</div>
+                <div class="sia-grid">
+                    <div>
+                        <div class="sia-title">Last 14 days</div>
+                        <div class="table-wrap"><table class="data-table sia-days">
+                            <thead><tr><th>Day</th><th class="num">Sign-ins</th><th class="num">Failed</th></tr></thead>
+                            <tbody>${summary.days.map(d => `<tr class="${d.day === siaDay ? 'sia-chosen' : ''}">
+                                <td><button type="button" class="sia-day" onclick="pickSignInDay('${d.day}')">${siaDayText(d.day)}</button></td>
+                                <td class="num">${d.signIns}</td><td class="num${d.failed ? ' sia-failed' : ''}">${d.failed}</td></tr>`).join('')}</tbody>
+                        </table></div>
+                    </div>
+                    <div>
+                        <div class="sia-title">${siaAll ? 'All sign-ins' : 'Failed sign-ins'} on ${siaLongDay(siaDay)}</div>
+                        <label class="sia-all"><input type="checkbox" ${siaAll ? 'checked' : ''} onchange="siaAll = this.checked; renderSignInActivity()"> Show every sign-in that day</label>
+                        <div class="table-wrap"><table class="data-table">
+                            <thead><tr><th>When</th><th>Account</th><th>How</th><th>Result</th><th>Browser</th><th>Address</th></tr></thead>
+                            <tbody>${detail.rows.length ? detail.rows.map(r => `<tr>
+                                <td>${escapeHtml(when(r.at))}</td><td>${escapeHtml(r.account)}</td><td>${escapeHtml(r.how || '')}</td>
+                                <td><span class="sia-result ${r.ok ? 'ok' : 'bad'}">${escapeHtml(r.result || '')}</span></td>
+                                <td>${escapeHtml(r.browser || '')}</td><td>${escapeHtml(r.address || '')}</td></tr>`).join('')
+                                : `<tr class="empty-row"><td colspan="6">${siaAll ? 'No sign-ins' : 'No failed sign-ins'} on this day.</td></tr>`}</tbody>
+                        </table></div>
+                    </div>
+                </div>`;
+        }
+        function pickSignInDay(day) { siaDay = day; renderSignInActivity(); }
 
         /* ---------- Rules set by the owner, at the bottom of Organisation Setup > School Setup (owner, 2026-11-27) ----------
            The Global Settings (/GLOBALSETTINGS) the owner ticked "School may change it" for, shown with a short label and

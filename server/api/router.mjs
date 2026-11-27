@@ -1,4 +1,5 @@
 /* ---------- The API: every /api/... address and which module answers it ---------- */
+import { signInActivity } from '../auth/sign-in-activity.mjs';
 import { handleBackupRequest } from '../../backups.mjs';
 import { handleFinanceRequest } from '../../finance.mjs';
 import { applicationEnded, applicationOptions, applicationStarted, checkApplyLimits, receiveApplication } from '../applications/applications.mjs';
@@ -40,6 +41,11 @@ export async function handleApi(req, res, parts) {
 
     if (area === 'health' && method === 'GET') return send(res, 200, { ok: true, mirror: mirrorState });
     if (area === 'global') return await handleGlobal(req, res, session, a, method);
+    // Settings > Access Management > Sign-in Activity: administrators only (a security record)
+    if (area === 'sign-in-activity' && method === 'GET') {
+        if (!staff || !admin) throw forbidden();
+        return send(res, 200, await signInActivity(new URL('http://x' + req.url).searchParams));
+    }
     // Settings > Organisation Setup > School Settings: the Global Settings the owner lets the school change
     if (area === 'school-settings') return await handleSchoolSettings(req, res, session, method);
 

@@ -6622,3 +6622,17 @@ html:not(.topbar-ready) #topbar > * { visibility: hidden; animation: topbar-show
 .fewa-notice-box.ok .fewa-notice-body { color: #1f6b43; }
 .fewa-notice-foot { display: flex; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid #e6e1ee; }
 .fewa-notice-close { background: #6c6577; color: #fff; border: none; border-radius: 6px; padding: 9px 20px; font-size: 15px; cursor: pointer; }
+
+/* Settings > Access Management > Sign-in Activity */
+.sia-note { margin-bottom: 18px; }
+.sia-grid { display: grid; grid-template-columns: minmax(260px, 0.8fr) 2fr; gap: 28px; align-items: start; }
+.sia-title { font-size: 20px; color: #24103a; margin: 4px 0 12px; }
+.sia-day { border: 0; background: none; padding: 0; color: #4b2a72; font: inherit; font-weight: 700; cursor: pointer; }
+.sia-day:hover { text-decoration: underline; }
+.sia-days tr.sia-chosen td { background: #f1eaf9; }
+.sia-failed { color: #b3261e; font-weight: 700; }
+.sia-all { display: inline-flex; align-items: center; gap: 6px; margin: -4px 0 10px; font-size: 13px; color: #5b4a70; }
+.sia-result { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.sia-result.bad { background: #d9534f; color: #fff; }
+.sia-result.ok { background: #e7f4ea; color: #1e6b33; }
+@media (max-width: 900px) { .sia-grid { grid-template-columns: 1fr; } }

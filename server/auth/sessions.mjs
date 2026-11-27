@@ -1,4 +1,5 @@
 /* ---------- Logins and sessions ---------- */
+import { browserName, recordSignIn } from './sign-in-activity.mjs';
 import { randomBytes, createHash, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { pool, sessionsValidFrom } from '../core/connection.mjs';
@@ -180,7 +181,25 @@ export function loginFailed(req, username) {
 }
 // Staff log in with their email; students with their AdmNo (capital and small letters must match)
 // Staff log in with their email, students with their AdmNo: the system knows which from the username
-export async function login(req, res, { username, password } = {}) {
+/* Every login attempt is kept for Settings > Access Management > Sign-in Activity (owner, 2026-11-27): the account
+   typed, the result (an unknown email / AdmNo shows as "Not registered at this school"), browser and address. */
+export async function login(req, res, body = {}) {
+    const out = await checkLogin(req, res, body);
+    const account = String((body && body.username) || '').trim();
+    if (account) {
+        let result = out.result, kind = out.kind || '';
+        if (result !== 'ok' && !kind) {
+            const staff = await pool.query(`SELECT 1 FROM ${T('staff')} WHERE lower(username) = $1`, [lower(account)]);
+            const student = staff.rowCount ? null : await pool.query(`SELECT 1 FROM ${T('students')} WHERE lower(adm_no) = $1`, [lower(account)]);
+            kind = staff.rowCount ? 'staff' : student.rowCount ? 'student' : '';
+            if (result === 'wrong' && !kind) result = 'unknown';
+        }
+        if (result === 'ok' && !kind) kind = 'student';
+        await recordSignIn({ account, kind, result, browser: browserName(req.headers['user-agent']), address: clientIp(req) });
+    }
+    return out;
+}
+async function checkLogin(req, res, { username, password } = {}) {
     username = String(username || '').trim();
     password = String(password || '');
     if (!username || !password) return { result: 'wrong' };

@@ -94,7 +94,7 @@ export const SCHEMA_OF = {
     fee_payment_details: 'finance', fee_structure: 'finance', charges: 'finance', payments: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff', staff_qualifications: 'staff',
-    sessions: 'logins', password_reset_codes: 'logins',
+    sessions: 'logins', password_reset_codes: 'logins', sign_in_activity: 'logins',
     stored_files: 'files',
     units: 'academics', programme_units: 'academics', unit_offers: 'academics', unit_registrations: 'academics',
     unit_lecturers: 'academics', unit_hours: 'academics', period_schedules: 'academics',

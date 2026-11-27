@@ -53,3 +53,21 @@ SELECT email,
        CASE WHEN data->>'expires' ~ '^\d{10,}$' THEN to_timestamp((data->>'expires')::bigint / 1000.0) > now() END AS still_valid
 FROM logins.password_reset_codes;
 COMMENT ON VIEW logins.reset_requests IS 'Password reset requests: email, time asked, expiry, wrong tries, still valid. No codes.';
+
+
+-- ---------- Sign-in activity (owner, 2026-11-27): every login attempt, for Settings > Access Management > Sign-in Activity ----------
+-- When, the account typed (email or AdmNo), how (password), the result, the browser and the address. Never a password.
+-- Kept 90 days (older rows are deleted by the server). Only the server and administrators (through the page) see it.
+CREATE TABLE IF NOT EXISTS logins.sign_in_activity (
+    id          bigserial PRIMARY KEY,
+    at          timestamptz NOT NULL DEFAULT now(),
+    account     text NOT NULL,
+    kind        text,                       -- staff, student, or '' when no such account
+    how         text,                       -- Password
+    ok          boolean NOT NULL,
+    result      text,                       -- Signed in, Wrong password, Not registered at this school, ...
+    browser     text,                       -- e.g. Chrome on Windows
+    address     text                        -- the IP address it came from
+);
+CREATE INDEX IF NOT EXISTS sign_in_activity_at ON logins.sign_in_activity (at);
+ALTER TABLE logins.sign_in_activity ENABLE ROW LEVEL SECURITY;
