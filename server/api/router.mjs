@@ -9,10 +9,10 @@ import { databaseError, inTransaction, pool } from '../core/connection.mjs';
 import { ADMIN_STORES, T, recordFromRow, snakeToCamel, sqlName, tableColumns } from '../core/database.mjs';
 import { readBody, send } from '../core/http.mjs';
 import { deleteUnusedFiles, storeNewFiles } from '../files/stored-files.mjs';
-import { DEFAULT_CONTROLS, globalControls, handleGlobal } from '../global-settings/global-settings.mjs';
+import { DEFAULT_CONTROLS, globalControls, handleGlobal, handleSchoolSettings } from '../global-settings/global-settings.mjs';
 import { RIGHTS_TO_READ, accountsForSession, completeResetOnServer, forbidden, hidePasswords, keepPasswords, keepStudentLogin, requestPasswordReset, resetRequestAllowed, rightsToWrite, sendNewAdminEmail, sendStaffPasswordLink, sendStudentLoginEmail, staffCan, staffMayOpenFile, studentFileIds, verifyResetCodeOnServer } from '../messaging/email.mjs';
 import { setStudentPasswordOnServer } from '../messaging/whatsapp.mjs';
-import { registerOnline, registrationState } from '../academics/online-registration.mjs';
+import { registerOnline, registrationState, staffRegistrationFeeProblem } from '../academics/online-registration.mjs';
 import { attendanceBackDays, attendanceDayProblem } from '../rollcall/attendance-rules.mjs';
 import { STORES, deleteRecord, getAllRecords, getRecord, putRecord, replaceRecords, selectRecords } from '../stores/stores.mjs';
 import { STORE_TABLES, mirrorChanged, mirrorState, valueTables } from '../sync/mirror.mjs';
@@ -40,6 +40,8 @@ export async function handleApi(req, res, parts) {
 
     if (area === 'health' && method === 'GET') return send(res, 200, { ok: true, mirror: mirrorState });
     if (area === 'global') return await handleGlobal(req, res, session, a, method);
+    // Settings > Organisation Setup > School Settings: the Global Settings the owner lets the school change
+    if (area === 'school-settings') return await handleSchoolSettings(req, res, session, method);
 
     /* ---------- Logging in and out, passwords ---------- */
     if (area === 'session' && method === 'GET' && !a) {
@@ -66,6 +68,8 @@ export async function handleApi(req, res, parts) {
             newSidebar: (await globalControls().catch(() => DEFAULT_CONTROLS)).newSidebar !== false,
             // Roll Call: how many days back a register may be taken (0: today only)
             attendanceBackDays: await attendanceBackDays(),
+            // Global Settings ticked "School may change it" for at least one setting: Organisation Setup shows School Settings
+            schoolSettings: staff ? Object.values((await globalControls().catch(() => DEFAULT_CONTROLS)).schoolMayChange || {}).some(Boolean) : false,
             resetEmail: session.kind === 'reset' ? session.email : null
         });
     }
@@ -197,6 +201,11 @@ export async function handleApi(req, res, parts) {
             if (a === 'attendance_registers') {
                 const before = await getRecord(a, b);
                 await registerDayCheck(body && body.registerDate, ...(before ? [before.registerDate] : []));
+            }
+            // A new unit registration: only when the student has paid the share of fees Global Settings asks for
+            if (a === 'unit_registrations' && !await getRecord(a, b)) {
+                const problem = await staffRegistrationFeeProblem(body);
+                if (problem) throw Object.assign(new Error(problem), { status: 400 });
             }
             const saved = await putRecord(a, b, a === 'students' ? await keepStudentLogin(body) : body);
             mirrorChanged(STORE_TABLES[a]);

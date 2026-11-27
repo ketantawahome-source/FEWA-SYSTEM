@@ -6,7 +6,7 @@ import { pool, sessionsValidFrom } from '../core/connection.mjs';
 import { T } from '../core/database.mjs';
 import { readBody, send } from '../core/http.mjs';
 import { readServerKey, writeServerKey } from '../core/server-keys.mjs';
-import { forbidden } from '../messaging/email.mjs';
+import { forbidden, staffCan } from '../messaging/email.mjs';
 import { logOutEveryone } from '../system-update/system-update.mjs';
 
 /* ---------- Global Settings (the hidden page /GLOBALSETTINGS) ----------
@@ -22,7 +22,48 @@ import { logOutEveryone } from '../system-update/system-update.mjs';
 const GLOBAL_COOKIE = 'fewa_global';
 const GLOBAL_MINUTES = 30;
 export const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogins: true, studentLogins: true, applications: true,
-    shortCourses: true, attendanceBackdating: false, attendanceBackdateDays: 0, newSidebar: true };
+    shortCourses: true, attendanceBackdating: false, attendanceBackdateDays: 0, newSidebar: true,
+    // Student Portal Course Registration: the share of their fees (0-100 %) a student must have paid to see their
+    // course units and register; 0 = no fee needed (server/academics/online-registration.mjs feePosition)
+    registrationFeePercent: 0,
+    // Which settings the school may change itself (Settings > Organisation Setup > School Settings), ticked by the owner
+    schoolMayChange: {} };
+
+/* The settings, with their kind and limits: used to check every change (owner's page and the school's page) and to show
+   the school the ones the owner allows (name and description as on GlobalSettings.html) */
+export const SETTING_DEFS = [
+    { control: 'systemOpen', name: 'SYSTEM_OPEN', type: 'yesNo', description: 'YES: the system works as normal. NO: closes it for everyone (staff, students and online applications) and logs everyone out.' },
+    { control: 'closedMessage', name: 'SYSTEM_CLOSED_MESSAGE', type: 'text', max: 500, description: 'The message people see while the system is closed. Empty: a standard maintenance message.' },
+    { control: 'staffLogins', name: 'STAFF_LOGINS_ENABLED', type: 'yesNo', description: 'NO: staff cannot log in, and staff who are logged in are logged out.' },
+    { control: 'studentLogins', name: 'STUDENT_PORTAL_ENABLED', type: 'yesNo', description: 'NO: students cannot log in to the Student Portal.' },
+    { control: 'applications', name: 'ONLINE_APPLICATIONS_ENABLED', type: 'yesNo', description: 'NO: the online application form says applications are closed.' },
+    { control: 'attendanceBackdating', name: 'ATTENDANCE_BACKDATING_ENABLED', type: 'yesNo', description: 'YES: Roll Call registers may be taken (or corrected) for past days, up to ATTENDANCE_BACKDATE_DAYS back. NO: only for today.' },
+    { control: 'attendanceBackdateDays', name: 'ATTENDANCE_BACKDATE_DAYS', type: 'number', max: 365, description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365).' },
+    { control: 'registrationFeePercent', name: 'COURSE_REGISTRATION_FEE_PERCENT', type: 'number', max: 100, description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register. 0: no fee needed.' },
+    { control: 'newSidebar', name: 'NEW_SIDEBAR_ENABLED', type: 'yesNo', description: 'YES: the new floating sidebar. NO: the classic sidebar.' },
+    { control: 'shortCourses', name: 'SHORT_COURSES_ENABLED', type: 'yesNo', description: 'NO hides the short courses (Settings, online applications, new students, Course units). Students already on a short course keep it.' }
+];
+// Checks the changed values in body (only the controls named in keys) and returns the settings with them
+function withChanges(current, body, keys) {
+    const next = { ...current };
+    for (const def of SETTING_DEFS.filter(d => keys.includes(d.control) && body[d.control] !== undefined)) {
+        const value = body[def.control];
+        if (def.type === 'yesNo') {
+            if (typeof value !== 'boolean') throw Object.assign(new Error(`${def.name} must be YES or NO.`), { status: 400 });
+            next[def.control] = value;
+        } else if (def.type === 'number') {
+            const n = Number(value);
+            if (!Number.isInteger(n) || n < 0 || n > def.max) throw Object.assign(new Error(`${def.name} must be a whole number from 0 to ${def.max}.`), { status: 400 });
+            next[def.control] = n;
+        } else next[def.control] = String(value).trim().slice(0, def.max);
+    }
+    return next;
+}
+async function saveControls(next) {
+    await writeServerKey('global_controls', JSON.stringify(next));
+    controlsCache = { at: Date.now(), value: next };
+    forgetSessions(); // switched-off logins end straight away
+}
 // Read at most every 10 seconds (every request asks)
 let controlsCache = { at: 0, value: null };
 export async function globalControls() {
@@ -113,20 +154,16 @@ export async function handleGlobal(req, res, session, action, method) {
 
     if (!signedIn) throw Object.assign(new Error('Enter the Global Settings password again.'), { status: 401 });
     if (method === 'PUT' && action === 'controls') {
-        const current = await globalControls();
-        const next = { ...current };
-        for (const key of ['systemOpen', 'staffLogins', 'studentLogins', 'applications', 'shortCourses', 'attendanceBackdating', 'newSidebar']) {
-            if (typeof body[key] === 'boolean') next[key] = body[key];
+        const next = withChanges(await globalControls(), body, SETTING_DEFS.map(d => d.control));
+        // "School may change it" ticks: { control: true / false }
+        if (body.schoolMayChange && typeof body.schoolMayChange === 'object') {
+            const may = { ...(next.schoolMayChange || {}) };
+            for (const def of SETTING_DEFS) {
+                if (typeof body.schoolMayChange[def.control] === 'boolean') may[def.control] = body.schoolMayChange[def.control];
+            }
+            next.schoolMayChange = Object.fromEntries(Object.entries(may).filter(([, on]) => on));
         }
-        if (body.attendanceBackdateDays !== undefined) {
-            const days = Number(body.attendanceBackdateDays);
-            if (!Number.isInteger(days) || days < 0 || days > 365) throw Object.assign(new Error('The number of days must be a whole number from 0 to 365.'), { status: 400 });
-            next.attendanceBackdateDays = days;
-        }
-        if (body.closedMessage !== undefined) next.closedMessage = String(body.closedMessage).trim().slice(0, 500);
-        await writeServerKey('global_controls', JSON.stringify(next));
-        controlsCache = { at: Date.now(), value: next };
-        forgetSessions(); // switched-off logins end straight away
+        await saveControls(next);
         return send(res, 200, { controls: next });
     }
     if (method === 'POST' && action === 'logout-everyone') {
@@ -137,6 +174,31 @@ export async function handleGlobal(req, res, session, action, method) {
         if (!await globalPasswordMatches(body.current)) return send(res, 200, { result: 'wrong' });
         await setGlobalPassword(String(body.password || ''));
         return send(res, 200, { result: 'ok' });
+    }
+    send(res, 404, { error: 'Unknown request' });
+}
+
+/* ---------- School Settings (Settings > Organisation Setup > School Settings; owner, 2026-11-27) ----------
+   The Global Settings the owner ticked "School may change it" for, changed by the school's staff without the Global
+   Settings password:  GET  /api/school-settings   the allowed settings with their values (Access Settings or the right)
+                       PUT  /api/school-settings   { control: value, ... }  only allowed ones (Manage School Settings) */
+export async function handleSchoolSettings(req, res, session, method) {
+    if (!session || session.kind !== 'staff') throw forbidden();
+    const controls = await globalControls();
+    const allowed = SETTING_DEFS.filter(d => (controls.schoolMayChange || {})[d.control]);
+    const canChange = await staffCan(session, 'settings.school');
+    if (method === 'GET') {
+        if (!canChange && !await staffCan(session, 'settings.view')) throw forbidden();
+        return send(res, 200, { canChange, settings: allowed.map(d => ({ ...d, value: controls[d.control] })) });
+    }
+    if (method === 'PUT') {
+        if (!canChange) throw forbidden();
+        const body = await readBody(req, SMALL_BODY_BYTES) || {};
+        const refused = Object.keys(body).filter(key => !allowed.some(d => d.control === key));
+        if (refused.length) throw Object.assign(new Error('The school may not change: ' + refused.join(', ') + '.'), { status: 403 });
+        const next = withChanges(controls, body, allowed.map(d => d.control));
+        await saveControls(next);
+        return send(res, 200, { canChange, settings: allowed.map(d => ({ ...d, value: next[d.control] })) });
     }
     send(res, 404, { error: 'Unknown request' });
 }

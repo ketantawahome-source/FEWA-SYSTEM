@@ -359,6 +359,7 @@
                 </div>
                 ${st.open ? `<p class="reg-help">Click <b>Get Units to Register</b> to see the units of your course. Tick your units and click
                     <b>Add Selected Units to the Basket</b>, check them, then click <b>Complete Registration</b>. <b>View Proforma Invoice</b> shows the fees of this semester.</p>`
+                    : st.feeBlocked ? `<p class="reg-closed">${registrationClosedText()}</p>`
                     : `<p class="reg-closed">${escapeHtml(st.reason || 'Registration is closed.')}</p>`}
                 <div class="reg-bar">
                     <div><div class="reg-label">Current Course</div><div class="reg-course">${escapeHtml(st.course || student.admissionCourse || '')}</div></div>
@@ -394,7 +395,7 @@
                 ${registered.length ? `<div class="reg-subtitle">Registered for this period (${registered.length})</div>
                     <p class="reg-registered">${registered.map(u => `<span>${escapeHtml(u.code)} - ${escapeHtml(u.title)}</span>`).join('')}</p>` : ''}
                 <div class="reg-buttons">
-                    <button type="button" class="reg-btn info" onclick="regViewProforma()" ${st.open ? '' : 'disabled'}>View Proforma Invoice</button>
+                    <button type="button" class="reg-btn info" onclick="regViewProforma()" ${st.open || (st.feeBlocked && st.term) ? '' : 'disabled'}>View Proforma Invoice</button>
                     <button type="button" class="reg-btn main" onclick="regComplete()" ${st.open && regBasket.length ? '' : 'disabled'}>Complete Registration</button>
                     <button type="button" class="reg-btn info" onclick="regPrintStatement()">Print Course Statement</button>
                 </div>
@@ -433,11 +434,17 @@
         function registrationClosedText() {
             const st = regState || {};
             if (st.open) return '';
-            return st.courseEnded ? `Note that your course ended on <b>${longDate(st.courseEnded)}</b>. Registration is closed.`
+            // Too little of the fees paid (Global Settings COURSE_REGISTRATION_FEE_PERCENT)
+            const fee = st.feeBlocked ? `You have paid <b>${st.feePaidPercent}%</b> of your fees (${money(st.feePaid)} of ${money(st.feeTotal)}).
+                At least <b>${st.feeRequired}%</b> must be paid before you can see your course units and register.
+                <br>Please pay at least <b>${money(st.feeNeeded)}</b> more, then open Course Registration again.` +
+                (st.term ? ' <b>View Proforma Invoice</b> shows the fees of this semester.' : '') : '';
+            if (fee && !st.courseEnded && !st.deadlineElapsed && !st.opensOn) return fee;
+            return (fee ? fee + '<br><br>' : '') + (st.courseEnded ? `Note that your course ended on <b>${longDate(st.courseEnded)}</b>. Registration is closed.`
                 : st.deadlineElapsed ? `Note that Registration Deadline elapsed on <b>${longDate(st.deadlineElapsed)}</b>${st.deadlinePeriod ? ' (' + escapeHtml(st.deadlinePeriod) + ')' : ''}.`
                     + (st.opensOn ? `<br>Registration for ${escapeHtml(st.opensPeriod || 'the next semester')} opens on <b>${longDate(st.opensOn)}</b>.` : '')
                 : st.opensOn ? `Registration is not open yet. It opens on <b>${longDate(st.opensOn)}</b>${st.opensPeriod ? ' (' + escapeHtml(st.opensPeriod) + ')' : ''}.`
-                : escapeHtml(st.reason || 'Registration is closed. Please contact the college office.');
+                : escapeHtml(st.reason || 'Registration is closed. Please contact the college office.'));
         }
         function registrationClosedNotice() {
             const text = registrationClosedText();
@@ -482,10 +489,11 @@
             const st = regState || {};
             const units = (st.units || []).filter(u => !regCategory() || u.category === regCategory());
             const notes = [registrationClosedText(),
-                units.length ? '' : `No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} are set up for your course <b>${escapeHtml(st.course || student.admissionCourse || '')}</b> yet. The college office sets up the course units.`]
+                units.length || st.feeBlocked ? '' : `No ${regCategory() ? escapeHtml(regCategory().toLowerCase()) : 'units'} are set up for your course <b>${escapeHtml(st.course || student.admissionCourse || '')}</b> yet. The college office sets up the course units.`]
                 .filter(Boolean);
             if (notes.length) portalNotice('REQUIRED', notes.join('<br><br>'));
-            regShown = true;
+            // While too little of the fees is paid, the units are not shown
+            regShown = !st.feeBlocked;
             renderRegistration();
             const first = document.querySelector('.reg-table');
             if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });

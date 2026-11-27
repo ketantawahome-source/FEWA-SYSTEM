@@ -284,7 +284,8 @@ const RIGHT_FROM = {
     'students.password': 'students.edit', 'finance.void': 'finance.edit', 
     'reports.standard': 'reports.view', 'reports.performance': 'reports.view',
     'reports.students': 'reports.view', 'reports.finance': 'reports.view',
-    'schedule.view': 'academics.view', 'schedule.edit': 'academics.edit', 'exams.view': 'academics.view', 'exams.edit': 'academics.edit'
+    'schedule.view': 'academics.view', 'schedule.edit': 'academics.edit', 'exams.view': 'academics.view', 'exams.edit': 'academics.edit',
+    'settings.school': 'settings.edit'
 };
 // The rights to open groups of reports (each report is built from the student records)
 const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 'reports.performance', 'reports.students', 'reports.finance'];

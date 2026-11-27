@@ -110,7 +110,7 @@
             <div class="gs-card">
                 <div class="gs-scroll">
                     <table class="gs-table">
-                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th>Description</th></tr></thead>
+                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th title="Ticked: the school may change this setting itself, in Settings &gt; Organisation Setup &gt; School Settings (staff with the Manage School Settings right)">School may change it</th><th>Description</th></tr></thead>
                         <tbody id="settingRows"></tbody>
                     </table>
                 </div>
@@ -173,6 +173,8 @@
               off: 'Switch off backdating of attendance? Registers can then only be taken or changed for today.' },
             { control: 'attendanceBackdateDays', name: 'ATTENDANCE_BACKDATE_DAYS', number: true,
               description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365), e.g. 7: today and the 7 days before it.' },
+            { control: 'registrationFeePercent', name: 'COURSE_REGISTRATION_FEE_PERCENT', number: true, max: 100,
+              description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register (Course Registration). Fees = what is charged on their fee statement, plus this semester\'s fee structure while it is not charged yet. e.g. 50: at least half paid. 0: no fee needed.' },
             { control: 'newSidebar', name: 'NEW_SIDEBAR_ENABLED', yesNo: true,
               description: 'YES: the new floating sidebar (menu search, glowing open item, Change Password and Log Out at the bottom). NO: the classic sidebar.',
               off: 'Go back to the classic sidebar? Staff see the change the next time they open or refresh a page.' },
@@ -241,7 +243,7 @@
                     input = document.createElement('input');
                     input.type = 'number';
                     input.min = '0';
-                    input.max = '365';
+                    input.max = String(s.max || 365);
                     input.step = '1';
                 } else {
                     input = document.createElement('textarea');
@@ -261,16 +263,32 @@
                 tick.id = 'tick-' + s.control;
                 tick.setAttribute('aria-label', 'Save ' + s.name);
                 tickCell.append(tick);
+                // School may change it: the setting is shown in Settings > Organisation Setup > School Settings
+                const schoolCell = document.createElement('td');
+                const school = document.createElement('input');
+                school.type = 'checkbox';
+                school.className = 'gs-tick gs-school';
+                school.id = 'school-' + s.control;
+                school.setAttribute('aria-label', 'School may change ' + s.name);
+                school.checked = !!(saved.schoolMayChange || {})[s.control];
+                school.addEventListener('change', () => {
+                    tick.checked = input.value !== valueText(s, saved[s.control]) || school.checked !== !!(saved.schoolMayChange || {})[s.control];
+                    markChanged();
+                });
+                schoolCell.append(school);
                 const desc = document.createElement('td');
                 desc.className = 'gs-desc';
                 desc.textContent = s.description;
                 // Changing the value ticks the row; unticking puts the saved value back
-                input.addEventListener('input', () => { tick.checked = input.value !== valueText(s, saved[s.control]); markChanged(); });
-                tick.addEventListener('change', () => {
-                    if (!tick.checked) input.value = valueText(s, saved[s.control]);
+                input.addEventListener('input', () => {
+                    tick.checked = input.value !== valueText(s, saved[s.control]) || school.checked !== !!(saved.schoolMayChange || {})[s.control];
                     markChanged();
                 });
-                tr.append(name, valueCell, tickCell, desc);
+                tick.addEventListener('change', () => {
+                    if (!tick.checked) { input.value = valueText(s, saved[s.control]); school.checked = !!(saved.schoolMayChange || {})[s.control]; }
+                    markChanged();
+                });
+                tr.append(name, valueCell, tickCell, schoolCell, desc);
                 return tr;
             }));
             markChanged();
@@ -352,23 +370,28 @@
             } catch (err) { gateError(err.message); }
         });
 
+        // Whether a row's value itself was changed (a row may be ticked only for its "School may change it" tick)
+        const input_changed = s => $('value-' + s.control).value !== valueText(s, saved[s.control]);
         // Save Settings: the ticked rows only
         $('saveButton').addEventListener('click', async () => {
-            const changes = {};
+            const changes = {}, schoolMayChange = {};
             const warnings = [];
             for (const s of SETTINGS) {
                 if (!$('tick-' + s.control).checked) continue;
                 const text = $('value-' + s.control).value;
                 const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
-                if (s.number && !(Number.isInteger(value) && value >= 0 && value <= 365)) return status(`${s.name} must be a whole number from 0 to 365.`, false);
-                changes[s.control] = value;
-                if (s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
+                if (s.number && !(Number.isInteger(value) && value >= 0 && value <= (s.max || 365))) return status(`${s.name} must be a whole number from 0 to ${s.max || 365}.`, false);
+                if (input_changed(s)) changes[s.control] = value;
+                schoolMayChange[s.control] = $('school-' + s.control).checked;
+                if (input_changed(s) && s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
             }
             if (warnings.length && !await fewaConfirm(warnings.join('\n\n'))) return;
+            const count = Object.keys(schoolMayChange).length;
+            changes.schoolMayChange = schoolMayChange;
             $('saveButton').disabled = true;
             try {
                 await call('PUT', 'controls', changes);
-                status(`Saved ${Object.keys(changes).length} setting${Object.keys(changes).length === 1 ? '' : 's'}.`);
+                status(`Saved ${count} setting${count === 1 ? '' : 's'}.`);
                 load();
             } catch (err) { status(err.message, false); markChanged(); }
         });

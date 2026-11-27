@@ -2367,6 +2367,7 @@
                 `(${periodLabel(course, term)}, ${batch}, ${reason})?\n\n` + ticked.slice(0, 15).map(x => `${x.s.admNo} - ${studentName(x.s)}`).join('\n') +
                 (ticked.length > 15 ? `\n...and ${ticked.length - 15} more` : ''), { yes: 'Yes, register', danger: false })) return;
             let done = 0;
+            const notPaid = []; // refused by the server: too little of the fees paid (Global Settings COURSE_REGISTRATION_FEE_PERCENT)
             try {
                 // The unit's offer for the class (with its lecturer), or a new one when it is not on offer yet
                 let offer = offersForClass(course, term, batch).find(o => same(o.unitCode, unit.code));
@@ -2376,12 +2377,19 @@
                     offers.push(offer);
                 }
                 for (const { s } of ticked) {
-                    await save('unit_registrations', { ...registrationRecord(s, term, unit.code), examReason: reason,
-                        lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: course, batch });
-                    done++;
+                    try {
+                        await save('unit_registrations', { ...registrationRecord(s, term, unit.code), examReason: reason,
+                            lecturer: offer.lecturer || '', lecturerName: offer.lecturerName || '', registrationClass: course, batch });
+                        done++;
+                    } catch (err) {
+                        if (!/^Fees not paid:/.test(err.message)) throw err;
+                        notPaid.push(err.message.replace(/^Fees not paid:\s*/, ''));
+                    }
                 }
                 showToast(`${done} student${done === 1 ? '' : 's'} registered on ${unit.code}.`);
             } catch (err) { alert(`${done} registered; the rest could not be: ` + err.message); }
+            if (notPaid.length) fewaNotice('REQUIRED', `<b>${notPaid.length} student${notPaid.length === 1 ? ' was' : 's were'} not registered</b> because too little of their fees is paid:<br><br>`
+                + notPaid.map(m => '&bull; ' + escapeHtml(m)).join('<br>'));
             await loadData();
             renderRegisteredOnUnit();
         }
@@ -2536,8 +2544,17 @@
                         await save('unit_offers', offer);
                         offers.push(offer);
                     }
-                    await save('unit_registrations', { ...registrationRecord(l.student, l.term, l.code), examReason: l.reason,
-                        lecturer: l.lecturer ? l.lecturer.username : '', lecturerName: l.lecturer ? l.lecturer.name : '' });
+                    try {
+                        await save('unit_registrations', { ...registrationRecord(l.student, l.term, l.code), examReason: l.reason,
+                            lecturer: l.lecturer ? l.lecturer.username : '', lecturerName: l.lecturer ? l.lecturer.name : '' });
+                    } catch (err) {
+                        // Too little of the fees paid (Global Settings): this row is not registered, the next ones go on
+                        if (!/^Fees not paid:/.test(err.message)) throw err;
+                        l.result = 'bad';
+                        l.note = err.message;
+                        counts.bad++;
+                        continue;
+                    }
                     l.result = 'done';
                     l.note = 'Registered';
                     done++;
