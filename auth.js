@@ -767,7 +767,7 @@ function buildSidebarExtras(sidebar) {
     sidebar.appendChild(foot);
     foot.querySelector('.sb-logout').addEventListener('click', () => {
         if (typeof confirmLogout === 'function') confirmLogout();
-        else if (confirm('Log out of the system?')) logout();
+        else fewaConfirm('Log out of the system?').then(yes => { if (yes) logout(); });
     });
 }
 
@@ -862,8 +862,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     Sign out</button>
             </div>`;
         menu.querySelector('[data-action="password"]').onclick = () => location.href = 'ChangePassword.html';
-        menu.querySelector('[data-action="signout"]').onclick = () => {
-            if (confirm('Sign out of the FEWA system?')) logout();
+        // Asked in the system's own box (Yes only by a click), not the browser's box where Enter means Yes
+        menu.querySelector('[data-action="signout"]').onclick = async () => {
+            close();
+            const yes = typeof fewaConfirm === 'function' ? await fewaConfirm('Sign out of the FEWA system?') : confirm('Sign out of the FEWA system?');
+            if (yes) logout();
         };
         menu.hidden = false;
         toggle.setAttribute('aria-expanded', 'true');
@@ -1165,4 +1168,59 @@ function showRefreshBar(refresh) {
     window.addEventListener('focus', check);
     window.addEventListener('storage', event => { if (event.key === 'fewaLoginChanged') check(); });
     try { new BroadcastChannel('fewa-login').addEventListener('message', check); } catch { }
+})();
+
+
+/* ---------- Logged out after a long time without activity (owner, 2026-11-27) ----------
+   Staff pages and the Student Portal: after Global Settings IDLE_LOGOUT_MINUTES (default 30; 0 = never) without moving
+   the mouse, typing, clicking, scrolling or touching in ANY tab of the system, the person is logged out and the login
+   page says why. One minute before, a box warns, with "Stay logged in". The last activity is shared by the tabs
+   (localStorage, per kind of login), so working in one tab keeps the others open. */
+(function idleLogout() {
+    if (typeof fewaServer === 'undefined' || !fewaServer.online) return;
+    const page = location.pathname.split('/').pop().toLowerCase();
+    if (['', 'index.html', 'login.html', 'apply.html', 'globalsettings.html'].includes(page)) return;
+    const kind = fewaSession && fewaSession.kind;
+    const minutes = Number(fewaSession && fewaSession.idleLogoutMinutes);
+    if ((kind !== 'staff' && kind !== 'student') || !(minutes > 0)) return;
+    const LIMIT = minutes * 60000, WARN = 60000, KEY = 'fewaIdleSince:' + kind;
+    let local = Date.now(), lastStored = 0, warning = null;
+    const store = () => {
+        local = Date.now();
+        if (local - lastStored < 5000) return;
+        lastStored = local;
+        try { localStorage.setItem(KEY, String(local)); } catch { }
+    };
+    const last = () => {
+        let shared = 0;
+        try { shared = Number(localStorage.getItem(KEY)) || 0; } catch { }
+        return Math.max(local, shared);
+    };
+    const active = () => { store(); if (warning) closeWarning(); };
+    ['mousemove', 'mousedown', 'keydown', 'wheel', 'scroll', 'touchstart'].forEach(type =>
+        document.addEventListener(type, active, { passive: true, capture: true }));
+    store(); // opening a page counts as activity
+    function closeWarning() { if (warning) { warning.remove(); warning = null; } }
+    function warn(secondsLeft) {
+        if (warning) return (warning.querySelector('.idle-seconds').textContent = secondsLeft);
+        warning = document.createElement('div');
+        warning.className = 'tab-guard';
+        warning.innerHTML = `<div class="tab-guard-box" role="alertdialog" aria-modal="true">
+            <div class="tab-guard-title">Are you still there?</div>
+            <p>You have not used the system for a while. For safety you will be logged out in <b class="idle-seconds">${secondsLeft}</b> seconds.</p>
+            <div class="tab-guard-buttons"><button type="button" class="idle-stay">Stay logged in</button></div></div>`;
+        // (a click: the keyboard cannot answer it, as every question box of the system)
+        warning.querySelector('.idle-stay').addEventListener('click', () => { store(); closeWarning(); });
+        document.body.appendChild(warning);
+    }
+    setInterval(() => {
+        const idle = Date.now() - last();
+        if (idle >= LIMIT) {
+            try { localStorage.removeItem(KEY); } catch { }
+            endServerSession();
+            return location.replace('login.html?idle=' + minutes);
+        }
+        if (idle >= LIMIT - WARN) warn(Math.max(1, Math.ceil((LIMIT - idle) / 1000)));
+        else closeWarning();
+    }, 1000);
 })();

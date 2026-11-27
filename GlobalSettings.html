@@ -52,7 +52,10 @@
             background: transparent; color: #fff; cursor: pointer; flex: none; }
         .gs-icon:hover { background: rgba(255,255,255,.12); }
         .gs-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-        .gs-user { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: #fff; font-weight: 700; white-space: nowrap; }
+        .gs-user-area { position: relative; margin-left: auto; }
+        .gs-user { display: inline-flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px; border: 0; border-radius: 24px;
+            background: transparent; color: #fff; font: inherit; font-weight: 700; font-size: 16px; white-space: nowrap; cursor: pointer; }
+        .gs-user:hover, .gs-user[aria-expanded="true"] { background: rgba(255,255,255,.12); }
         .gs-avatar { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%;
             background: var(--fewa-gold-light); color: var(--fewa-ink); font-weight: 800; }
         @media (max-width: 760px) {
@@ -175,7 +178,11 @@
                     <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
                 <a class="gs-icon" href="Dashboard.html" title="Dashboard" aria-label="Dashboard">
                     <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg></a>
-                <span class="gs-user" id="gsUser" title="Logged in to the system"><span class="gs-avatar" id="gsAvatar">?</span><span id="gsUserName"></span></span>
+                <div class="gs-user-area">
+                    <button type="button" class="gs-user" id="gsUser" title="Your profile" aria-haspopup="true" aria-expanded="false">
+                        <span class="profile-picture small"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="41" cy="21" r="11" fill="#6b3b1f"/><circle cx="41" cy="24" r="8" fill="#f2c08a"/><path d="M27 60c0-11 6-18 14-18s14 7 14 18z" fill="#f39c3d"/><circle cx="24" cy="26" r="10" fill="#f5c48f"/><path d="M14 25c0-8 4.5-13 10-13s10 4.5 10 12c-3-3-6.5-4-10-4s-7 1-10 5z" fill="#7a4a26"/><path d="M6 62c0-13 8-20 18-20s18 7 18 20z" fill="#8fc3e8"/></svg></span><span id="gsUserName"></span></button>
+                    <div class="profile-menu" id="gsProfile" hidden></div>
+                </div>
             </div>
         </header>
         <!-- The side menu, as on the staff pages (owner, 2026-11-27): FEWA's own menu; on a phone it opens with the menu button -->
@@ -302,6 +309,8 @@
               description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365), e.g. 7: today and the 7 days before it.' },
             { control: 'registrationFeePercent', name: 'COURSE_REGISTRATION_FEE_PERCENT', number: true, max: 100,
               description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register (Course Registration). Fees = what is charged on their fee statement, plus this semester\'s fee structure while it is not charged yet. e.g. 50: at least half paid. 0: no fee needed.' },
+            { control: 'idleLogoutMinutes', name: 'IDLE_LOGOUT_MINUTES', number: true, max: 480,
+              description: 'Staff and students are logged out after this many minutes without using the system (moving the mouse, typing, clicking or scrolling in any of its tabs). A warning comes one minute before. 1 to 480; 0: never.' },
             { control: 'newSidebar', name: 'NEW_SIDEBAR_ENABLED', yesNo: true,
               description: 'YES: the new floating sidebar (menu search, glowing open item, Change Password and Log Out at the bottom). NO: the classic sidebar.',
               off: 'Go back to the classic sidebar? Staff see the change the next time they open or refresh a page.' },
@@ -550,12 +559,56 @@
         $('gsMenuButton').addEventListener('click', () => document.body.classList.toggle('gs-menu-open'));
         $('gsSide').addEventListener('click', e => { if (e.target.closest('a')) document.body.classList.remove('gs-menu-open'); });
         $('refreshSettings').addEventListener('click', () => { load(); status('Settings refreshed.'); });
-        fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': 'staff' } })
-            .then(r => r.json()).then(session => {
-                const name = session && session.kind === 'staff' ? (session.username || 'Staff') : 'Not logged in';
-                $('gsUserName').textContent = name;
-                $('gsAvatar').textContent = (name.match(/[A-Za-z]/g) || ['?']).slice(0, 2).join('').toUpperCase();
-            }).catch(() => { $('gsUserName').textContent = ''; });
+        /* The person logged in to the system (top right) and their profile card, as on the staff pages: picture, name -
+           role, member since, email, Change Password and Sign out (asked first in the system's own box) */
+        let me = null;
+        const fmtSince = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        (async () => {
+            const head = { credentials: 'same-origin', cache: 'no-store', headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': 'staff' } };
+            try {
+                const session = await (await fetch('/api/session', head)).json();
+                if (!session || session.kind !== 'staff') { $('gsUserName').textContent = 'Not logged in'; return; }
+                me = { username: session.username || '', role: session.admin ? 'Administrator' : 'Staff' };
+                const values = await (await fetch('/api/values', head)).json().catch(() => ({}));
+                const account = (JSON.parse(values.fewaAccounts || '[]') || []).find(a => a.id === session.accountId) || {};
+                me = { ...me, ...account, name: [account.firstName, account.lastName].filter(Boolean).join(' ') || session.username };
+            } catch { }
+            $('gsUserName').textContent = me ? me.name || me.username : '';
+        })();
+        function closeProfile() { $('gsProfile').hidden = true; $('gsUser').setAttribute('aria-expanded', 'false'); }
+        $('gsUser').addEventListener('click', () => {
+            if (!$('gsProfile').hidden) return closeProfile();
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const who = me || {};
+            $('gsProfile').innerHTML = `
+                <div class="profile-card">
+                    <span class="profile-picture large">${$('gsUser').querySelector('.profile-picture').innerHTML}</span>
+                    <div class="profile-name">${esc(who.name || who.username || 'Not logged in')}${who.role ? ' - ' + esc(who.role) : ''}${who.jobTitle ? ' (' + esc(who.jobTitle) + ')' : ''}</div>
+                    ${who.createdAt ? `<div>Member since ${fmtSince(who.createdAt)}</div>` : ''}
+                    <div>${esc(who.username || '')}</div>
+                </div>
+                <div class="profile-actions">
+                    <button type="button" class="profile-action" data-go="password">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                        Change Password</button>
+                    <button type="button" class="profile-action" data-go="signout">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg>
+                        Sign out</button>
+                </div>`;
+            $('gsProfile').querySelector('[data-go="password"]').onclick = () => { location.href = 'ChangePassword.html'; };
+            $('gsProfile').querySelector('[data-go="signout"]').onclick = async () => {
+                closeProfile();
+                if (!await fewaConfirm('Sign out of the FEWA system?')) return;
+                // Global Settings first, then the system login
+                await call('POST', 'logout').catch(() => { });
+                await fetch('/api/session/logout', { method: 'POST', credentials: 'same-origin', headers: { 'X-FEWA-Client': '1', 'X-FEWA-Portal': 'staff' } }).catch(() => { });
+                location.replace('login.html');
+            };
+            $('gsProfile').hidden = false;
+            $('gsUser').setAttribute('aria-expanded', 'true');
+        });
+        document.addEventListener('click', e => { if (!e.target.closest('.gs-user-area')) closeProfile(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProfile(); });
 
         $('passwordForm').addEventListener('submit', async event => {
             event.preventDefault();

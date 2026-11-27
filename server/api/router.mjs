@@ -68,6 +68,8 @@ export async function handleApi(req, res, parts) {
             newSidebar: (await globalControls().catch(() => DEFAULT_CONTROLS)).newSidebar !== false,
             // Roll Call: how many days back a register may be taken (0: today only)
             attendanceBackDays: await attendanceBackDays(),
+            // Global Settings: minutes without activity before being logged out (auth.js idleLogout; 0 = never)
+            idleLogoutMinutes: Number((await globalControls().catch(() => DEFAULT_CONTROLS)).idleLogoutMinutes ?? 30) || 0,
             // Global Settings ticked "School may change it" for at least one setting: Organisation Setup shows School Settings
             schoolSettings: staff ? Object.values((await globalControls().catch(() => DEFAULT_CONTROLS)).schoolMayChange || {}).some(Boolean) : false,
             resetEmail: session.kind === 'reset' ? session.email : null

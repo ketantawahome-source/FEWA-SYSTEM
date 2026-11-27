@@ -104,7 +104,7 @@
                         <button type="button" onclick="closeUserMenu(); showPortalTab('profile')">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/></svg>
                             Profile</button>
-                        <button type="button" onclick="closeUserMenu(); if (confirm('Log out of the Student Portal?')) studentLogout()">
+                        <button type="button" onclick="closeUserMenu(); fewaConfirm('Log out of the Student Portal?').then(yes => { if (yes) studentLogout(); })">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg>
                             Logout</button>
                     </span>

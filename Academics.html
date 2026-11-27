@@ -748,7 +748,7 @@
         }
 
         function confirmLogout() {
-            if (confirm('Log out of the FEWA system?')) logout();
+            fewaConfirm('Log out of the FEWA system?').then(yes => { if (yes) logout(); }); // the system's own box: Yes only by a click
         }
 
         const $ = id => document.getElementById(id);

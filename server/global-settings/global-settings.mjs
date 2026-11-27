@@ -26,6 +26,8 @@ export const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogi
     // Student Portal Course Registration: the share of their fees (0-100 %) a student must have paid to see their
     // course units and register; 0 = no fee needed (server/academics/online-registration.mjs feePosition)
     registrationFeePercent: 0,
+    // Staff and students are logged out after this many minutes without any activity (0 = never); auth.js idleLogout
+    idleLogoutMinutes: 30,
     // Which settings the school may change itself (Settings > Organisation Setup > School Settings), ticked by the owner
     schoolMayChange: {} };
 
@@ -40,6 +42,7 @@ export const SETTING_DEFS = [
     { control: 'attendanceBackdating', label: 'Registers may be taken for past days', hint: '', name: 'ATTENDANCE_BACKDATING_ENABLED', type: 'yesNo', description: 'YES: Roll Call registers may be taken (or corrected) for past days, up to ATTENDANCE_BACKDATE_DAYS back. NO: only for today.' },
     { control: 'attendanceBackdateDays', label: 'Days back a register may be taken', hint: '0 = today only.', name: 'ATTENDANCE_BACKDATE_DAYS', type: 'number', max: 365, description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365).' },
     { control: 'registrationFeePercent', label: 'Fees paid before registration (%)', hint: '0 = no fee needed. 50 = half of the fees.', name: 'COURSE_REGISTRATION_FEE_PERCENT', type: 'number', max: 100, description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register. 0: no fee needed.' },
+    { control: 'idleLogoutMinutes', label: 'Minutes without activity before logging out', hint: '0 = never. e.g. 30.', name: 'IDLE_LOGOUT_MINUTES', type: 'number', max: 480, description: 'Staff and students are logged out after this many minutes without using the system (1 to 480). 0: never.' },
     { control: 'newSidebar', label: 'New sidebar', hint: '', name: 'NEW_SIDEBAR_ENABLED', type: 'yesNo', description: 'YES: the new floating sidebar. NO: the classic sidebar.' },
     { control: 'shortCourses', label: 'Short courses offered', hint: '', name: 'SHORT_COURSES_ENABLED', type: 'yesNo', description: 'NO hides the short courses (Settings, online applications, new students, Course units). Students already on a short course keep it.' }
 ];
