@@ -1531,30 +1531,27 @@
 
         /* ---------- Rules set by the owner, at the bottom of Organisation Setup > School Setup (owner, 2026-11-27) ----------
            The Global Settings (/GLOBALSETTINGS) the owner ticked "School may change it" for, shown with a short label and
-           hint (not the long setting names), saved by School Setup's Save Settings. Shown only while the owner has ticked at
-           least one (fewaSession.schoolSettings). Anyone with Access Settings sees them; changing needs the Manage School
+           hint (not the long setting names), saved by School Setup's Save Settings. Unticked ones disappear by themselves
+           (refreshSchoolRules). Anyone with Access Settings sees them; changing needs the Manage School
            Settings right. The server refuses any other setting (server/global-settings/global-settings.mjs). */
         let schoolRules = { canChange: false, settings: [] };
         const schoolRuleValue = (s, box) => s.type === 'yesNo' ? box.value === 'YES' : s.type === 'number' ? Number(box.value) : box.value.trim();
         const schoolRuleSaved = s => s.type === 'text' ? (s.value || '') : s.type === 'number' ? Number(s.value) || 0 : !!s.value;
+        // One rule as an ordinary School Setup line (label on the left, box on the right); the hint shows on hovering
+        function schoolRuleHtml(s, canChange) {
+            const off = canChange ? '' : ' disabled title="Changing this needs the Manage School Settings right"';
+            const tip = s.hint ? ` title="${escapeHtml(s.hint)}"` : '';
+            const box = s.type === 'yesNo'
+                ? `<select id="rule-${s.control}" style="flex: 1 1 auto; min-width: 0;"${tip}${off}><option value="YES"${s.value ? ' selected' : ''}>Yes</option><option value="NO"${s.value ? '' : ' selected'}>No</option></select>`
+                : s.type === 'number'
+                    ? `<input type="number" id="rule-${s.control}" min="0" max="${s.max}" step="1" value="${Number(s.value) || 0}"${tip}${off}>`
+                    : `<input type="text" id="rule-${s.control}" maxlength="${s.max}" value="${escapeHtml(s.value || '')}"${tip}${off}>`;
+            return `<div class="form-group school-rule" data-rule="${s.control}"><label for="rule-${s.control}">${escapeHtml(s.label || s.name)}</label>${box}</div>`;
+        }
         async function schoolRulesHtml() {
             schoolRules = { canChange: false, settings: [] };
-            if (!fewaSession.schoolSettings) return '';
             try { schoolRules = await api('GET', '/school-settings'); } catch { return ''; }
-            if (!schoolRules.settings.length) return '';
-            const off = schoolRules.canChange ? '' : ' disabled';
-            const box = s => s.type === 'yesNo'
-                ? `<select id="rule-${s.control}"${off}><option value="YES"${s.value ? ' selected' : ''}>Yes</option><option value="NO"${s.value ? '' : ' selected'}>No</option></select>`
-                : s.type === 'number'
-                    ? `<input type="number" id="rule-${s.control}" min="0" max="${s.max}" step="1" value="${Number(s.value) || 0}"${off}>`
-                    : `<input type="text" id="rule-${s.control}" maxlength="${s.max}" value="${escapeHtml(s.value || '')}"${off}>`;
-            return `<div class="school-rules" style="margin-top: 22px;">
-                <div class="section-title">Rules set by the owner</div>
-                <div class="grid-3">${schoolRules.settings.map(s => `<div class="form-group">
-                    <label for="rule-${s.control}">${escapeHtml(s.label || s.name)}</label>${box(s)}
-                    ${s.hint ? `<small>${escapeHtml(s.hint)}</small>` : ''}</div>`).join('')}</div>
-                ${schoolRules.canChange ? '' : '<p><small>Changing these needs the Manage School Settings right.</small></p>'}
-            </div>`;
+            return schoolRules.settings.map(s => schoolRuleHtml(s, schoolRules.canChange)).join('');
         }
         // The rules changed on this page (the ones whose box differs from what is saved)
         function schoolRuleChanges() {
@@ -1568,21 +1565,34 @@
             }
             return changes;
         }
-        /* Always the figure saved now (the owner may change it in Global Settings meanwhile): read again on coming back to
-           the tab and every 20 seconds while School Setup is on screen; a box being changed here is left alone */
+        /* Always as the owner has it now (owner, 2026-11-27): read again on coming back to the tab and every 20 seconds
+           while School Setup is on screen. A line the owner unticked in Global Settings disappears, a newly ticked one
+           appears, and a changed figure follows (a box being changed here is left alone). */
         async function refreshSchoolRules() {
             const content = document.getElementById('settingsContent');
-            if (!fewaSession.schoolSettings || document.hidden || activeSettingsTab !== 'organization' || !content || !content.offsetParent) return;
-            if (!schoolRules.settings.length) return;
+            if (document.hidden || activeSettingsTab !== 'organization' || !content || !content.offsetParent) return;
+            const grid = content.querySelector('.org-form-grid');
+            if (!grid) return;
             let fresh;
             try { fresh = await api('GET', '/school-settings'); } catch { return; }
+            // Unticked by the owner: the line goes
+            grid.querySelectorAll('.school-rule').forEach(row => {
+                if (!fresh.settings.some(s => s.control === row.dataset.rule)) row.remove();
+            });
             for (const s of fresh.settings) {
-                const box = document.getElementById('rule-' + s.control);
                 const was = schoolRules.settings.find(x => x.control === s.control);
-                if (!box || !was || document.activeElement === box || schoolRuleValue(was, box) !== schoolRuleSaved(was)) continue;
+                const box = document.getElementById('rule-' + s.control);
+                // Newly ticked: the line comes, after the other lines
+                if (!box) { grid.insertAdjacentHTML('beforeend', schoolRuleHtml(s, fresh.canChange)); continue; }
+                if (!was || document.activeElement === box || schoolRuleValue(was, box) !== schoolRuleSaved(was)) continue;
                 box.value = s.type === 'yesNo' ? (s.value ? 'YES' : 'NO') : s.type === 'number' ? String(Number(s.value) || 0) : (s.value || '');
-                was.value = s.value;
             }
+            // Keep what is being typed in a line that stays
+            schoolRules = { canChange: fresh.canChange, settings: fresh.settings.map(s => {
+                const was = schoolRules.settings.find(x => x.control === s.control);
+                const box = document.getElementById('rule-' + s.control);
+                return was && box && schoolRuleValue(was, box) !== schoolRuleSaved(was) ? { ...s, value: was.value } : s;
+            }) };
         }
         document.addEventListener('visibilitychange', refreshSchoolRules);
         window.addEventListener('focus', refreshSchoolRules);
@@ -2580,8 +2590,7 @@
             if (container.id === 'settingsContent') { document.getElementById('settingsBanner').innerText = settings.title; document.getElementById('settingsBanner').classList.remove('info-banner'); }
             container.innerHTML = `
                 <form class="settings-form" onsubmit="saveSettingsForm(event, '${key}')">
-                    <div class="${key === 'organization' ? 'org-form-grid' : 'grid-3'}">${renderFields(settings.fields, await getSettingsRecord(key))}</div>
-                    ${key === 'organization' ? await schoolRulesHtml() : ''}
+                    <div class="${key === 'organization' ? 'org-form-grid' : 'grid-3'}">${renderFields(settings.fields, await getSettingsRecord(key))}${key === 'organization' ? await schoolRulesHtml() : ''}</div>
                     <div class="action-bar" style="margin-bottom: 0;">
                         <button type="submit" class="btn-submit">Save Settings</button>
                     </div>
