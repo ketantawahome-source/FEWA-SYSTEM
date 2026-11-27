@@ -16,6 +16,9 @@ async function renderBackupPage() {
         content.innerHTML = `<div class="empty-state">The backups could not be loaded: ${escapeHtml(error.message)}</div>`;
         return;
     }
+    // Your recent backups (owner, 2026-11-27): the ones this person made in the last 3 days
+    const me = (currentAccount() || {}).username || '';
+    const recent = list.backups.filter(b => b.createdBy && b.createdBy === me && Date.now() - new Date(b.createdAt) < 3 * 86400000);
     const sizeText = bytes => bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((bytes || 0) / 1024)) + ' KB';
     const rows = list.backups.map(b => {
         const s = b.summary || {};
@@ -50,8 +53,18 @@ async function renderBackupPage() {
             <div class="backup-actions" style="${list.available ? '' : 'display:none'}">
                 <input type="text" id="backupNote" maxlength="200" placeholder="Note (optional), e.g. Before the January intake"
                     style="flex:1;min-width:220px;padding:10px;border:1px solid #d8cfe3;border-radius:8px">
-                <button type="button" class="btn-submit" id="backupNowButton" onclick="makeOnlineBackup()">Back Up Now</button>
+                <button type="button" class="backup-create" id="backupNowButton" onclick="makeOnlineBackup()">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4"/></svg> Create backup</button>
             </div>
+            ${list.available ? `<div class="backup-recent">
+                <h3 class="backup-heading">Your recent backups</h3>
+                ${recent.length ? `<div class="table-wrapper" style="overflow-x:auto"><table class="data-table">
+                    <thead><tr><th>Made</th><th>Note</th><th>Size</th></tr></thead>
+                    <tbody>${recent.map(b => `<tr><td>${escapeHtml(new Date(b.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
+                        <td>${escapeHtml(b.note || '')}</td><td>${escapeHtml(sizeText(b.sizeBytes))}</td></tr>`).join('')}</tbody></table></div>`
+                    : '<p class="backup-none">You have made no backup in the last 3 days. Create one with the button above.</p>'}
+            </div>
+            <h3 class="backup-heading">All backups</h3>` : ''}
             ${!list.available ? '' : list.backups.length ? `<div class="table-wrapper" style="overflow-x:auto;margin-top:16px"><table class="data-table">
                 <thead><tr><th>Made</th><th>Note</th><th>Contents</th><th>Size</th><th>By</th><th></th></tr></thead>
                 <tbody>${rows}</tbody></table></div>`
@@ -104,7 +117,7 @@ function backupDownloadForm() {
         </div>
         <p class="backup-note">Keep this password safe: the system does not store it and cannot recover it. To open the backup, use
             <b>7-Zip</b> (free, www.7-zip.org) or WinZip and enter this password. The zip tool built into Windows cannot open protected files of this kind.</p>
-        <button type="submit" class="btn-submit" id="backupDownloadButton">Create Backup</button>
+        <button type="submit" class="btn-submit" id="backupDownloadButton">Download Backup (zip)</button>
     </form>`;
 }
 
@@ -161,13 +174,15 @@ async function downloadBackup(event) {
         alert('The backup could not be made: ' + error.message);
     }
     button.disabled = false;
-    button.textContent = 'Create Backup';
+    button.textContent = 'Download Backup (zip)';
 }
 
 async function makeOnlineBackup() {
+    // Asked first, as every save (a click on Yes; the keyboard cannot answer)
+    if (!await fewaConfirm('Create a backup of the whole system now?')) return;
     const button = document.getElementById('backupNowButton');
     button.disabled = true;
-    button.textContent = 'Backing up...';
+    button.textContent = 'Creating the backup...';
     try {
         const result = await api('POST', '/backups', { note: document.getElementById('backupNote').value.trim() });
         showToast('Backup saved in PostgreSQL on the office computer (fewa_backups).');

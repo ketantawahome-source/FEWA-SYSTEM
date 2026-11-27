@@ -6679,3 +6679,12 @@ tr.stamp-old td { color: #9a8fae; }
 .fewa-sign-block.stamp-over .stamp-wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-6deg); }
 .fewa-sign-block.stamp-corner { position: static; }
 .fewa-sign-block.stamp-corner .stamp-wrap { position: absolute; right: 0; bottom: 0; }
+
+/* System Data Backups: Create backup and Your recent backups */
+.backup-create { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border: 1px solid #157a3b; border-radius: 4px;
+    background: #198544; color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.backup-create:hover { background: #157a3b; }
+.backup-create:disabled { opacity: .6; cursor: default; }
+.backup-create svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.backup-recent { margin-top: 18px; padding-top: 14px; border-top: 1px solid #eee; }
+.backup-none { color: #6b6478; font-size: 15px; margin: 6px 0 4px; }
