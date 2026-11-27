@@ -647,11 +647,9 @@
         // Sent here after a system update (auth.js logOutAfterUpdate): just the sign-in page, with no message (the
         // college found the red note confusing)
         if (linkParams.get('updated')) history.replaceState(null, '', location.pathname);
-        // Logged out after a long time without activity (auth.js idleLogout)
-        if (/^\d+$/.test(linkParams.get('idle') || '')) {
-            showError(`You were logged out after ${linkParams.get('idle')} minutes without activity. Please log in again.`);
-            history.replaceState(null, '', location.pathname);
-        }
+        // Logged out after a long time without activity (auth.js idleLogout): just the sign-in page, with no message
+        // (owner, 2026-11-27: the client should not see it)
+        if (linkParams.get('idle')) history.replaceState(null, '', location.pathname);
 
         // A successful login goes straight into the system (the college did not want a "Login Successful" screen or a
         // wait). Only a brand new administrator account sees a screen, with its welcome email, and waits for "Continue".
