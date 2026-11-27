@@ -31,8 +31,11 @@
         .gs-page { max-width: 1250px; margin: 0 auto; padding: 18px 20px 40px; }
         .gs-banner { display: none; margin-bottom: 14px; padding: 12px 14px; border-radius: var(--fewa-radius-small);
             background: #fdecea; color: #8a1c14; font-weight: 600; }
-        .gs-status { min-height: 20px; margin: 0 0 10px; font-size: 14px; font-weight: 600; }
-        .gs-status.ok { color: #2e7d32; } .gs-status.err { color: #b3261e; }
+        /* "... saved" / a problem: a small box at the bottom of the screen, seen wherever the page is scrolled to */
+        .gs-status { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 32px);
+            padding: 10px 18px; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 14px; font-weight: 600; }
+        .gs-status:empty { display: none; }
+        .gs-status.ok { color: #2e7d32; border-left: 5px solid #2e7d32; } .gs-status.err { color: #b3261e; border-left: 5px solid #b3261e; }
         .gs-card { background: #fff; border: 1px solid var(--fewa-line); border-radius: var(--fewa-radius); overflow: hidden;
             box-shadow: var(--fewa-shadow); margin-bottom: 22px; }
         .gs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
@@ -99,7 +102,6 @@
         <div class="gs-topbar">
             <h1>GLOBAL SETTINGS</h1>
             <input type="search" id="search" class="gs-search" placeholder="Search for a setting..." aria-label="Search for a setting">
-            <button class="gs-btn main" id="saveButton" disabled>Save Settings</button>
             <button class="gs-btn" id="lockButton">Lock</button>
         </div>
 
@@ -110,7 +112,7 @@
             <div class="gs-card">
                 <div class="gs-scroll">
                     <table class="gs-table">
-                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th title="Ticked: the school may change this setting itself, at the bottom of Settings &gt; Organisation Setup &gt; School Setup (staff with the Manage School Settings right)">School may change it</th><th>Description</th></tr></thead>
+                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked: the school may change this setting itself, at the bottom of Settings &gt; Organisation Setup &gt; School Setup (staff with the Manage School Settings right)">School may change it</th><th>Description</th></tr></thead>
                         <tbody id="settingRows"></tbody>
                     </table>
                 </div>
@@ -226,7 +228,10 @@
 
         const valueText = (s, value) => s.yesNo ? (value ? 'YES' : 'NO') : s.number ? String(Number(value) || 0) : String(value || '');
 
-        // One row per setting: name | value | ticked when changed | description
+        /* One row per setting: name | value | school may change it | description.
+           Every change saves by itself (owner, 2026-11-27): a YES / NO choice and the "School may change it" tick at once,
+           a number or a message when leaving its box (or pressing Enter). Switching off something important still asks
+           first; a refused or cancelled change puts the saved value back. */
         function drawSettings() {
             $('settingRows').replaceChildren(...SETTINGS.map(s => {
                 const tr = document.createElement('tr');
@@ -256,14 +261,7 @@
                 input.setAttribute('aria-label', s.name);
                 input.value = valueText(s, saved[s.control]);
                 valueCell.append(input);
-                const tickCell = document.createElement('td');
-                const tick = document.createElement('input');
-                tick.type = 'checkbox';
-                tick.className = 'gs-tick';
-                tick.id = 'tick-' + s.control;
-                tick.setAttribute('aria-label', 'Save ' + s.name);
-                tickCell.append(tick);
-                // School may change it: the setting is shown in Settings > Organisation Setup > School Settings
+                // School may change it: the setting shows at the bottom of Settings > Organisation Setup > School Setup
                 const schoolCell = document.createElement('td');
                 const school = document.createElement('input');
                 school.type = 'checkbox';
@@ -271,38 +269,43 @@
                 school.id = 'school-' + s.control;
                 school.setAttribute('aria-label', 'School may change ' + s.name);
                 school.checked = !!(saved.schoolMayChange || {})[s.control];
-                school.addEventListener('change', () => {
-                    tick.checked = input.value !== valueText(s, saved[s.control]) || school.checked !== !!(saved.schoolMayChange || {})[s.control];
-                    markChanged();
-                });
                 schoolCell.append(school);
                 const desc = document.createElement('td');
                 desc.className = 'gs-desc';
                 desc.textContent = s.description;
-                // Changing the value ticks the row; unticking puts the saved value back
-                input.addEventListener('input', () => {
-                    tick.checked = input.value !== valueText(s, saved[s.control]) || school.checked !== !!(saved.schoolMayChange || {})[s.control];
-                    markChanged();
-                });
-                tick.addEventListener('change', () => {
-                    if (!tick.checked) { input.value = valueText(s, saved[s.control]); school.checked = !!(saved.schoolMayChange || {})[s.control]; }
-                    markChanged();
-                });
-                tr.append(name, valueCell, tickCell, schoolCell, desc);
+
+                const putBack = () => { input.value = valueText(s, saved[s.control]); };
+                async function saveValue() {
+                    if (input.value === valueText(s, saved[s.control])) return;
+                    const text = input.value;
+                    const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
+                    if (s.number && !(text !== '' && Number.isInteger(value) && value >= 0 && value <= (s.max || 365))) {
+                        status(`${s.name} must be a whole number from 0 to ${s.max || 365}.`, false);
+                        return putBack();
+                    }
+                    if (s.yesNo && !value && saved[s.control] && s.off && !await fewaConfirm(s.off)) return putBack();
+                    await saveChange({ [s.control]: value }, `${s.name} saved: ${valueText(s, value)}.`, putBack);
+                }
+                // A choice saves at once; a number or a message when leaving the box (Enter too)
+                input.addEventListener('change', saveValue);
+                if (!s.yesNo) input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); input.blur(); } });
+                school.addEventListener('change', () => saveChange({ schoolMayChange: { [s.control]: school.checked } },
+                    `${s.name}: ${school.checked ? 'the school may now change it (School Setup)' : 'only you can change it now'}.`,
+                    () => { school.checked = !school.checked; }));
+                tr.append(name, valueCell, schoolCell, desc);
                 return tr;
             }));
-            markChanged();
             filterRows();
         }
 
-        function markChanged() {
-            let any = false;
-            for (const s of SETTINGS) {
-                const ticked = $('tick-' + s.control).checked;
-                $('tick-' + s.control).closest('tr').classList.toggle('changed', ticked);
-                any = any || ticked;
-            }
-            $('saveButton').disabled = !any;
+        // Saves one change; on success keeps the saved values (no redraw, so the place on the page stays)
+        async function saveChange(changes, message, undo) {
+            try {
+                const result = await call('PUT', 'controls', changes);
+                saved = result.controls;
+                $('closedBanner').style.display = saved.systemOpen ? 'none' : 'block';
+                status(message);
+            } catch (err) { undo(); status(err.message, false); }
         }
 
         function filterRows() {
@@ -370,40 +373,13 @@
             } catch (err) { gateError(err.message); }
         });
 
-        // Whether a row's value itself was changed (a row may be ticked only for its "School may change it" tick)
-        const input_changed = s => $('value-' + s.control).value !== valueText(s, saved[s.control]);
-        // Save Settings: the ticked rows only
-        $('saveButton').addEventListener('click', async () => {
-            const changes = {}, schoolMayChange = {};
-            const warnings = [];
-            for (const s of SETTINGS) {
-                if (!$('tick-' + s.control).checked) continue;
-                const text = $('value-' + s.control).value;
-                const value = s.yesNo ? text === 'YES' : s.number ? Number(text) : text.trim();
-                if (s.number && !(Number.isInteger(value) && value >= 0 && value <= (s.max || 365))) return status(`${s.name} must be a whole number from 0 to ${s.max || 365}.`, false);
-                if (input_changed(s)) changes[s.control] = value;
-                schoolMayChange[s.control] = $('school-' + s.control).checked;
-                if (input_changed(s) && s.yesNo && !value && saved[s.control] && s.off) warnings.push('- ' + s.off);
-            }
-            if (warnings.length && !await fewaConfirm(warnings.join('\n\n'))) return;
-            const count = Object.keys(schoolMayChange).length;
-            changes.schoolMayChange = schoolMayChange;
-            $('saveButton').disabled = true;
-            try {
-                await call('PUT', 'controls', changes);
-                status(`Saved ${count} setting${count === 1 ? '' : 's'}.`);
-                load();
-            } catch (err) { status(err.message, false); markChanged(); }
-        });
-
         $('search').addEventListener('input', filterRows);
         $('refreshButton').addEventListener('click', load);
         /* Always the values as saved now (owner, 2026-11-27): the school may change a setting in Settings > Organisation
            Setup > School Settings meanwhile, so the table is read again on coming back to the tab and every 20 seconds,
-           but only while the panel is open and nothing is being changed here (no row ticked), so typing is never lost. */
+           but only while the panel is open and no box is being typed in, so typing is never lost. */
         const refreshQuietly = () => {
             if ($('panel').hidden || document.hidden) return;
-            if (SETTINGS.some(s => $('tick-' + s.control) && $('tick-' + s.control).checked)) return;
             if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#settingRows')) return;
             load();
         };
