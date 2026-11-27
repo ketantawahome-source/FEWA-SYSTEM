@@ -32,16 +32,16 @@ export const DEFAULT_CONTROLS = { systemOpen: true, closedMessage: '', staffLogi
 /* The settings, with their kind and limits: used to check every change (owner's page and the school's page) and to show
    the school the ones the owner allows (name and description as on GlobalSettings.html) */
 export const SETTING_DEFS = [
-    { control: 'systemOpen', name: 'SYSTEM_OPEN', type: 'yesNo', description: 'YES: the system works as normal. NO: closes it for everyone (staff, students and online applications) and logs everyone out.' },
-    { control: 'closedMessage', name: 'SYSTEM_CLOSED_MESSAGE', type: 'text', max: 500, description: 'The message people see while the system is closed. Empty: a standard maintenance message.' },
-    { control: 'staffLogins', name: 'STAFF_LOGINS_ENABLED', type: 'yesNo', description: 'NO: staff cannot log in, and staff who are logged in are logged out.' },
-    { control: 'studentLogins', name: 'STUDENT_PORTAL_ENABLED', type: 'yesNo', description: 'NO: students cannot log in to the Student Portal.' },
-    { control: 'applications', name: 'ONLINE_APPLICATIONS_ENABLED', type: 'yesNo', description: 'NO: the online application form says applications are closed.' },
-    { control: 'attendanceBackdating', name: 'ATTENDANCE_BACKDATING_ENABLED', type: 'yesNo', description: 'YES: Roll Call registers may be taken (or corrected) for past days, up to ATTENDANCE_BACKDATE_DAYS back. NO: only for today.' },
-    { control: 'attendanceBackdateDays', name: 'ATTENDANCE_BACKDATE_DAYS', type: 'number', max: 365, description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365).' },
-    { control: 'registrationFeePercent', name: 'COURSE_REGISTRATION_FEE_PERCENT', type: 'number', max: 100, description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register. 0: no fee needed.' },
-    { control: 'newSidebar', name: 'NEW_SIDEBAR_ENABLED', type: 'yesNo', description: 'YES: the new floating sidebar. NO: the classic sidebar.' },
-    { control: 'shortCourses', name: 'SHORT_COURSES_ENABLED', type: 'yesNo', description: 'NO hides the short courses (Settings, online applications, new students, Course units). Students already on a short course keep it.' }
+    { control: 'systemOpen', label: 'System open', hint: 'No closes the system for everyone.', name: 'SYSTEM_OPEN', type: 'yesNo', description: 'YES: the system works as normal. NO: closes it for everyone (staff, students and online applications) and logs everyone out.' },
+    { control: 'closedMessage', label: 'Message while the system is closed', hint: 'Empty: a standard message.', name: 'SYSTEM_CLOSED_MESSAGE', type: 'text', max: 500, description: 'The message people see while the system is closed. Empty: a standard maintenance message.' },
+    { control: 'staffLogins', label: 'Staff can log in', hint: '', name: 'STAFF_LOGINS_ENABLED', type: 'yesNo', description: 'NO: staff cannot log in, and staff who are logged in are logged out.' },
+    { control: 'studentLogins', label: 'Student Portal open', hint: '', name: 'STUDENT_PORTAL_ENABLED', type: 'yesNo', description: 'NO: students cannot log in to the Student Portal.' },
+    { control: 'applications', label: 'Online applications open', hint: '', name: 'ONLINE_APPLICATIONS_ENABLED', type: 'yesNo', description: 'NO: the online application form says applications are closed.' },
+    { control: 'attendanceBackdating', label: 'Registers may be taken for past days', hint: '', name: 'ATTENDANCE_BACKDATING_ENABLED', type: 'yesNo', description: 'YES: Roll Call registers may be taken (or corrected) for past days, up to ATTENDANCE_BACKDATE_DAYS back. NO: only for today.' },
+    { control: 'attendanceBackdateDays', label: 'Days back a register may be taken', hint: '0 = today only.', name: 'ATTENDANCE_BACKDATE_DAYS', type: 'number', max: 365, description: 'How many days back a register may be taken when ATTENDANCE_BACKDATING_ENABLED is YES (0 to 365).' },
+    { control: 'registrationFeePercent', label: 'Fees to be paid before course registration (%)', hint: '0 = no fee needed. 50 = half of the fees.', name: 'COURSE_REGISTRATION_FEE_PERCENT', type: 'number', max: 100, description: 'The share of their fees (0 to 100 %) a student must have paid before the Student Portal shows their course units and lets them register. 0: no fee needed.' },
+    { control: 'newSidebar', label: 'New sidebar', hint: '', name: 'NEW_SIDEBAR_ENABLED', type: 'yesNo', description: 'YES: the new floating sidebar. NO: the classic sidebar.' },
+    { control: 'shortCourses', label: 'Short courses offered', hint: '', name: 'SHORT_COURSES_ENABLED', type: 'yesNo', description: 'NO hides the short courses (Settings, online applications, new students, Course units). Students already on a short course keep it.' }
 ];
 // Checks the changed values in body (only the controls named in keys) and returns the settings with them
 function withChanges(current, body, keys) {
@@ -180,7 +180,8 @@ export async function handleGlobal(req, res, session, action, method) {
 
 /* ---------- School Settings (Settings > Organisation Setup > School Settings; owner, 2026-11-27) ----------
    The Global Settings the owner ticked "School may change it" for, changed by the school's staff without the Global
-   Settings password:  GET  /api/school-settings   the allowed settings with their values (Access Settings or the right)
+   Settings password (shown at the bottom of Settings > Organisation Setup > School Setup with their short label and hint):
+                       GET  /api/school-settings   the allowed settings with their values (Access Settings or the right)
                        PUT  /api/school-settings   { control: value, ... }  only allowed ones (Manage School Settings) */
 export async function handleSchoolSettings(req, res, session, method) {
     if (!session || session.kind !== 'staff') throw forbidden();

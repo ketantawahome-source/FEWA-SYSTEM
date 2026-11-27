@@ -112,7 +112,7 @@ const ROLE_OPERATIONS = [
     ['students.delete', 'Delete Student Records', 'Ability to delete student documents and deferral/suspension records. Students themselves are only deleted in the databases.'],
     ['settings.delete', 'Delete Settings Items', 'Ability to delete courses, campuses, terms, roles and other setup items.'],
     // Settings > Organisation Setup > School Settings: the Global Settings the owner ticked "School may change it" for
-    ['settings.school', 'Manage School Settings', 'Ability to change the Global Settings the owner has ticked "School may change it" for (Settings > Organisation Setup > School Settings). It gives nothing while the owner has ticked none.', 'settings.edit'],
+    ['settings.school', 'Manage School Settings', 'Ability to change the Global Settings the owner has ticked "School may change it" for (Settings > Organisation Setup > School Setup, Rules set by the owner). It gives nothing while the owner has ticked none.', 'settings.edit'],
     ['finance.edit', 'Edit Fee Payment Details', 'Ability to change the fee structure, give waivers and bursaries, and change the M-Pesa and bank details fees are paid to.'],
     ['settings.edit', 'Edit Settings', 'Ability to change setup items and the School Setup details.'],
     ['students.edit', 'Edit Students', 'Ability to change student details, status, contacts and deferrals.'],

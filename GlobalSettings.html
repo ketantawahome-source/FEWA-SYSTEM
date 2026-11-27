@@ -110,7 +110,7 @@
             <div class="gs-card">
                 <div class="gs-scroll">
                     <table class="gs-table">
-                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th title="Ticked: the school may change this setting itself, in Settings &gt; Organisation Setup &gt; School Settings (staff with the Manage School Settings right)">School may change it</th><th>Description</th></tr></thead>
+                        <thead><tr><th>Setting</th><th>Value</th><th title="Ticked when changed: Save Settings saves these">Changed</th><th title="Ticked: the school may change this setting itself, at the bottom of Settings &gt; Organisation Setup &gt; School Setup (staff with the Manage School Settings right)">School may change it</th><th>Description</th></tr></thead>
                         <tbody id="settingRows"></tbody>
                     </table>
                 </div>
@@ -398,6 +398,18 @@
 
         $('search').addEventListener('input', filterRows);
         $('refreshButton').addEventListener('click', load);
+        /* Always the values as saved now (owner, 2026-11-27): the school may change a setting in Settings > Organisation
+           Setup > School Settings meanwhile, so the table is read again on coming back to the tab and every 20 seconds,
+           but only while the panel is open and nothing is being changed here (no row ticked), so typing is never lost. */
+        const refreshQuietly = () => {
+            if ($('panel').hidden || document.hidden) return;
+            if (SETTINGS.some(s => $('tick-' + s.control) && $('tick-' + s.control).checked)) return;
+            if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#settingRows')) return;
+            load();
+        };
+        document.addEventListener('visibilitychange', refreshQuietly);
+        window.addEventListener('focus', refreshQuietly);
+        setInterval(refreshQuietly, 20000);
         $('logoutAll').addEventListener('click', async () => {
             if (!await fewaConfirm('Log out everyone who is logged in now (staff and students)?')) return;
             try { await call('POST', 'logout-everyone'); status('Everyone has been logged out.'); load(); } catch (err) { status(err.message, false); }

@@ -1503,7 +1503,7 @@
         // The tabs shown under each Settings sidebar link (Academic Terms was removed: the periods are in
         // Academic Management > Semester Schedule)
         const SETTINGS_GROUPS = {
-            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments', 'qualificationTypes', 'schoolSettings'] },
+            organisation: { title: 'Organisation Setup', tabs: ['organization', 'campuses', 'batches', 'departments', 'qualificationTypes'] },
             setup: { title: 'Program Setup', tabs: ['schools', 'shortCourses', 'awardTypes', 'courses', 'enrollmentTypes', 'studySessions', 'regSequences'] },
             // (the Groups tab was replaced by Organisation Setup > Batches: a student's batch is picked from there)
             general: { title: 'Institution Setup', tabs: ['studentTypes', 'documentTypes'] },
@@ -1520,75 +1520,73 @@
                 .forEach(f => Object.assign(f, { hideInForm: true, keepWhenHidden: true }));
         }
 
-        // School Settings is shown only while the owner has ticked "School may change it" for at least one Global Setting
-        // (the Manage School Settings right alone gives nothing: the server also refuses any setting not ticked)
-        if (!fewaSession.schoolSettings) {
-            SETTINGS_GROUPS.organisation.tabs = SETTINGS_GROUPS.organisation.tabs.filter(tab => tab !== 'schoolSettings');
-        }
-
         // Settings tabs with their own page rather than a list or a form
         const SETTINGS_PAGES = {
             roleOperations: { title: 'Role Operations', render: () => renderRoleOperations() },
             backup: { title: 'Backups', render: () => renderBackupPage() },
             systemUpdate: { title: 'System Update', render: () => renderSystemUpdate() },
             // Organisation Setup > Batches: its own compact screen (the rules are in SETTINGS_LISTS.batches)
-            batches: { title: 'Batches', render: () => renderBatchesPage() },
-            // Organisation Setup > School Settings: the Global Settings the owner lets the school change
-            schoolSettings: { title: 'School Settings', render: () => renderSchoolSettings() }
+            batches: { title: 'Batches', render: () => renderBatchesPage() }
         };
 
-        /* ---------- Settings > Organisation Setup > School Settings (owner, 2026-11-27) ----------
-           The Global Settings (/GLOBALSETTINGS) the owner ticked "School may change it" for. Anyone with Access Settings
-           sees them; changing needs the Manage School Settings right (Role Operations). The server checks both and
-           refuses any other setting (server/global-settings/global-settings.mjs handleSchoolSettings). */
-        let schoolSettingsList = [];
-        async function renderSchoolSettings() {
-            const banner = document.getElementById('settingsBanner');
-            banner.innerText = 'These system settings are managed by the college owner in Global Settings. The owner has allowed the school '
-                + 'to change the ones below. Change a value and click Save School Settings.';
-            banner.classList.add('info-banner');
-            const content = document.getElementById('settingsContent');
-            let info;
-            try { info = await api('GET', '/school-settings'); }
-            catch (error) { content.innerHTML = `<div class="empty-state">School Settings could not be loaded: ${escapeHtml(error.message)}</div>`; return; }
-            schoolSettingsList = info.settings;
-            if (!info.settings.length) {
-                content.innerHTML = '<div class="empty-state">No settings have been given to the school yet. The college owner chooses them in Global Settings ("School may change it").</div>';
-                return;
-            }
+        /* ---------- Rules set by the owner, at the bottom of Organisation Setup > School Setup (owner, 2026-11-27) ----------
+           The Global Settings (/GLOBALSETTINGS) the owner ticked "School may change it" for, shown with a short label and
+           hint (not the long setting names), saved by School Setup's Save Settings. Shown only while the owner has ticked at
+           least one (fewaSession.schoolSettings). Anyone with Access Settings sees them; changing needs the Manage School
+           Settings right. The server refuses any other setting (server/global-settings/global-settings.mjs). */
+        let schoolRules = { canChange: false, settings: [] };
+        const schoolRuleValue = (s, box) => s.type === 'yesNo' ? box.value === 'YES' : s.type === 'number' ? Number(box.value) : box.value.trim();
+        const schoolRuleSaved = s => s.type === 'text' ? (s.value || '') : s.type === 'number' ? Number(s.value) || 0 : !!s.value;
+        async function schoolRulesHtml() {
+            schoolRules = { canChange: false, settings: [] };
+            if (!fewaSession.schoolSettings) return '';
+            try { schoolRules = await api('GET', '/school-settings'); } catch { return ''; }
+            if (!schoolRules.settings.length) return '';
+            const off = schoolRules.canChange ? '' : ' disabled';
             const box = s => s.type === 'yesNo'
-                ? `<select id="school-${s.control}" ${info.canChange ? '' : 'disabled'}><option value="YES"${s.value ? ' selected' : ''}>YES</option><option value="NO"${s.value ? '' : ' selected'}>NO</option></select>`
+                ? `<select id="rule-${s.control}"${off}><option value="YES"${s.value ? ' selected' : ''}>Yes</option><option value="NO"${s.value ? '' : ' selected'}>No</option></select>`
                 : s.type === 'number'
-                    ? `<input type="number" id="school-${s.control}" min="0" max="${s.max}" step="1" value="${Number(s.value) || 0}" ${info.canChange ? '' : 'disabled'}>`
-                    : `<textarea id="school-${s.control}" maxlength="${s.max}" rows="2" ${info.canChange ? '' : 'disabled'}>${escapeHtml(s.value || '')}</textarea>`;
-            content.innerHTML = `
-                <form id="schoolSettingsForm" class="settings-form" onsubmit="saveSchoolSettings(event)">
-                    <div class="table-wrap"><table class="data-table">
-                        <thead><tr><th>Setting</th><th>Value</th><th>Description</th></tr></thead>
-                        <tbody>${info.settings.map(s => `<tr>
-                            <td><label for="school-${s.control}"><b>${escapeHtml(s.name)}</b></label></td>
-                            <td>${box(s)}</td><td>${escapeHtml(s.description)}</td></tr>`).join('')}</tbody>
-                    </table></div>
-                    ${info.canChange ? '<div class="form-actions"><button type="submit" class="btn-submit">Save School Settings</button></div>'
-                        : '<p class="empty-state">You can see these settings. Changing them needs the Manage School Settings right (Settings &gt; Access Management &gt; Role Operations).</p>'}
-                </form>`;
+                    ? `<input type="number" id="rule-${s.control}" min="0" max="${s.max}" step="1" value="${Number(s.value) || 0}"${off}>`
+                    : `<input type="text" id="rule-${s.control}" maxlength="${s.max}" value="${escapeHtml(s.value || '')}"${off}>`;
+            return `<div class="school-rules" style="margin-top: 22px;">
+                <div class="section-title">Rules set by the owner</div>
+                <div class="grid-3">${schoolRules.settings.map(s => `<div class="form-group">
+                    <label for="rule-${s.control}">${escapeHtml(s.label || s.name)}</label>${box(s)}
+                    ${s.hint ? `<small>${escapeHtml(s.hint)}</small>` : ''}</div>`).join('')}</div>
+                ${schoolRules.canChange ? '' : '<p><small>Changing these needs the Manage School Settings right.</small></p>'}
+            </div>`;
         }
-        async function saveSchoolSettings(event) {
-            event.preventDefault();
+        // The rules changed on this page (the ones whose box differs from what is saved)
+        function schoolRuleChanges() {
             const changes = {};
-            for (const s of schoolSettingsList) {
-                const text = document.getElementById('school-' + s.control).value;
-                const value = s.type === 'yesNo' ? text === 'YES' : s.type === 'number' ? Number(text) : text.trim();
-                if (s.type === 'number' && !(Number.isInteger(value) && value >= 0 && value <= s.max)) return alert(`${s.name} must be a whole number from 0 to ${s.max}.`);
-                if (value !== s.value && !(s.type === 'text' && value === (s.value || ''))) changes[s.control] = value;
+            for (const s of schoolRules.settings) {
+                const box = document.getElementById('rule-' + s.control);
+                if (!box || box.disabled) continue;
+                const value = schoolRuleValue(s, box);
+                if (s.type === 'number' && !(Number.isInteger(value) && value >= 0 && value <= s.max)) throw new Error(`${s.label}: a whole number from 0 to ${s.max}.`);
+                if (value !== schoolRuleSaved(s)) changes[s.control] = value;
             }
-            if (!Object.keys(changes).length) return showToast('Nothing was changed.');
-            try {
-                await api('PUT', '/school-settings', changes);
-                showToast(`School Settings saved (${Object.keys(changes).length} changed).`);
-                renderSchoolSettings();
-            } catch (error) { alert('School Settings could not be saved: ' + error.message); }
+            return changes;
         }
+        /* Always the figure saved now (the owner may change it in Global Settings meanwhile): read again on coming back to
+           the tab and every 20 seconds while School Setup is on screen; a box being changed here is left alone */
+        async function refreshSchoolRules() {
+            const content = document.getElementById('settingsContent');
+            if (!fewaSession.schoolSettings || document.hidden || activeSettingsTab !== 'organization' || !content || !content.offsetParent) return;
+            if (!schoolRules.settings.length) return;
+            let fresh;
+            try { fresh = await api('GET', '/school-settings'); } catch { return; }
+            for (const s of fresh.settings) {
+                const box = document.getElementById('rule-' + s.control);
+                const was = schoolRules.settings.find(x => x.control === s.control);
+                if (!box || !was || document.activeElement === box || schoolRuleValue(was, box) !== schoolRuleSaved(was)) continue;
+                box.value = s.type === 'yesNo' ? (s.value ? 'YES' : 'NO') : s.type === 'number' ? String(Number(s.value) || 0) : (s.value || '');
+                was.value = s.value;
+            }
+        }
+        document.addEventListener('visibilitychange', refreshSchoolRules);
+        window.addEventListener('focus', refreshSchoolRules);
+        setInterval(refreshSchoolRules, 20000);
 
         /* ---------- Settings > Organisation Setup > Batches ----------
            Laid out like the Batches screen it was copied from: the school first, then the batch's academic year and
@@ -2583,6 +2581,7 @@
             container.innerHTML = `
                 <form class="settings-form" onsubmit="saveSettingsForm(event, '${key}')">
                     <div class="${key === 'organization' ? 'org-form-grid' : 'grid-3'}">${renderFields(settings.fields, await getSettingsRecord(key))}</div>
+                    ${key === 'organization' ? await schoolRulesHtml() : ''}
                     <div class="action-bar" style="margin-bottom: 0;">
                         <button type="submit" class="btn-submit">Save Settings</button>
                     </div>
@@ -2591,6 +2590,22 @@
 
         async function saveSettingsForm(event, key) {
             event.preventDefault();
+            // School Setup: the owner's rules first (their own right: Manage School Settings)
+            if (key === 'organization' && schoolRules.settings.length) {
+                let rules;
+                try { rules = schoolRuleChanges(); } catch (error) { return alert(error.message); }
+                if (Object.keys(rules).length) {
+                    try {
+                        schoolRules = await api('PUT', '/school-settings', rules);
+                    } catch (error) { return alert('The rules could not be saved: ' + error.message); }
+                }
+                // Someone who may change only the rules: nothing else to save
+                if (!can('settings', 'edit')) {
+                    if (Object.keys(rules).length) showToast('Rules saved successfully.');
+                    else allowed('settings', 'edit');
+                    return;
+                }
+            }
             // Fee Payment Details belongs to Manage Finance; the other forms to Settings
             if (!allowed(key === 'paymentDetails' ? 'finance' : 'settings', 'edit')) return;
             const settings = SETTINGS_FORMS[key];
