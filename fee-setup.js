@@ -633,14 +633,14 @@
                 ${mayChange() ? '<button type="button" class="btn-submit" onclick="feeSetupMembersSave()">Save List Members</button>' : ''}
                 <button type="button" class="btn-secondary" onclick="feeSetupMembersView()">View List</button>
             </div>
-            ${mayChange() ? `<h3 class="fs-subtitle fs-small">Copy members from another list</h3>
+            ${mayChange() ? `<div class="fs-section"><h3 class="fs-subtitle fs-small">Copy members from another list</h3>
             <div class="fs-copy"><label for="lm_copyFrom">Copy from</label><select id="lm_copyFrom"></select>
                 <button type="button" class="btn-secondary" onclick="feeSetupMembersCopy()">Copy Members</button></div>
             <div class="up-box fs-upload">
                 <div class="up-template">
                     <svg class="up-excel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8.5 12.5l5 6M13.5 12.5l-5 6"/></svg>
-                    <div class="up-template-text"><b>Excel template</b><span>One learner per row: admission number, name, class.</span></div>
+                    <div class="up-template-text"><b>Excel template</b><span>One learner per row: school code, admission number, name, class.</span></div>
                     <div class="up-template-buttons"><button type="button" class="btn-secondary" onclick="feeSetupMembersTemplate()">Download</button></div>
                 </div>
                 <label class="up-drop" for="lm_file">
@@ -652,10 +652,10 @@
                 <div class="up-limits"><span>Supported formats: XLS, XLSX</span><span>Max size: 10 MB</span></div>
                 <div class="up-submit"><span class="fs-hint">The learners are added to the list chosen above.</span>
                     <button type="button" class="btn-submit" onclick="feeSetupMembersUpload()">Upload List Members</button></div>
-            </div>` : ''}
+            </div></div>` : ''}
             <div id="lm_result"></div>
-            <h3 class="fs-subtitle fs-small">Learners</h3>
-            <div id="lm_learners"><p class="fin-note">Choose the list and the class to tick its learners.</p></div>
+            <div class="fs-section"><h3 class="fs-subtitle fs-small">Learners</h3>
+            <div id="lm_learners"><p class="fin-note">Choose the list and the class to tick its learners.</p></div></div>
         </div>`;
     }
 
@@ -685,7 +685,15 @@
         state.membersShown = 'learners';
         fillMembers();
         for (const name of ['school', 'batch', 'period', 'list', 'class', 'stream']) lm(name).addEventListener('change', () => { fillMembers(); drawLearners(); });
-        if (lm('file')) lm('file').addEventListener('change', () => { const f = lm('file').files[0]; lm('chosen').textContent = f ? f.name : 'Choose the list members spreadsheet'; });
+        if (lm('file')) {
+            const drop = lm('file').closest('.up-drop');
+            const chosen = () => { const f = lm('file').files[0]; lm('chosen').textContent = f ? f.name : 'Choose the list members spreadsheet'; drop.classList.toggle('has-file', !!f); };
+            lm('file').addEventListener('change', chosen);
+            // A file can also be dragged onto the box
+            drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragging'); });
+            drop.addEventListener('dragleave', () => drop.classList.remove('dragging'));
+            drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('dragging'); if (e.dataTransfer.files.length) { lm('file').files = e.dataTransfer.files; chosen(); } });
+        }
     }
 
     // The learners of the chosen class, batch and stream, ticked when on the chosen list
@@ -756,10 +764,11 @@
         } catch (err) { alert('Not every member could be copied: ' + err.message); await load(); drawLearners(); }
     }
 
-    const MEMBERS_FILE = 'List members';
+    const MEMBERS_FILE = 'list-members-template.xlsx';
     const MEMBER_HEADERS = ['Admission No', 'Name', 'Class'];
     function membersTemplate() {
         FewaExcel.template(MEMBERS_FILE, [
+            { title: 'School code', field: 'School code', help: "The school's code (for you only: the admission number decides who is added)" },
             { title: 'Admission No', field: 'Admission No', required: true, help: "The learner's admission number, e.g. HD01/001/2026" },
             { title: 'Name', field: 'Name', help: 'For you only: the admission number decides who is added' },
             { title: 'Class', field: 'Class', help: 'For you only (the course)' }], 'List members').catch(err => alert(err.message));
@@ -805,7 +814,7 @@
             showToast(`${good.length} learner${good.length === 1 ? '' : 's'} added to ${list.title}.`);
         } catch (err) { alert('Not every learner could be added: ' + err.message); }
         feedback(); show();
-        lm('file').value = ''; lm('chosen').textContent = 'Choose the list members spreadsheet';
+        lm('file').value = ''; lm('chosen').textContent = 'Choose the list members spreadsheet'; lm('file').closest('.up-drop').classList.remove('has-file');
         await load(); fillMembers(); drawList(); drawLearners();
     }
 

@@ -6723,3 +6723,32 @@ tr.stamp-old td { color: #9a8fae; }
 .fs-upload .up-submit { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; }
 .link-button { background: none; border: 0; padding: 0 6px; color: #1d5f99; text-decoration: underline; cursor: pointer; font: inherit; }
 @media (max-width: 900px) { .fs-copy { grid-template-columns: minmax(0, 1fr); } }
+/* Fee Setup > Lists > List Members: the Excel upload box (as Manage Units' upload box, which keeps its own copy) and sections */
+.fs-members .up-box { max-width: 630px; margin-top: 18px; }
+.fs-members .up-template { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #eef4fb; border-radius: 10px 10px 0 0; }
+.fs-members .up-excel { width: 34px; height: 34px; color: #1d6f42; flex: none; }
+.fs-members .up-template-text { flex: 1; font-size: 14px; color: var(--fewa-text); }
+.fs-members .up-template-text b { display: block; font-weight: 600; margin-bottom: 2px; }
+.fs-members .up-template-text span { color: var(--fewa-muted); font-size: 13px; }
+.fs-members .up-template-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.fs-members .up-template-buttons .btn-secondary { margin: 0; }
+.fs-members .up-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 150px;
+    border: 2px dashed #c7cfdb; border-radius: 0 0 10px 10px; background: #f6f9fd; cursor: pointer; text-align: center; padding: 16px; }
+.fs-members .up-drop:hover, .fs-members .up-drop.dragging { border-color: var(--fewa-ink); background: var(--fewa-gold-tint); }
+.fs-members .up-drop.has-file { border-style: solid; border-color: #1d6f42; }
+.fs-members .up-cloud { width: 48px; height: 48px; color: #3a7bbf; }
+.fs-members .up-choose { font-weight: 600; text-decoration: underline; color: var(--fewa-ink); word-break: break-all; }
+.fs-members .up-limits { display: flex; justify-content: space-between; color: var(--fewa-muted); font-size: 13px; margin-top: 8px; }
+.fs-members .up-submit { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.fs-members .up-submit .btn-submit { margin: 0; }
+.fs-members .fs-section { border-top: 1px solid var(--fewa-line); margin-top: 22px; padding-top: 4px; }
+.fs-members .fs-subtitle.fs-small { font-size: 1.2rem; font-weight: 400; margin: 14px 0 14px; }
+.fs-members .fs-copy { grid-template-columns: max-content minmax(0, 500px) 1fr; }
+.fs-members .fs-copy .btn-secondary { justify-self: center; margin: 0; }
+@media (max-width: 700px) {
+    .fs-members .up-template { flex-wrap: wrap; }
+    .fs-members .up-template-text { flex: 1 1 calc(100% - 60px); min-width: 0; }
+    .fs-members .up-template-buttons { flex: 1 1 100%; }
+    .fs-members .fs-copy { grid-template-columns: minmax(0, 1fr); }
+    .fs-members .fs-copy .btn-secondary { justify-self: start; }
+}
