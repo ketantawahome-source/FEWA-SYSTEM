@@ -28,6 +28,9 @@
         .sort((a, b) => a.localeCompare(b));
     const num = v => v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString();
     const yn = v => v === 'Y' ? 'Yes' : 'No';
+    // A tick box's value on a record (an older record without it: the box's starting value)
+    const isTicked = (f, r) => r[f.name] === undefined || r[f.name] === null || r[f.name] === '' ? !!f.start : r[f.name] === 'Y';
+    const ticked = (t, r) => t.fields.filter(f => f.type === 'check' && isTicked(f, r)).map(f => f.label).join(', ');
     const value = (r, kind) => r.calculatedAs === 'PERCENT' ? `${num(r.value)}%` : r.value === '' || r.value == null ? '' : `KES ${num(r.value)}`;
     const mayChange = () => can('finance', 'setup');
     const app = () => document.getElementById('feeSetupApp');
@@ -50,12 +53,20 @@
                 { name: 'consolidationType', label: 'Consolidation Fee Type', type: 'select',
                     options: () => names('fee_types', 'feeName').filter(n => !box('feeName') || !same(n, box('feeName').value)) },
                 { name: 'status', label: 'Status', type: 'select', options: () => STATUS, placeholder: null },
+                // Options: two columns as the owner's example (left, right, left, right...)
                 { name: 'optionalFee', label: 'Optional Fee', type: 'check' },
-                { name: 'chargeOnce', label: 'Charge Once (On Admission)', type: 'check' }
+                { name: 'chargeOnce', label: 'Charge Once (On Admission)', type: 'check' },
+                { name: 'miscellaneousFee', label: 'Miscellaneous Fee', type: 'check' },
+                { name: 'chargeOnceYear', label: 'Charge Once Every Year', type: 'check' },
+                { name: 'discountEligible', label: 'Discount Eligible', type: 'check' },
+                { name: 'chargeOncePerFamily', label: 'Charge Once Per Family', type: 'check' },
+                { name: 'refundable', label: 'Refundable', type: 'check' },
+                { name: 'continuingOnly', label: 'Charge Continuing Students Only', type: 'check' },
+                { name: 'chargeOnTransfer', label: 'Charge On Inter School Transfer', type: 'check', start: true },
+                { name: 'billProspective', label: 'Bill Prospective Students', type: 'check' }
             ],
-            columns: [['Fee name', r => r.feeName], ['Applies to', r => r.appliesTo || 'All courses'], ['Income class', r => r.incomeClass || 'DEFAULT'],
-                ['Account', r => r.account], ['Fee type', r => r.feeType], ['Priority', r => num(r.priority), true],
-                ['Consolidation', r => r.consolidationType], ['Optional', r => yn(r.optionalFee)], ['Once', r => yn(r.chargeOnce)],
+            columns: [['Charge', r => r.feeName], ['Apply to', r => r.appliesTo || 'All courses'], ['Fee type', r => r.feeType],
+                ['Priority', r => num(r.priority), true], ['Options', r => ticked(TABS[0], r)], ['Consolidate to', r => r.consolidationType],
                 ['Status', r => r.status || 'ACTIVE']],
             sort: (a, b) => Number(a.priority || 99) - Number(b.priority || 99) || String(a.feeName).localeCompare(String(b.feeName)),
             same: (a, b) => same(a.feeName, b.feeName) && same(a.appliesTo, b.appliesTo),
@@ -236,7 +247,7 @@
                 <div class="fs-info">${esc(t.note)}</div>
                 <div class="fs-grid">${plain.map(f => `<label for="fs_${f.name}">${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>${input(f)}`).join('')}
                     ${checks.length ? `<span class="fs-options-label">Options</span><div class="fs-options">${checks.map(f =>
-                        `<label class="fs-check"><input type="checkbox" id="fs_${f.name}"> ${esc(f.label)}</label>`).join('')}</div>` : ''}
+                        `<label class="fs-check"><input type="checkbox" id="fs_${f.name}"${f.start ? ' checked' : ''}> ${esc(f.label)}</label>`).join('')}</div>` : ''}
                 </div>
                 <div class="fs-buttons">
                     ${mayChange() ? `<button type="button" class="btn-submit" id="fsSave" onclick="feeSetupSave()">${esc(t.save)}</button>` : ''}
@@ -345,7 +356,7 @@
         state.editing = id;
         for (const f of t.fields) {
             const el = box(f.name), v = r[f.name] === undefined || r[f.name] === null ? '' : String(r[f.name]);
-            if (f.type === 'check') { el.checked = v === 'Y'; continue; }
+            if (f.type === 'check') { el.checked = isTicked(f, r); continue; }
             if (f.type === 'select' && v && ![...el.options].some(o => o.value === v)) el.add(new Option(v, v));
             el.value = v;
         }

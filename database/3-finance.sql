@@ -220,3 +220,13 @@ ALTER TABLE finance.payment_methods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.school_payment_methods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.bank_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.finance_lists ENABLE ROW LEVEL SECURITY;
+
+-- Fee Types options added later (owner, 2026-11-28); Y / N each
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS miscellaneous_fee text;
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS discount_eligible text;
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS refundable text;
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS charge_on_transfer text;          -- charged on an inter school transfer (ticked at first)
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS charge_once_year text;            -- once every year
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS charge_once_per_family text;      -- once per family (siblings pay once)
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS continuing_only text;             -- continuing students only (not new ones)
+ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS bill_prospective text;            -- billed to applicants before admission
