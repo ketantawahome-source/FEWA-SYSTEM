@@ -6695,7 +6695,7 @@ tr.stamp-old td { color: #9a8fae; }
 .fs-info { background: #eef6fd; border: 1px solid #bfdcf3; color: #1d5f99; border-radius: 4px; padding: 14px 18px; margin-bottom: 20px; }
 .fs-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); gap: 14px 22px; align-items: center; }
 .fs-grid > label { font-weight: 600; color: var(--fewa-ink); }
-.fs-grid select, .fs-grid input[type="text"], .fs-grid input[type="number"] { width: 100%; }
+.fs-grid select, .fs-grid input[type="text"], .fs-grid input[type="number"], .fs-grid textarea { width: 100%; }
 .fs-options-label { font-weight: 600; color: var(--fewa-ink); align-self: start; }
 .fs-options { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 40px; }
 .fs-options.fs-options-row { display: flex; flex-wrap: wrap; gap: 10px 28px; }
@@ -6710,3 +6710,16 @@ tr.stamp-old td { color: #9a8fae; }
     .fs-options { grid-column: auto; grid-template-columns: minmax(0, 1fr); }
     .fs-listbar input { max-width: none; }
 }
+.fs-hint { display: block; color: var(--fewa-muted); font-size: .82rem; margin-top: 4px; }
+.fs-ticks { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 12px 22px; margin-top: 16px; }
+.fs-ticks .fs-options { grid-column: 2; }
+@media (max-width: 900px) { .fs-ticks { grid-template-columns: minmax(0, 1fr); } .fs-ticks .fs-options { grid-column: auto; } }
+.fs-members { margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--fewa-line); }
+.fs-subtitle { font-size: 1.15rem; font-weight: 600; color: var(--fewa-ink); margin: 14px 0 12px; }
+.fs-subtitle.fs-small { font-size: 1rem; margin-top: 22px; }
+.fs-copy { display: grid; grid-template-columns: max-content minmax(0, 360px) max-content; gap: 12px 22px; align-items: center; margin-bottom: 14px; }
+.fs-copy label { font-weight: 600; color: var(--fewa-ink); }
+.fs-upload { max-width: 560px; }
+.fs-upload .up-submit { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; }
+.link-button { background: none; border: 0; padding: 0 6px; color: #1d5f99; text-decoration: underline; cursor: pointer; font: inherit; }
+@media (max-width: 900px) { .fs-copy { grid-template-columns: minmax(0, 1fr); } }

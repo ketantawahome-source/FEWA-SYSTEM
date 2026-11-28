@@ -20,7 +20,7 @@ const STORE_KEYS = { students: 'id', documents: 'id', settings: 'key', deferrals
     exam_groups: 'id', exam_types: 'id', grading_systems: 'id', group_exam_types: 'id', award_setups: 'id', course_exam_groups: 'id', exam_paper_types: 'id',
     staff_qualifications: 'id', attendance_registers: 'id',
     fee_types: 'id', vote_heads: 'id', discount_types: 'id', discount_amounts: 'id', discounts_surcharges: 'id', payment_methods: 'id',
-    school_payment_methods: 'id', bank_accounts: 'id', finance_lists: 'id' };
+    school_payment_methods: 'id', bank_accounts: 'id', finance_lists: 'id', student_lists: 'id', list_members: 'id' };
 const fewaServer = { online: false, error: '' };
 /* Staff and students have separate logins, so both can be logged in in one browser. Every request says which this
    page uses (server.mjs, getSession): the Student Portal its student's, the login page any, the rest staff. */

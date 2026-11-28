@@ -238,3 +238,58 @@ ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS billable_subs numeric;  
 ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS show_on_fee_structure text;    -- Y / N (ticked at first)
 ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS show_on_invoices text;         -- Y / N (ticked at first)
 ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS extra_curricular text;         -- Y / N
+
+-- Discount Types / Discount Amounts fields added later (owner, 2026-11-28)
+ALTER TABLE finance.discount_types ADD COLUMN IF NOT EXISTS kind text;            -- Early payment / Family (by number of children) / Manual
+ALTER TABLE finance.discount_amounts ADD COLUMN IF NOT EXISTS school text;        -- Institution (Settings > Schools; empty = all)
+ALTER TABLE finance.discount_amounts ADD COLUMN IF NOT EXISTS batch text;         -- Settings > Batches
+ALTER TABLE finance.discount_amounts ADD COLUMN IF NOT EXISTS remarks text;
+
+-- Discounts & Surcharges, Bank Accounts fields added later (owner, 2026-11-28)
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS setup_type text;      -- Family discount (by number of children), Early payment discount, ... Late payment surcharge
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS applies_to text;      -- a fee type, or ALL FEES
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS period text;          -- Term (empty = every term)
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS batch text;
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS from_child numeric;   -- family discount: from this child of a family ...
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS to_child numeric;     -- ... to this one
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS cut_off_date date;    -- e.g. paid before this date (early payment) / after it (late)
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS class_from text;      -- YEAR 1 ... (empty = all classes)
+ALTER TABLE finance.discounts_surcharges ADD COLUMN IF NOT EXISTS class_to text;
+ALTER TABLE finance.bank_accounts ADD COLUMN IF NOT EXISTS bank_code text;
+ALTER TABLE finance.bank_accounts ADD COLUMN IF NOT EXISTS source text;                 -- the online payment channel paying into it, e.g. MPESA
+
+-- ---------- Fee Setup > Lists (owner, 2026-11-28): lists of students (clubs, trips...) with a charge, and their members ----------
+CREATE TABLE IF NOT EXISTS finance.student_lists (
+    id            text PRIMARY KEY,
+    school        text,                     -- Settings > Schools
+    parent        text,                     -- Sub-list of (the title of a main list); empty = a main list
+    title         text,                     -- e.g. Music club, Mombasa trip
+    charge        numeric,                  -- List charge (KES)
+    batch         text,                     -- Settings > Batches, or the academic year (short courses)
+    period        text,                     -- SEMESTER 1, 2...
+    publish_date  date,
+    expiry_date   date,
+    charge_type   text,                     -- ONCE, EVERY TERM, EVERY YEAR
+    list_type     text,                     -- CLUB, SOCIETY, SPORTS, TRIP, TRANSPORT, BOARDING, OTHER
+    depends_on    text,                     -- only learners on this other list may join
+    self_onboard  text,                     -- Y / N: students can join from the portal
+    description   text,                     -- shown to parents on the portal (the title when empty)
+    updated_at    timestamptz,
+    updated_by    text,
+    extra         jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.list_members (
+    id            text PRIMARY KEY,
+    list_id       text,                     -- finance.student_lists.id
+    list_title    text,                     -- as it was when the learner was added
+    student_id    text,                     -- students.students.id
+    adm_no        text,
+    student_name  text,
+    course        text,                     -- the learner's class (course)
+    updated_at    timestamptz,
+    updated_by    text,
+    extra         jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS list_members_list ON finance.list_members (list_id);
+ALTER TABLE finance.student_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.list_members ENABLE ROW LEVEL SECURITY;

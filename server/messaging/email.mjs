@@ -295,7 +295,7 @@ const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 're
 const STUDENT_WRITERS = ['students.edit', 'students.applications', 'students.status', 'students.deferrals', 'students.contacts',
     'students.password', 'students.photos'];
 const STUDENT_READERS = ['students.view', 'students.add', 'students.edit', 'students.delete', 'documents.view', 'documents.add',
-    'finance.view', 'finance.add', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS,
+    'finance.view', 'finance.add', 'finance.setup', ...REPORT_READERS, 'queries.view', 'settings.edit', 'settings.delete', ...STUDENT_WRITERS,
     ...ACADEMIC_RIGHTS];
 export const RIGHTS_TO_READ = {
     students: STUDENT_READERS,
