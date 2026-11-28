@@ -188,26 +188,28 @@
                 { name: 'setupType', label: 'Setup Type', type: 'select', required: true, options: () => SETUP_TYPES, refill: true },
                 { name: 'name', label: 'Name', type: 'text', required: true, max: 100 },
                 { name: 'calculatedAs', label: 'Value Type', type: 'select', options: () => ['PERCENT', 'AMOUNT'], placeholder: null, refill: true },
-                { name: 'period', label: 'Term', type: 'select', options: () => state.terms, placeholder: '-- every term --' },
-                { name: 'batch', label: 'Batch', type: 'select', options: () => [...batchChoices(''), ...state.years] },
+                { name: 'period', label: 'Term', type: 'select', placeholder: '-- every term --', options: () => termChoices(box('course') && box('course').value),
+                    lockIf: () => !!shortOf(box('course') && box('course').value) },
+                { name: 'batch', label: 'Batch', type: 'select', labelNow: () => shortOf(box('course') && box('course').value) ? 'Academic Year' : 'Batch',
+                    options: () => shortOf(box('course') && box('course').value) ? state.years : [...batchChoices(''), ...state.years] },
                 // The family discount: from the 2nd to the 10th child of a family, for example
                 { name: 'fromChild', label: 'From child no.', type: 'number', min: 1, max: 50, placeholder: 'e.g. 2', starIf: () => isFamily() },
                 { name: 'toChild', label: 'To child no.', type: 'number', min: 1, max: 50, placeholder: 'e.g. 10', starIf: () => isFamily() },
                 { name: 'value', label: 'Discount (%)', type: 'number', min: 0, max: 10000000, required: true, placeholder: 'e.g. 5',
                     labelNow: () => `${isSurcharge() ? 'Surcharge' : 'Discount'} (${box('calculatedAs') && box('calculatedAs').value === 'AMOUNT' ? 'KES' : '%'})` },
                 { name: 'cutOffDate', label: 'Cut-off Date', type: 'date' },
-                { name: 'classFrom', label: 'Class From', type: 'select', options: () => state.classes, placeholder: '-- all classes --' },
-                { name: 'classTo', label: 'Class To', type: 'select', options: () => state.classes, placeholder: '-- all classes --' }
+                // (was Class From / Class To; owner: the course instead) - a short course: whole-course term, academic year
+                { name: 'course', label: 'Course', type: 'select', options: () => state.courses, placeholder: '-- all courses --', refill: true }
             ],
             columns: [['Setup type', r => r.setupType || r.kind], ['Name', r => r.name], ['Applies to', r => r.appliesTo || r.feeType || 'ALL FEES'],
-                ['Term', r => r.period || 'Every term'], ['Batch', r => r.batch || 'All batches'],
+                ['Course', r => r.course || 'All courses'],
+                ['Term', r => shortOf(r.course) ? `${shortOf(r.course)} - whole course` : r.period || 'Every term'], ['Batch', r => r.batch || 'All batches'],
                 ['Children', r => r.fromChild || r.toChild ? `${r.fromChild || 1} to ${r.toChild || ''}` : ''], ['Value', r => value(r), true],
-                ['Cut-off', r => r.cutOffDate ? String(r.cutOffDate).slice(0, 10).split('-').reverse().join('/') : ''],
-                ['Classes', r => r.classFrom || r.classTo ? `${r.classFrom || 'YEAR 1'} to ${r.classTo || 'last'}` : 'All classes']],
+                ['Cut-off', r => r.cutOffDate ? String(r.cutOffDate).slice(0, 10).split('-').reverse().join('/') : '']],
             sort: (a, b) => String(a.period).localeCompare(String(b.period), undefined, { numeric: true }) || String(a.setupType).localeCompare(String(b.setupType))
                 || Number(a.fromChild || 0) - Number(b.fromChild || 0) || String(a.name).localeCompare(String(b.name)),
             same: (a, b) => same(a.setupType, b.setupType) && same(a.name, b.name) && same(a.appliesTo, b.appliesTo) && same(a.period, b.period)
-                && same(a.batch, b.batch) && same(a.fromChild, b.fromChild),
+                && same(a.batch, b.batch) && same(a.fromChild, b.fromChild) && same(a.course, b.course),
             label: r => r.name + (r.period ? ` (${r.period})` : ''),
             // Discount or surcharge follows from the setup type
             derive: r => { r.kind = /surcharge/i.test(r.setupType) ? 'SURCHARGE' : 'DISCOUNT'; },
@@ -215,8 +217,6 @@
                 if (r.calculatedAs === 'PERCENT' && Number(r.value) > 100) return 'A percentage cannot be above 100.';
                 if (/family/i.test(r.setupType) && (r.fromChild === '' || r.toChild === '')) return 'Please fill in: From child no., To child no.';
                 if (r.fromChild !== '' && r.toChild !== '' && Number(r.fromChild) > Number(r.toChild)) return 'From child no. is above To child no.';
-                const at = c => state.classes.indexOf(c);
-                if (r.classFrom && r.classTo && at(r.classFrom) > at(r.classTo)) return 'Class From is after Class To.';
                 return '';
             },
             // Copy previous term's discounts: the term before the chosen Term (same batch when one is chosen)
@@ -595,12 +595,13 @@
     // entries already there are left as they are
     async function copyPreviousTerm() {
         if (!allowed('finance', 'setup')) return;
-        const t = tab(), to = box('period').value, batch = box('batch').value;
+        const t = tab(), to = box('period').value, batch = box('batch').value, course = box('course') ? box('course').value : '';
+        if (shortOf(course)) return alert(`${course} is a short course: it has one term (the whole course), so there is no previous term to copy.`);
         if (!to) return alert('Choose the Term to copy the discounts to (the term before it is copied).');
         const at = state.terms.indexOf(to);
         if (at < 1) return alert(`${to} is the first term: there is no term before it to copy from.`);
         const from = state.terms[at - 1];
-        const source = rows(t.store).filter(r => same(r.period, from) && (!batch || same(r.batch, batch)));
+        const source = rows(t.store).filter(r => same(r.period, from) && (!batch || same(r.batch, batch)) && (!course || same(r.course, course)));
         if (!source.length) return alert(`There are no discounts or surcharges for ${from}${batch ? ' in ' + batch : ''} to copy.`);
         const copies = source.map(r => ({ ...r, period: to })).filter(c => !rows(t.store).some(r => t.same(r, c)));
         if (!copies.length) return alert(`Every entry of ${from} is already in ${to}.`);
