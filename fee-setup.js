@@ -24,6 +24,8 @@
     const termChoices = course => shortOf(course) ? [['SEMESTER 1', `${shortOf(course)} - whole course`]] : state.terms;
     const CHARGE_TYPES = ['ONCE', 'EVERY TERM', 'EVERY YEAR'];
     const LIST_TYPES = ['CLUB', 'SOCIETY', 'SPORTS', 'TRIP', 'TRANSPORT', 'BOARDING', 'OTHER'];
+    // The courses of a school (Settings > Courses: Institute); all courses when no school is chosen
+    const coursesOf = school => state.courses.filter(c => !school || !courseSchool(c) || same(courseSchool(c), school));
     const listsOf = school => rows('student_lists').filter(l => !school || same(l.school, school));
     const membersOf = listId => rows('list_members').filter(m => m.listId === listId);
     const shownDate = d => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '';
@@ -272,14 +274,20 @@
             optionsLabel: 'Self onboard', needFilter: 'school', members: true,
             fields: [
                 { name: 'school', label: 'School', type: 'select', required: true, options: () => state.schools, filter: true, refill: true },
+                // The courses of the chosen school (owner); empty = every course of the school
+                { name: 'course', label: 'Course', type: 'select', placeholder: '-- all courses --', refill: true,
+                    options: () => coursesOf(box('school') && box('school').value) },
                 { name: 'parent', label: 'Sub-list of', type: 'select', placeholder: '-- none (main list) --',
                     options: () => listsOf(box('school') && box('school').value).filter(l => !l.parent && l.id !== state.editing).map(l => l.title) },
                 { name: 'title', label: 'List title', type: 'text', required: true, max: 100, placeholder: 'For example Music club or Mombasa trip' },
                 { name: 'charge', label: 'List charge', type: 'number', min: 0, max: 10000000, start: 0 },
                 // (a short course student's "batch" is the academic year)
                 { name: 'batch', label: 'Batch', type: 'select', required: true, filter: true,
-                    options: () => [...batchChoices(box('school') ? box('school').value : ''), ...state.years] },
-                { name: 'period', label: 'Period', type: 'select', required: true, filter: true, options: () => state.terms },
+                    labelNow: () => shortOf(box('course') && box('course').value) ? 'Academic Year' : 'Batch',
+                    options: () => shortOf(box('course') && box('course').value) ? state.years
+                        : [...batchChoices(box('school') ? box('school').value : ''), ...state.years] },
+                { name: 'period', label: 'Period', type: 'select', required: true, filter: true,
+                    options: () => termChoices(box('course') && box('course').value), lockIf: () => !!shortOf(box('course') && box('course').value) },
                 { name: 'publishDate', label: 'Publish date', type: 'date' },
                 { name: 'expiryDate', label: 'Expiry date', type: 'date' },
                 { name: 'chargeType', label: 'Charge type', type: 'select', options: () => CHARGE_TYPES },
@@ -289,17 +297,18 @@
                 { name: 'description', label: 'Description', type: 'textarea', max: 500, placeholder: 'Shown to parents on the portal; the title is used when left blank' },
                 { name: 'selfOnboard', label: 'Students can join from the portal', type: 'check' }
             ],
-            columns: [['List title', r => r.title], ['Sub-list of', r => r.parent], ['List type', r => r.listType],
+            columns: [['List title', r => r.title], ['Course', r => r.course || 'All courses'], ['Sub-list of', r => r.parent], ['List type', r => r.listType],
                 ['Charge', r => r.charge === '' || r.charge == null ? '' : `KES ${num(r.charge)}`, true], ['Charge type', r => r.chargeType],
-                ['Batch', r => r.batch], ['Period', r => r.period], ['Publish', r => shownDate(r.publishDate)], ['Expiry', r => shownDate(r.expiryDate)],
+                ['Batch', r => r.batch], ['Period', r => shortOf(r.course) ? `${shortOf(r.course)} - whole course` : r.period], ['Publish', r => shownDate(r.publishDate)], ['Expiry', r => shownDate(r.expiryDate)],
                 ['Depends on', r => r.dependsOn], ['Self onboard', r => r.selfOnboard === 'Y' ? 'YES' : 'NO'],
                 ['Members', r => String(membersOf(r.id).length), true]],
             sort: (a, b) => String(a.parent || a.title).localeCompare(String(b.parent || b.title)) || (a.parent ? 1 : 0) - (b.parent ? 1 : 0)
                 || String(a.title).localeCompare(String(b.title)),
-            same: (a, b) => same(a.school, b.school) && same(a.title, b.title) && same(a.batch, b.batch) && same(a.period, b.period),
-            label: r => r.title,
+            same: (a, b) => same(a.school, b.school) && same(a.course, b.course) && same(a.title, b.title) && same(a.batch, b.batch) && same(a.period, b.period),
+            label: r => r.title + (r.course ? ` (${r.course})` : ''),
             check: r => {
                 if (r.parent && same(r.parent, r.title)) return 'A list cannot be a sub-list of itself.';
+                if (r.course && r.school && courseSchool(r.course) && !same(courseSchool(r.course), r.school)) return `${r.course} is not a course of ${r.school}.`;
                 if (r.dependsOn && same(r.dependsOn, r.title)) return 'A list cannot depend on itself.';
                 if (r.publishDate && r.expiryDate && r.expiryDate < r.publishDate) return 'The expiry date is before the publish date.';
                 return '';
@@ -674,8 +683,9 @@
         const lists = rows('student_lists').filter(l => (!school || same(l.school, school)) && (!lm('batch').value || same(l.batch, lm('batch').value))
             && (!lm('period').value || same(l.period, lm('period').value)));
         put('list', lists.map(l => [l.id, l.parent ? `${l.parent} > ${l.title}` : l.title]));
-        const classes = state.courses.filter(c => !school || !courseSchool(c) || same(courseSchool(c), school));
-        put('class', classes);
+        const list = chosenList();
+        put('class', list && list.course ? [list.course] : coursesOf(school));
+        if (list && list.course) lm('class').value = list.course;
         put('stream', [...new Set(state.students.map(s => s.studySession).filter(Boolean))].sort(), '-- all streams --');
         if (lm('copyFrom')) put('copyFrom', rows('student_lists').filter(l => l.id !== lm('list').value && (!school || same(l.school, school)))
             .map(l => [l.id, `${l.title} (${l.batch}, ${l.period}) - ${membersOf(l.id).length} members`]));

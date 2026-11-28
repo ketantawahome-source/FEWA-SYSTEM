@@ -293,3 +293,6 @@ CREATE TABLE IF NOT EXISTS finance.list_members (
 CREATE INDEX IF NOT EXISTS list_members_list ON finance.list_members (list_id);
 ALTER TABLE finance.student_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.list_members ENABLE ROW LEVEL SECURITY;
+
+-- Lists: the course of a list (owner, 2026-11-28; empty = every course of the school)
+ALTER TABLE finance.student_lists ADD COLUMN IF NOT EXISTS course text;
