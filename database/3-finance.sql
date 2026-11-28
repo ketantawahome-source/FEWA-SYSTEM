@@ -98,3 +98,125 @@ COMMENT ON TABLE finance.payments IS 'Fee payments received. Never deleted: a wr
 ALTER TABLE finance.fee_structure ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.charges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE finance.payments ENABLE ROW LEVEL SECURITY;
+
+
+-- =====================================================================================================
+-- Manage Finance > Fee Setup (owner, 2026-11-28): the lists fees are built from. Record stores (one row per entry,
+-- extra = fields without a column), edited on StudentAdmissions.html (fee-setup.js). Read: finance rights; change:
+-- Edit Fee Setup (finance.setup).
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS finance.fee_types (
+    id                  text PRIMARY KEY,
+    fee_name            text,               -- e.g. Tuition Fee
+    applies_to          text,               -- a course; empty = all courses
+    income_class        text,               -- Lists > Income class (empty = DEFAULT)
+    account             text,               -- Lists > Income / liability account
+    fee_type            text,               -- NORMAL FEES or OTHER CHARGES
+    priority            numeric,            -- order a payment pays the fees off (1 first)
+    consolidation_type  text,               -- another fee type it is shown under on statements
+    optional_fee        text,               -- Y / N
+    charge_once         text,               -- Y / N: charged once, on admission
+    status              text,               -- ACTIVE / INACTIVE
+    updated_at          timestamptz,
+    updated_by          text,
+    extra               jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.vote_heads (
+    id          text PRIMARY KEY,
+    name        text,                       -- e.g. Tuition, Exams, Library
+    code        text,
+    fee_type    text,                       -- the fee type it belongs to
+    priority    numeric,
+    status      text,
+    updated_at  timestamptz,
+    updated_by  text,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.discount_types (
+    id           text PRIMARY KEY,
+    name         text,                      -- e.g. Sibling discount, Staff child, Bursary
+    code         text,
+    description  text,
+    status       text,
+    updated_at   timestamptz,
+    updated_by   text,
+    extra        jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.discount_amounts (
+    id             text PRIMARY KEY,
+    discount_type  text,
+    course         text,                    -- empty = all courses
+    fee_type       text,                    -- empty = all fee types
+    period         text,                    -- e.g. SEMESTER 1; empty = every semester
+    calculated_as  text,                    -- PERCENT or AMOUNT
+    value          numeric,
+    updated_at     timestamptz,
+    updated_by     text,
+    extra          jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.discounts_surcharges (
+    id             text PRIMARY KEY,
+    kind           text,                    -- DISCOUNT or SURCHARGE
+    name           text,
+    course         text,                    -- empty = all courses
+    fee_type       text,                    -- empty = all fee types
+    calculated_as  text,                    -- PERCENT or AMOUNT
+    value          numeric,
+    condition      text,                    -- when it applies, e.g. Paid in full before the semester starts
+    status         text,
+    updated_at     timestamptz,
+    updated_by     text,
+    extra          jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.payment_methods (
+    id               text PRIMARY KEY,
+    name             text,                  -- e.g. M-Pesa, Bank Deposit, Cash, Cheque
+    code             text,                  -- e.g. MPESA
+    needs_reference  text,                  -- Y / N: a transaction code / slip number must be typed
+    status           text,
+    updated_at       timestamptz,
+    updated_by       text,
+    extra            jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.school_payment_methods (
+    id              text PRIMARY KEY,
+    school          text,                   -- Settings > Schools
+    payment_method  text,
+    bank_account    text,                   -- Bank Accounts (account name and number)
+    pay_number      text,                   -- Paybill / Till number
+    account_format  text,                   -- what to type as the account, e.g. Student AdmNo
+    status          text,
+    updated_at      timestamptz,
+    updated_by      text,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.bank_accounts (
+    id              text PRIMARY KEY,
+    bank_name       text,
+    branch          text,
+    account_name    text,
+    account_number  text,
+    currency        text,                   -- e.g. KES
+    school          text,                   -- empty = all schools
+    status          text,
+    updated_at      timestamptz,
+    updated_by      text,
+    extra           jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE TABLE IF NOT EXISTS finance.finance_lists (
+    id          text PRIMARY KEY,
+    list_name   text,                       -- e.g. INCOME CLASS, INCOME / LIABILITY ACCOUNT
+    item        text,
+    updated_at  timestamptz,
+    updated_by  text,
+    extra       jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+ALTER TABLE finance.fee_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.vote_heads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.discount_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.discount_amounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.discounts_surcharges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.payment_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.school_payment_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.bank_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance.finance_lists ENABLE ROW LEVEL SECURITY;

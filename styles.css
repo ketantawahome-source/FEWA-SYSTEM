@@ -6688,3 +6688,24 @@ tr.stamp-old td { color: #9a8fae; }
 .backup-create svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .backup-recent { margin-top: 18px; padding-top: 14px; border-top: 1px solid #eee; }
 .backup-none { color: #6b6478; font-size: 15px; margin: 6px 0 4px; }
+
+/* ---------- Manage Finance > Fee Setup (fee-setup.js): title, blue note, two columns of label + box, Options ticks ---------- */
+.fs-sheet { background: #fff; }
+.fs-title { font-size: 1.35rem; font-weight: 600; color: var(--fewa-ink); margin: 4px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--fewa-line); }
+.fs-info { background: #eef6fd; border: 1px solid #bfdcf3; color: #1d5f99; border-radius: 4px; padding: 14px 18px; margin-bottom: 20px; }
+.fs-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); gap: 14px 22px; align-items: center; }
+.fs-grid > label { font-weight: 600; color: var(--fewa-ink); }
+.fs-grid select, .fs-grid input[type="text"], .fs-grid input[type="number"] { width: 100%; }
+.fs-options-label { font-weight: 600; color: var(--fewa-ink); }
+.fs-options { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 10px 40px; }
+.fs-check { display: flex; align-items: center; gap: 8px; font-weight: 400; cursor: pointer; }
+.fs-buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 8px; }
+.fs-readonly { color: var(--fewa-muted); font-size: .9rem; }
+.fs-listbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin: 16px 0 8px; color: var(--fewa-muted); }
+.fs-listbar input { max-width: 280px; width: 100%; }
+@media (max-width: 900px) {
+    .fs-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .fs-grid > label, .fs-options-label { margin-top: 8px; }
+    .fs-options { grid-column: auto; }
+    .fs-listbar input { max-width: none; }
+}

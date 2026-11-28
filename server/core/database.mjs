@@ -78,7 +78,10 @@ export const SCHEDULE_STORES = ['period_schedules'];
 export const EXAM_STORES = ['exam_groups', 'exam_types', 'grading_systems', 'group_exam_types', 'award_setups', 'course_exam_groups', 'exam_paper_types'];
 // Record stores only administrators read or change (Staff Management > Staff Accreditation)
 export const ADMIN_STORES = ['staff_qualifications'];
-export const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES, ...ADMIN_STORES];
+// Manage Finance > Fee Setup (database/3-finance.sql, end): read with the finance rights, changed with Edit Fee Setup
+export const FINANCE_STORES = ['fee_types', 'vote_heads', 'discount_types', 'discount_amounts', 'discounts_surcharges', 'payment_methods',
+    'school_payment_methods', 'bank_accounts', 'finance_lists'];
+export const COLUMN_TABLES = ['students', 'documents', 'deferrals', 'applications', 'staff', ...ACADEMIC_STORES, ...ADMIN_STORES, ...FINANCE_STORES];
 const SERVER_COLUMNS = new Set(['extra', 'position']);
 const COLUMNS_FRESH_MS = 15000;
 export const snakeToCamel = name => name.replace(/_([a-z0-9])/g, (_, ch) => ch.toUpperCase());
@@ -92,6 +95,8 @@ export const SCHEMA_OF = {
     departments: 'settings', qualification_types: 'settings', student_types: 'settings', document_types: 'settings', system_updates: 'settings',
     reg_number_sequences: 'settings', short_courses: 'settings', award_types: 'settings',
     fee_payment_details: 'finance', fee_structure: 'finance', charges: 'finance', payments: 'finance',
+    fee_types: 'finance', vote_heads: 'finance', discount_types: 'finance', discount_amounts: 'finance', discounts_surcharges: 'finance',
+    payment_methods: 'finance', school_payment_methods: 'finance', bank_accounts: 'finance', finance_lists: 'finance',
     staff_roles: 'settings', role_operations: 'settings',
     staff: 'staff', staff_qualifications: 'staff',
     sessions: 'logins', password_reset_codes: 'logins', sign_in_activity: 'logins',

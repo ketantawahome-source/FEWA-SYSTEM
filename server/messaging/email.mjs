@@ -5,7 +5,7 @@ import path from 'node:path';
 import { CODE_MAX_ATTEMPTS, RESET_GRANT_MINUTES, clientIp, codeHash, createSession, endOtherSessions, endSession, forgetSessions, lower, newPasswordDetails, passwordAcceptable, passwordMatches, sameText } from '../auth/sessions.mjs';
 import { root } from '../core/config.mjs';
 import { pool } from '../core/connection.mjs';
-import { ACADEMIC_RIGHTS, ACADEMIC_STORES, EXAM_STORES, SCHEDULE_STORES, T, loadConfig, recordFromRow } from '../core/database.mjs';
+import { ACADEMIC_RIGHTS, ACADEMIC_STORES, EXAM_STORES, FINANCE_STORES, SCHEDULE_STORES, T, loadConfig, recordFromRow } from '../core/database.mjs';
 import { fileIdsIn } from '../files/stored-files.mjs';
 import { getRecord, selectRecords } from '../stores/stores.mjs';
 
@@ -285,7 +285,7 @@ const RIGHT_FROM = {
     'reports.standard': 'reports.view', 'reports.performance': 'reports.view',
     'reports.students': 'reports.view', 'reports.finance': 'reports.view',
     'schedule.view': 'academics.view', 'schedule.edit': 'academics.edit', 'exams.view': 'academics.view', 'exams.edit': 'academics.edit',
-    'settings.school': 'settings.edit'
+    'settings.school': 'settings.edit', 'finance.setup': 'finance.edit'
 };
 // The rights to open groups of reports (each report is built from the student records)
 const REPORT_READERS = ['reports.view', 'reports.excel', 'reports.standard', 'reports.performance', 'reports.students', 'reports.finance'];
@@ -310,7 +310,9 @@ export const RIGHTS_TO_READ = {
     // Reports > Student Reports > Students Attendance reads the Roll Call registers
     attendance_registers: [...ACADEMIC_RIGHTS, ...REPORT_READERS],
     // Finance lists the semesters of the Semester Schedule (fees, charges and payments are per semester)
-    period_schedules: [...ACADEMIC_RIGHTS, 'finance.view', 'finance.add', 'finance.edit', 'finance.void']
+    period_schedules: [...ACADEMIC_RIGHTS, 'finance.view', 'finance.add', 'finance.edit', 'finance.void'],
+    // Manage Finance > Fee Setup
+    ...Object.fromEntries(FINANCE_STORES.map(store => [store, ['finance.view', 'finance.add', 'finance.edit', 'finance.void', 'finance.setup']]))
 };
 // A stored file: someone who may read documents may open any; someone who may only read student records, not an
 // uploaded document (a student's photo is fine)
@@ -324,6 +326,7 @@ export async function rightsToWrite(store, id, method) {
     // Manage Units: registering students is its own right; the rest (units, programme units, offers) is editing
     if (store === 'programme_units') return ['academics.edit', 'settings.edit', method === 'DELETE' ? 'settings.delete' : 'settings.add'];
     if (SCHEDULE_STORES.includes(store)) return ['schedule.edit'];
+    if (FINANCE_STORES.includes(store)) return ['finance.setup'];
     // Roll Call Management: taking (and correcting or removing) a register
     if (store === 'attendance_registers') return ['attendance.mark'];
     if (EXAM_STORES.includes(store)) return ['exams.edit'];

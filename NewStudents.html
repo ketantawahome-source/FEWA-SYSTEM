@@ -21,7 +21,7 @@
         // New Students is part of Student Hub (Role Operations)
         if (currentAccount() && !allowed('students', 'view')) location.replace('Dashboard.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261127c">
+    <link rel="stylesheet" href="styles.css?v=20261128a">
 </head>
 
 <body>
@@ -54,6 +54,9 @@
                     </li>
                     <li class="submenu-item" onclick="openSection('finance-details')">
                         <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-setup')">
+                        <span class="icon-circle"></span> Fee Setup
                     </li>
                 </ul>
             </li>

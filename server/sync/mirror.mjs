@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { ACCOUNTS_KEY, ROLE_OPERATIONS_KEY } from '../auth/accounts.mjs';
 import { pool, setUpTables } from '../core/connection.mjs';
-import { ACADEMIC_STORES, ADMIN_STORES, SCHEMA_OF, SETTING_FORMS, SETTING_LISTS, T, columnCache, ensureDatabase, loadConfig, sqlName } from '../core/database.mjs';
+import { ACADEMIC_STORES, ADMIN_STORES, FINANCE_STORES, SCHEMA_OF, SETTING_FORMS, SETTING_LISTS, T, columnCache, ensureDatabase, loadConfig, sqlName } from '../core/database.mjs';
 
 /* ---------- Two-way sync with a second PostgreSQL (the "mirror", e.g. this computer's PostgreSQL 18) ----------
    Set by "mirror" in db-config.json. The main database (e.g. Supabase) is the one the system reads and saves.
@@ -32,6 +32,7 @@ export const STORE_TABLES = {
     applications: ['applications', 'stored_files'],
     ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, [store]])),
     ...Object.fromEntries(ADMIN_STORES.map(store => [store, [store]])),
+    ...Object.fromEntries(FINANCE_STORES.map(store => [store, [store]])),
     settings: ['settings', ...Object.values(SETTING_LISTS), ...Object.values(SETTING_FORMS)]
 };
 export const valueTables = key => key === ACCOUNTS_KEY ? ['staff', 'stored_files', 'staff_qualifications']

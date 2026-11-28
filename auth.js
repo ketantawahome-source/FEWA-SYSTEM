@@ -113,6 +113,7 @@ const ROLE_OPERATIONS = [
     ['settings.delete', 'Delete Settings Items', 'Ability to delete courses, campuses, terms, roles and other setup items.'],
     // Settings > Organisation Setup > School Settings: the Global Settings the owner ticked "School may change it" for
     ['settings.school', 'Manage School Settings', 'Ability to change the Global Settings the owner has ticked "School may change it" for (Settings > Organisation Setup > School Setup, Rules set by the owner). It gives nothing while the owner has ticked none.', 'settings.edit'],
+    ['finance.setup', 'Edit Fee Setup', 'Ability to change Manage Finance > Fee Setup: fee types, vote heads, discounts and surcharges, payment methods, bank accounts and lists.', 'finance.edit'],
     ['finance.edit', 'Edit Fee Payment Details', 'Ability to change the fee structure, give waivers and bursaries, and change the M-Pesa and bank details fees are paid to.'],
     ['settings.edit', 'Edit Settings', 'Ability to change setup items and the School Setup details.'],
     ['students.edit', 'Edit Students', 'Ability to change student details, status, contacts and deferrals.'],

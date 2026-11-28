@@ -22,7 +22,7 @@
         // Only administrators manage staff
         if (currentAccount() && !isAdmin()) location.replace('StudentAdmissions.html');
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261127c">
+    <link rel="stylesheet" href="styles.css?v=20261128a">
     <style>
         /* Find or add a member of staff: the first step, before the staff form opens */
         /* Laid out as the reference screen: Source Sans, a plain white card, the title on a thin rule
@@ -233,6 +233,9 @@
                     </li>
                     <li class="submenu-item" onclick="openSection('finance-details')">
                         <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                    <li class="submenu-item" onclick="openSection('finance-setup')">
+                        <span class="icon-circle"></span> Fee Setup
                     </li>
                 </ul>
             </li>

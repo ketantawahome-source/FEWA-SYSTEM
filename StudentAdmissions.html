@@ -19,6 +19,7 @@
     <script src="email-config.js"></script>
     <script src="backup-page.js?v=20261127a"></script>
     <script src="finance.js?v=20261127a"></script>
+    <script src="fee-setup.js?v=20261128a"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
@@ -27,7 +28,7 @@
     <script>
         requireLogin();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261127c">
+    <link rel="stylesheet" href="styles.css?v=20261128a">
     <style>
         /* Settings > Organisation Setup > Batches: compact, labels beside the boxes, two columns */
         .batch-page { font-size: 14px; }
@@ -115,6 +116,9 @@
                     </li>
                     <li class="submenu-item" data-open="finance-details" onclick="openFinance('financePaymentDetailsPane', this)">
                         <span class="icon-circle"></span> Fee Payment Details
+                    </li>
+                    <li class="submenu-item" data-open="finance-setup" onclick="openFinance('financeFeeSetupPane', this)">
+                        <span class="icon-circle"></span> Fee Setup
                     </li>
                 </ul>
             </li>
@@ -917,6 +921,11 @@
                     <div class="section-title">FEE PAYMENT DETAILS</div>
                     <div id="paymentDetailsSection"></div>
                 </div>
+
+                <!-- Fee Setup: drawn by fee-setup.js (fee types, vote heads, discounts, payment methods, bank accounts, lists) -->
+                <div id="financeFeeSetupPane" class="form-section" style="display: none;">
+                    <div id="feeSetupApp"></div>
+                </div>
             </div>
 
             <!-- EXCEL REPORTS: every report as a spreadsheet to download -->
@@ -1178,11 +1187,12 @@
         // Manage Finance has two sidebar links: Payments and Fee Payment Details
         function openFinance(paneId, element) {
             switchTab('financeTab', element);
-            ['financePaymentsPane', 'financePaymentDetailsPane'].forEach(pane =>
+            ['financePaymentsPane', 'financePaymentDetailsPane', 'financeFeeSetupPane'].forEach(pane =>
                 document.getElementById(pane).style.display = pane === paneId ? 'block' : 'none');
             if (paneId === 'financePaymentDetailsPane') {
                 renderSettingsForm('paymentDetails', document.getElementById('paymentDetailsSection'));
             }
+            if (paneId === 'financeFeeSetupPane' && typeof feeSetupOpen === 'function') feeSetupOpen();
             if (paneId === 'financePaymentsPane' && typeof financeOpen === 'function')
             financeOpen();
         }

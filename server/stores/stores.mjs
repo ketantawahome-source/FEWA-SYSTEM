@@ -1,12 +1,13 @@
 /* ---------- Record stores: reading and writing the system's records ---------- */
 import { inTransaction, pool } from '../core/connection.mjs';
-import { ACADEMIC_STORES, ADMIN_STORES, COLUMN_TABLES, SCHEMA_OF, SETTING_FORMS, SETTING_LISTS, T, recordFromRow, rowFromRecord, sqlName, tableColumns, upsertRow } from '../core/database.mjs';
+import { ACADEMIC_STORES, ADMIN_STORES, COLUMN_TABLES, FINANCE_STORES, SCHEMA_OF, SETTING_FORMS, SETTING_LISTS, T, recordFromRow, rowFromRecord, sqlName, tableColumns, upsertRow } from '../core/database.mjs';
 import { deleteUnusedFiles, fileIdsIn, storeNewFiles } from '../files/stored-files.mjs';
 import { deleteSetting, readSetting, writeSetting } from '../settings/settings.mjs';
 
 /* ---------- Record stores: students, documents, deferrals (columns) and settings (tables above) ---------- */
 export const STORES = { students: 'id', documents: 'id', deferrals: 'id', applications: 'id', settings: 'key',
-    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, 'id'])), ...Object.fromEntries(ADMIN_STORES.map(store => [store, 'id'])) };
+    ...Object.fromEntries(ACADEMIC_STORES.map(store => [store, 'id'])), ...Object.fromEntries(ADMIN_STORES.map(store => [store, 'id'])),
+    ...Object.fromEntries(FINANCE_STORES.map(store => [store, 'id'])) };
 const hasColumns = store => COLUMN_TABLES.includes(store);
 export async function selectRecords(db, store, id) {
     const key = sqlName(STORES[store]);
