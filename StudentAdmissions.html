@@ -19,7 +19,7 @@
     <script src="email-config.js"></script>
     <script src="backup-page.js?v=20261127a"></script>
     <script src="finance.js?v=20261127a"></script>
-    <script src="fee-setup.js?v=20261128j"></script>
+    <script src="fee-setup.js?v=20261128k"></script>
     <script src="icons.js"></script>
     <script src="notify.js"></script>
     <script src="topbar-search.js?v=20261111c"></script>
@@ -1201,6 +1201,11 @@
         // Each list feeds a dropdown elsewhere; studentField is the student record field that stores its value.
         // What a course is known by (and saved on students as): its name, plus award and duration when another course shares the name
         function courseLabel(c) { return c.labelSuffix ? `${c.name} (${c.labelSuffix})` : c.name; }
+        // The courses of a school (a course's Institute is its school; extra spaces ignored); every course when none is chosen
+        const sameName = (a, b) => String(a || '').trim().replace(/\s+/g, ' ').toLowerCase() === String(b || '').trim().replace(/\s+/g, ' ').toLowerCase();
+        function coursesOfSchool(courses, school) {
+            return school ? courses.filter(c => !c.institute || sameName(c.institute, school)) : courses;
+        }
 
         /* Batch types (Settings > Organisation Setup > Batches): an academic year (about 12 months), or a short course
            batch of 3 months for the short courses (a course of 6 months or less). The server makes the students of a
@@ -3416,7 +3421,7 @@
             if (!s) return false;
             const typed = (f.student || '').toLowerCase();
             return (!f.course || s.admissionCourse === f.course)
-                && (!f.school || reportCourseSchools.get(s.admissionCourse) === f.school)
+                && (!f.school || sameName(reportCourseSchools.get(s.admissionCourse), f.school))
                 && (!f.campus || s.campus === f.campus)
                 && (!f.batch || s.group === f.batch)
                 && (!f.enrollment || s.enrollment === f.enrollment)
@@ -3437,7 +3442,14 @@
             await keepFill('reportSSchool', await getSettingLabels('schools'), '-- all schools --');
             await keepFill('reportSCampus', await getSettingLabels('campuses'), '-- all campuses --');
             const courseRequired = (report.required || []).includes('course');
-            await keepFill('reportSCourse', courses.map(courseLabel), courseRequired ? '-- select one --' : '-- all courses --');
+            // Only the chosen school's courses (owner: everywhere a School box is beside a Course box)
+            const fillCourses = () => keepFill('reportSCourse', coursesOfSchool(courses, document.getElementById('reportSSchool').value).map(courseLabel),
+                courseRequired ? '-- select one --' : '-- all courses --');
+            await fillCourses();
+            document.getElementById('reportSSchool').onchange = async () => {
+                await fillCourses();
+                await reportBatchForCourse(document.getElementById('reportSCourse'));
+            };
             document.getElementById('reportSCourseReq').hidden = !courseRequired;
             // Academic Year / Batch: the batches, then the academic years (short course students have the year instead)
             const academicYears = [...SETTINGS_LISTS.batches.fields.find(f => f.name === 'academicYear').options].reverse();
@@ -4536,7 +4548,7 @@
             const courses = await getSettingItems('courses');
             const schoolOf = courseName => (courses.find(c => courseLabel(c) === courseName) || {}).institute;
             return sortByName((await getAll('students')).filter(s =>
-                (!f.school || schoolOf(s.admissionCourse) === f.school) && (!f.campus || s.campus === f.campus) &&
+                (!f.school || sameName(schoolOf(s.admissionCourse), f.school)) && (!f.campus || s.campus === f.campus) &&
                 (!f.course || s.admissionCourse === f.course) && (!f.enrollment || s.enrollment === f.enrollment) &&
                 (!f.gender || s.gender === f.gender) && (!f.status || yesNo(s.activeStudent) === f.status)));
         }
@@ -4659,7 +4671,7 @@
                     return {
                         headers: ['Course', 'Code', 'Institution Name', 'Institute', 'Award', 'Duration', 'Department', 'Enabled', 'Students'],
                         rows: (await getSettingItems('courses'))
-                            .filter(c => (!f.school || c.institute === f.school) && (!f.enabled || (c.enabled || 'YES') === f.enabled))
+                            .filter(c => (!f.school || sameName(c.institute, f.school)) && (!f.enabled || (c.enabled || 'YES') === f.enabled))
                             .map(c => [c.name, c.code, c.institution, c.institute, c.award,
                                 durationText(c.duration, c.durationType), c.department, c.enabled,
                                 students.filter(s => s.admissionCourse === c.name).length])
@@ -4868,6 +4880,20 @@
                 </form>`;
             document.getElementById('excelReportListView').hidden = true;
             document.getElementById('excelReportFormView').hidden = false;
+            // The Course box follows the School box (only the chosen school's courses)
+            const schoolBox = document.getElementById('excelFilter_school');
+            const courseBox = document.getElementById('excelFilter_course') || document.getElementById('excelFilter_courseRequired');
+            if (schoolBox && courseBox) {
+                const courses = await getSettingItems('courses');
+                const first = courseBox.options[0] ? courseBox.options[0].textContent : '-- all courses --';
+                schoolBox.addEventListener('change', () => {
+                    const keep = courseBox.value;
+                    const labels = coursesOfSchool(courses, schoolBox.value).map(courseLabel);
+                    courseBox.innerHTML = `<option value="">${escapeHtml(first)}</option>` +
+                        labels.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+                    courseBox.value = labels.includes(keep) ? keep : '';
+                });
+            }
         }
 
         async function generateExcelReport(event, key) {

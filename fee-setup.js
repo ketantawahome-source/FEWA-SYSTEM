@@ -166,7 +166,8 @@
                 { name: 'calculatedAs', label: 'Amount Type', type: 'select', options: () => CALCULATED, required: true },
                 { name: 'value', label: 'Amount', type: 'number', min: 0, max: 10000000, required: true, placeholder: 'e.g. 10' },
                 { name: 'remarks', label: 'Remarks', type: 'textarea', max: 500 },
-                { name: 'course', label: 'Course', type: 'select', options: () => state.courses, placeholder: '-- all courses --', refill: true }
+                // Only the chosen institution's courses (owner)
+                { name: 'course', label: 'Course', type: 'select', options: () => coursesOf(box('school') && box('school').value), placeholder: '-- all courses --', refill: true }
             ],
             columns: [['Institution', r => r.school || 'All'], ['Discount type', r => r.discountType], ['Fee', r => r.feeType || 'All fees'],
                 ['Term', r => shortOf(r.course) ? `${shortOf(r.course)} - whole course` : r.period || 'Every term'],
@@ -177,7 +178,8 @@
             same: (a, b) => same(a.school, b.school) && same(a.discountType, b.discountType) && same(a.feeType, b.feeType) && same(a.period, b.period)
                 && same(a.batch, b.batch) && same(a.course, b.course),
             label: r => `${r.discountType} (${r.feeType || 'all fees'}, ${r.period || 'every term'}${r.batch ? ', ' + r.batch : ''})`,
-            check: r => r.calculatedAs === 'PERCENT' && Number(r.value) > 100 ? 'A percentage cannot be above 100.' : ''
+            check: r => r.calculatedAs === 'PERCENT' && Number(r.value) > 100 ? 'A percentage cannot be above 100.'
+                : r.course && r.school && courseSchool(r.course) && !same(courseSchool(r.course), r.school) ? `${r.course} is not a course of ${r.school}.` : ''
         },
         {
             key: 'discountsSurcharges', title: 'Discounts & Surcharges', store: 'discounts_surcharges', save: 'Save Discount',
