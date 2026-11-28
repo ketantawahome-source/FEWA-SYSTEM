@@ -76,19 +76,42 @@
         },
         {
             key: 'voteHeads', title: 'VoteHeads', store: 'vote_heads', save: 'Save vote head',
-            note: 'The vote heads the money of a fee type is shared out to (for example Tuition, Exams, Library). Priority 1 is paid first.',
+            note: 'Define the voteheads that fees are grouped under. A sub-votehead belongs to a main votehead. Priority 1 is paid first.',
             fields: [
-                { name: 'name', label: 'VoteHead Name', type: 'text', required: true, max: 100 },
+                { name: 'name', label: 'VoteHead', type: 'text', required: true, max: 100, upper: true },
+                { name: 'displayName', label: 'Display Name', type: 'text', required: true, max: 100, upper: true },
+                // Only main voteheads can have sub-voteheads (one level), never the votehead itself
+                { name: 'parent', label: 'Sub-votehead of', type: 'select', placeholder: '-- none, main votehead --',
+                    options: () => rows('vote_heads').filter(r => !r.parent && r.id !== state.editing).map(r => r.name).filter(Boolean)
+                        .sort((a, b) => a.localeCompare(b)) },
+                { name: 'billableSubs', label: 'Billable Sub-voteheads', type: 'number', min: 0, max: 99, placeholder: 'Leave blank if not limited' },
                 { name: 'code', label: 'Code', type: 'text', max: 20, upper: true },
                 { name: 'feeType', label: 'Fee Type', type: 'select', options: () => names('fee_types', 'feeName') },
                 { name: 'priority', label: 'Priority', type: 'number', min: 1, max: 99, start: 1 },
-                { name: 'status', label: 'Status', type: 'select', options: () => STATUS, placeholder: null }
+                { name: 'status', label: 'Status', type: 'select', options: () => STATUS, placeholder: null },
+                { name: 'showOnFeeStructure', label: 'Show on fee structure', type: 'check', start: true },
+                { name: 'showOnInvoices', label: 'Show on invoices', type: 'check', start: true },
+                { name: 'extraCurricular', label: 'Extra-curricular', type: 'check' }
             ],
-            columns: [['Vote head', r => r.name], ['Code', r => r.code], ['Fee type', r => r.feeType], ['Priority', r => num(r.priority), true],
+            columns: [['VoteHead', r => r.name], ['Display name', r => r.displayName || r.name], ['Sub-votehead of', r => r.parent],
+                ['Fee type', r => r.feeType], ['Priority', r => num(r.priority), true],
+                ['Invoices', r => isTicked(TABS[1].fields.find(f => f.name === 'showOnInvoices'), r) ? 'YES' : 'NO'],
+                ['Fee structure', r => isTicked(TABS[1].fields.find(f => f.name === 'showOnFeeStructure'), r) ? 'YES' : 'NO'],
+                ['Extra-curricular', r => r.extraCurricular === 'Y' ? 'YES' : 'NO'],
+                ['Billable sub-voteheads', r => r.billableSubs === '' || r.billableSubs == null ? '' : num(r.billableSubs), true],
                 ['Status', r => r.status || 'ACTIVE']],
-            sort: (a, b) => Number(a.priority || 99) - Number(b.priority || 99) || String(a.name).localeCompare(String(b.name)),
+            sort: (a, b) => String(a.parent || a.name).localeCompare(String(b.parent || b.name)) || (a.parent ? 1 : 0) - (b.parent ? 1 : 0)
+                || Number(a.priority || 99) - Number(b.priority || 99) || String(a.name).localeCompare(String(b.name)),
             same: (a, b) => same(a.name, b.name),
-            label: r => r.name
+            label: r => r.name,
+            check: r => {
+                if (r.parent && same(r.parent, r.name)) return 'A votehead cannot be a sub-votehead of itself.';
+                const old = rows('vote_heads').find(x => x.id === state.editing);
+                if (r.parent && old && rows('vote_heads').some(x => same(x.parent, old.name)))
+                    return `${old.name} has sub-voteheads of its own, so it stays a main votehead.`;
+                return '';
+            },
+            uses: { field: 'name', in: [['vote_heads', 'parent']] }
         },
         {
             key: 'discountTypes', title: 'Discount Types', store: 'discount_types', save: 'Save discount type',
@@ -235,7 +258,7 @@
         const input = f => {
             const id = 'fs_' + f.name;
             if (f.type === 'select') return `<select id="${id}"></select>`;
-            if (f.type === 'number') return `<input id="${id}" type="number" min="${f.min ?? 0}" max="${f.max ?? 100000}" step="any" autocomplete="off" value="${f.start ?? ''}">`;
+            if (f.type === 'number') return `<input id="${id}" type="number" min="${f.min ?? 0}" max="${f.max ?? 100000}" step="any" autocomplete="off" value="${f.start ?? ''}" placeholder="${esc(f.placeholder || '')}">`;
             return `<input id="${id}" type="text" maxlength="${f.max || 200}" autocomplete="off" placeholder="${esc(f.placeholder || '')}"${f.list ? ` list="${id}_list"` : ''}>` +
                 (f.list ? `<datalist id="${id}_list"></datalist>` : '');
         };
@@ -246,7 +269,7 @@
                 <h2 class="fs-title">${esc(t.title)}</h2>
                 <div class="fs-info">${esc(t.note)}</div>
                 <div class="fs-grid">${plain.map(f => `<label for="fs_${f.name}">${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>${input(f)}`).join('')}
-                    ${checks.length ? `<span class="fs-options-label">Options</span><div class="fs-options">${checks.map(f =>
+                    ${checks.length ? `<span class="fs-options-label">Options</span><div class="fs-options${checks.length <= 3 ? ' fs-options-row' : ''}">${checks.map(f =>
                         `<label class="fs-check"><input type="checkbox" id="fs_${f.name}"${f.start ? ' checked' : ''}> ${esc(f.label)}</label>`).join('')}</div>` : ''}
                 </div>
                 <div class="fs-buttons">
@@ -379,7 +402,7 @@
         if (!r) return;
         const used = t.inUse ? t.inUse(r)
             : t.uses ? t.uses.in.some(([store, field]) => rows(store).some(x => x.id !== r.id && same(x[field], r[t.uses.field]))) : false;
-        if (used) return alert(`${t.label(r)} is used on another tab, so it is kept. Change or remove those entries first (or set it INACTIVE).`);
+        if (used) return alert(`${t.label(r)} is in use (on this tab or another one), so it is kept. Change or remove those entries first (or set it INACTIVE).`);
         if (!await fewaConfirm(`Remove ${t.label(r)}?`)) return;
         try {
             await fewaDB.remove(t.store, id);

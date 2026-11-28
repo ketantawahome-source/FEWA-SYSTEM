@@ -230,3 +230,11 @@ ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS charge_once_year text;   
 ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS charge_once_per_family text;      -- once per family (siblings pay once)
 ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS continuing_only text;             -- continuing students only (not new ones)
 ALTER TABLE finance.fee_types ADD COLUMN IF NOT EXISTS bill_prospective text;            -- billed to applicants before admission
+
+-- VoteHeads fields added later (owner, 2026-11-28)
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS display_name text;
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS parent text;                    -- the main votehead of a sub-votehead (empty = main)
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS billable_subs numeric;          -- how many sub-voteheads can be billed (empty = not limited)
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS show_on_fee_structure text;    -- Y / N (ticked at first)
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS show_on_invoices text;         -- Y / N (ticked at first)
+ALTER TABLE finance.vote_heads ADD COLUMN IF NOT EXISTS extra_curricular text;         -- Y / N
