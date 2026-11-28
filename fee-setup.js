@@ -396,6 +396,9 @@
                     <tbody id="fsRows"></tbody></table></div>
                 ${t.members ? membersHtml() : ''}
             </div>`;
+        // (phone: the tab row scrolls sideways; the chosen tab is brought into view)
+        const active = app().querySelector('.fin-tab.active');
+        if (active && active.parentElement.scrollWidth > active.parentElement.clientWidth) active.scrollIntoView({ block: 'nearest', inline: 'center' });
         fillChoices();
         box(t.fields[0].name).addEventListener('input', fillChoices);
         for (const f of t.fields.filter(f => f.filter)) box(f.name).addEventListener('change', drawList);

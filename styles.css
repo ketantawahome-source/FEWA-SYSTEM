@@ -6752,3 +6752,9 @@ tr.stamp-old td { color: #9a8fae; }
     .fs-members .fs-copy { grid-template-columns: minmax(0, 1fr); }
     .fs-members .fs-copy .btn-secondary { justify-self: start; }
 }
+/* Phone: the Manage Finance / Fee Setup tabs are one row that scrolls sideways (as the other pages' tabs), so the row that
+   stays at the top while scrolling is one line high, not four */
+@media (max-width: 768px) {
+    #content-area .fin-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+    #content-area .fin-tab { flex-shrink: 0; white-space: nowrap; }
+}
